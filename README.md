@@ -152,3 +152,4 @@ Do not:
 - assume any of this guarantees an airdrop.
 
 Wait for official FLOP Labs rules before adding any financial-wallet or claim functionality.
+# flop-scout
