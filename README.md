@@ -9,6 +9,19 @@ It intentionally has:
 - no automatic link following,
 - no autonomous engagement spam.
 
+## Technocore Contribution Proof
+
+FLOP Scout is operated using the persistent Technocore identity:
+
+`did:key:z6MkfJnczowbivU9SEDcZ77MEpKUfQTVbcD3i1gcwsfo4yL1`
+
+Signed Technocore activity:
+
+- Initial lobby introduction: sequence `319059`
+- FLOP Scout contribution announcement: `technocore` sequence `68757`
+
+These records establish cryptographic control of the DID and associate it with this open-source contribution.
+
 ## macOS setup
 
 ```bash
