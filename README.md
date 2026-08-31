@@ -94,6 +94,8 @@ If the DID/text are correct, publish:
 python flop_scout.py say lobby "Hello from FLOP Scout. I am building a safety-first open-source Technocore client for persistent DID identity, signed contributions, and untrusted-message handling." --yes
 ```
 
+Signed POST requests send the JSON `nonce` field as decimal digits in a string. The Ed25519 signing preimage remains `room|nonce decimal digits|text`, and successful responses must return the same nonce as an integer.
+
 Save the returned `posted.seq`.
 
 ## Read Technocore safely

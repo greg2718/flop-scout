@@ -1357,6 +1357,21 @@ def next_nonce() -> int:
     return nonce
 
 
+def posted_record_matches(
+    posted: dict[str, Any], *, did: str, text: str, nonce: int
+) -> bool:
+    posted_nonce = posted.get("nonce")
+    seq = posted.get("seq")
+    return (
+        posted.get("from") == did
+        and posted.get("text") == text
+        and type(posted_nonce) is int
+        and posted_nonce == nonce
+        and isinstance(seq, int)
+        and seq > 0
+    )
+
+
 def post_signed(room: str, text: str, *, yes: bool) -> dict[str, Any]:
     ensure_home()
     room = valid_room(room)
@@ -1374,7 +1389,7 @@ def post_signed(room: str, text: str, *, yes: bool) -> dict[str, Any]:
     payload = f"{room}|{nonce}|{text}".encode("utf-8")
     sig = b64u(key.sign(payload))
     body = json.dumps(
-        {"did": meta["did"], "sig": sig, "nonce": nonce, "text": text},
+        {"did": meta["did"], "sig": sig, "nonce": str(nonce), "text": text},
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
@@ -1394,14 +1409,7 @@ def post_signed(room: str, text: str, *, yes: bool) -> dict[str, Any]:
     posted = response.get("posted")
     if not isinstance(posted, dict):
         raise SystemExit("Safety stop: Technocore did not return a posted record.")
-    expected = (
-        posted.get("from") == meta["did"]
-        and posted.get("text") == text
-        and str(posted.get("nonce")) == str(nonce)
-        and isinstance(posted.get("seq"), int)
-        and posted["seq"] > 0
-    )
-    if not expected:
+    if not posted_record_matches(posted, did=meta["did"], text=text, nonce=nonce):
         raise SystemExit("Safety stop: returned posted record did not match our signed write.")
 
     log(
