@@ -23,4 +23,4 @@ Current signed message payload:
 Current preferred network write:
     POST /r/<room>?format=json
 JSON body:
-    {"did": "...", "sig": "...", "nonce": ..., "text": "..."}
+    {"did": "...", "sig": "...", "nonce": "<decimal-digits>", "text": "..."}

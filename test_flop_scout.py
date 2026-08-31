@@ -1,5 +1,7 @@
 import unittest
 import sqlite3
+import json
+from unittest.mock import patch
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 import flop_scout
 
@@ -43,6 +45,73 @@ class Tests(unittest.TestCase):
         sig = key.sign(payload)
         key.public_key().verify(sig, payload)
         self.assertEqual(len(flop_scout.b64u(sig)), 86)
+
+    def test_signed_post_request_nonce_is_string_and_signature_preimage_unchanged(self):
+        key = Ed25519PrivateKey.generate()
+        did = flop_scout.public_did(key)
+        nonce = 1234567890123
+        captured = {}
+
+        def fake_request_json(req, *, is_write=False):
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            return {
+                "posted": {
+                    "from": did,
+                    "text": "hello",
+                    "nonce": nonce,
+                    "seq": 1,
+                }
+            }
+
+        with (
+            patch("flop_scout.ensure_home"),
+            patch("flop_scout.load_meta", return_value={"did": did}),
+            patch("flop_scout.load_key", return_value=key),
+            patch("flop_scout.next_nonce", return_value=nonce),
+            patch("flop_scout.request_json", side_effect=fake_request_json),
+            patch("flop_scout.log"),
+        ):
+            flop_scout.post_signed("lobby", "hello", yes=True)
+
+        self.assertEqual(captured["body"]["nonce"], str(nonce))
+        self.assertIsInstance(captured["body"]["nonce"], str)
+        self.assertRegex(captured["body"]["nonce"], r"^[0-9]{1,19}$")
+        payload = f"lobby|{nonce}|hello".encode("utf-8")
+        sig = captured["body"]["sig"] + "=="
+        key.public_key().verify(flop_scout.base64.urlsafe_b64decode(sig), payload)
+
+    def test_successful_integer_response_nonce_is_accepted(self):
+        self.assertTrue(
+            flop_scout.posted_record_matches(
+                {"from": "did:key:z6MkOwn", "text": "hello", "nonce": 123, "seq": 1},
+                did="did:key:z6MkOwn",
+                text="hello",
+                nonce=123,
+            )
+        )
+
+    def test_non_integer_or_mismatched_response_nonces_fail_closed(self):
+        base = {"from": "did:key:z6MkOwn", "text": "hello", "seq": 1}
+        bad_cases = [
+            ("string", "123", 123),
+            ("bool", True, 1),
+            ("float", 123.0, 123),
+            ("missing", None, 123),
+            ("mismatched", 124, 123),
+        ]
+        for label, bad_nonce, expected_nonce in bad_cases:
+            posted = dict(base)
+            if bad_nonce is not None:
+                posted["nonce"] = bad_nonce
+            with self.subTest(label=label):
+                self.assertFalse(
+                    flop_scout.posted_record_matches(
+                        posted,
+                        did="did:key:z6MkOwn",
+                        text="hello",
+                        nonce=expected_nonce,
+                    )
+                )
 
     def test_sqlite_deduplication_and_signed_detection(self):
         conn = self.make_conn()
