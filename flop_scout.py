@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 BASE_URL = "https://technocore.chat"
 HOME = Path.home() / ".flop_scout"
@@ -29,13 +29,40 @@ META_FILE = HOME / "identity.json"
 LOG_FILE = HOME / "activity.jsonl"
 DOC_HASH_FILE = HOME / "doc_hashes.json"
 EVIDENCE_DIR = HOME / "evidence"
+EXPORTS_DIR = EVIDENCE_DIR / "exports"
 OBSERVER_DB = HOME / "observer.sqlite"
-USER_AGENT = "flop-scout/0.3.2"
+USER_AGENT = "flop-scout/0.3.3"
 DEFAULT_OBSERVE_ROOMS = ("lobby", "technocore")
 INTERACTION_WINDOW = 5
+CANONICAL_ROOM = "d-flop-scout"
+MAILBOX_ROOM = "mb-flop-scout"
+GITHUB_URL = "https://github.com/greg2718/flop-scout"
+SERVICE_ROOMS = (MAILBOX_ROOM, "technocore", "lobby")
+CONFIG_DUPLICATE_KEYS = ("dupe_filter_seconds", "dupe_max_copies", "dupe_min_length")
+UNKNOWN_LEGACY_GENERATION = "UNKNOWN_LEGACY"
+GENERATION_MISSING = "GENERATION_MISSING"
+DEFAULT_EVIDENCE_ROOMS = (CANONICAL_ROOM, MAILBOX_ROOM)
+DUPLICATE_REFUSAL_MESSAGE = """Technocore refused this message as duplicate/repeated content (HTTP 422).
+
+The same or equivalent normalized text has recently appeared too many times
+in this room.
+
+No message was posted.
+No automatic retry will be attempted.
+
+Recommendation:
+Review recent room traffic and manually decide whether there is something
+genuinely new worth saying."""
 
 B58 = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 ED25519_MULTICODEC = b"\xed\x01"
+
+
+class TechnocoreDuplicateRefusal(Exception):
+    def __init__(self, body: str):
+        super().__init__("Technocore duplicate-content refusal")
+        self.status = 422
+        self.body = body
 
 
 def ensure_home() -> None:
@@ -58,8 +85,30 @@ def b58encode(raw: bytes) -> str:
     return (B58[:1] * zeros + enc).decode("ascii")
 
 
+def b58decode(text: str) -> bytes:
+    n = 0
+    for ch in text.encode("ascii"):
+        try:
+            value = B58.index(ch)
+        except ValueError as exc:
+            raise ValueError("Invalid base58 character.") from exc
+        n = n * 58 + value
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big") if n else b""
+    zeros = len(text) - len(text.lstrip("1"))
+    return b"\0" * zeros + raw
+
+
 def b64u(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def b64u_decode_canonical(text: str) -> bytes:
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", text):
+        raise ValueError("Invalid base64url signature characters.")
+    raw = base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+    if b64u(raw) != text:
+        raise ValueError("Non-canonical base64url signature.")
+    return raw
 
 
 def public_did(key: Ed25519PrivateKey) -> str:
@@ -68,6 +117,35 @@ def public_did(key: Ed25519PrivateKey) -> str:
         serialization.PublicFormat.Raw,
     )
     return "did:key:z" + b58encode(ED25519_MULTICODEC + pub)
+
+
+def is_valid_ed25519_did(did: str) -> bool:
+    if not re.fullmatch(r"did:key:z[1-9A-HJ-NP-Za-km-z]+", did):
+        return False
+    try:
+        decoded = b58decode(did.removeprefix("did:key:z"))
+    except ValueError:
+        return False
+    return decoded.startswith(ED25519_MULTICODEC) and len(decoded) == len(ED25519_MULTICODEC) + 32
+
+
+def public_key_from_did(did: str) -> Ed25519PublicKey:
+    if not is_valid_ed25519_did(did):
+        raise ValueError("Invalid Ed25519 DID.")
+    decoded = b58decode(did.removeprefix("did:key:z"))
+    return Ed25519PublicKey.from_public_bytes(decoded[len(ED25519_MULTICODEC) :])
+
+
+def parse_owner_note_response(raw: str | None) -> str | None:
+    if raw is None:
+        return None
+    candidates = re.findall(r"did:key:z[1-9A-HJ-NP-Za-km-z]+", raw)
+    valid = {candidate for candidate in candidates if is_valid_ed25519_did(candidate)}
+    if len(valid) == 1:
+        return next(iter(valid))
+    if len(valid) == 0:
+        raise SystemExit("Owner note response contained no valid Ed25519 DID. Treating untrusted content as invalid.")
+    raise SystemExit("Owner note response contained multiple distinct valid Ed25519 DIDs. Refusing to choose one.")
 
 
 def normalize_text(text: str) -> str:
@@ -217,12 +295,21 @@ def init_identity() -> None:
     print("Back up identity.pem and keep its passphrase separately.")
 
 
-def request_json(req: urllib.request.Request, *, is_write: bool = False) -> dict[str, Any]:
+def request_json(
+    req: urllib.request.Request,
+    *,
+    is_write: bool = False,
+    allow_missing: bool = False,
+) -> dict[str, Any]:
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             raw = resp.read(1_000_001)
     except urllib.error.HTTPError as exc:
         body = exc.read(4000).decode("utf-8", errors="replace")
+        if allow_missing and exc.code == 404:
+            return {}
+        if is_write and exc.code == 422:
+            raise TechnocoreDuplicateRefusal(body) from None
         raise SystemExit(f"Technocore HTTP {exc.code}: {body}") from None
     except Exception as exc:
         if is_write:
@@ -241,6 +328,152 @@ def request_json(req: urllib.request.Request, *, is_write: bool = False) -> dict
     if not isinstance(obj, dict):
         raise SystemExit("Technocore returned unexpected JSON.")
     return obj
+
+
+def request_text(
+    req: urllib.request.Request,
+    *,
+    is_write: bool = False,
+    allow_missing: bool = False,
+) -> str | None:
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            raw = resp.read(1_000_001)
+    except urllib.error.HTTPError as exc:
+        body = exc.read(4000).decode("utf-8", errors="replace")
+        if allow_missing and exc.code == 404:
+            return None
+        if is_write and exc.code == 422:
+            raise TechnocoreDuplicateRefusal(body) from None
+        if is_write:
+            raise SystemExit(
+                "Technocore write outcome is uncertain. Do NOT retry immediately. "
+                "Read the relevant room or note first and verify state."
+            ) from None
+        raise SystemExit(f"Technocore HTTP {exc.code}: {body}") from None
+    except Exception as exc:
+        if is_write:
+            raise SystemExit(
+                "Technocore write outcome is uncertain. Do NOT retry immediately. "
+                "Read the relevant room or note first and verify state."
+            ) from exc
+        raise SystemExit(f"Technocore request failed: {exc}") from exc
+    if len(raw) > 1_000_000:
+        raise SystemExit("Technocore response exceeded local safety limit.")
+    return raw.decode("utf-8", errors="replace")
+
+
+def get_note(namespace: str, key: str) -> str | None:
+    valid_room(namespace)
+    valid_room(key)
+    req = urllib.request.Request(
+        f"{BASE_URL}/kv/{urllib.parse.quote(namespace, safe='')}/{urllib.parse.quote(key, safe='')}",
+        method="GET",
+        headers={"User-Agent": USER_AGENT},
+    )
+    return request_text(req, allow_missing=True)
+
+
+def get_room_owner(room: str) -> str | None:
+    raw = get_note("room-owners", valid_room(room))
+    return parse_owner_note_response(raw)
+
+
+def get_room_nonce(room: str) -> int:
+    value = get_note("room-nonce", valid_room(room))
+    if value is None:
+        return 0
+    match = re.search(r"\d+", value)
+    return int(match.group(0)) if match else 0
+
+
+def sign_note_payload(namespace: str, key: str, nonce: int, value: str, key_obj: Ed25519PrivateKey) -> str:
+    payload = f"{namespace}|{key}|{nonce}|{value}".encode("utf-8")
+    return b64u(key_obj.sign(payload))
+
+
+def room_owner_claim_payload(room: str, did: str, nonce: int) -> bytes:
+    room = valid_room(room)
+    return f"room-owners|{room}|{nonce}|{did}".encode("utf-8")
+
+
+def did_profile_fingerprint(did: str) -> str:
+    return hashlib.sha256(did.encode("utf-8")).hexdigest()[:16]
+
+
+def did_profile_path(did: str) -> tuple[str, str, str]:
+    fingerprint = did_profile_fingerprint(did)
+    return f"did-{fingerprint[:2]}", fingerprint[2:], fingerprint
+
+
+def get_state(conn: sqlite3.Connection, key: str, default: str = "0") -> str:
+    row = conn.execute("SELECT value FROM service_state WHERE key = ?", (key,)).fetchone()
+    return str(row["value"]) if row else default
+
+
+def set_state(conn: sqlite3.Connection, key: str, value: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO service_state (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET
+            value = excluded.value,
+            updated_at = excluded.updated_at
+        """,
+        (key, value, utc_now()),
+    )
+    conn.commit()
+
+
+def room_cursor(conn: sqlite3.Connection, room: str) -> dict[str, Any]:
+    legacy_seq = get_state(conn, f"cursor:{room}", "")
+    generation = get_state(conn, f"cursor:{room}:generation", "")
+    seq = get_state(conn, f"cursor:{room}:seq", legacy_seq or "0")
+    if not generation:
+        generation = UNKNOWN_LEGACY_GENERATION if legacy_seq else ""
+    try:
+        seq_value = int(seq)
+    except ValueError:
+        seq_value = 0
+    return {
+        "room": room,
+        "generation": generation or None,
+        "last_seq": seq_value,
+        "continuity": "UNKNOWN_LEGACY" if generation == UNKNOWN_LEGACY_GENERATION else "CURRENT",
+    }
+
+
+def update_room_cursor(
+    conn: sqlite3.Connection,
+    room: str,
+    generation: str | None,
+    last_seq: int | None,
+) -> str:
+    cursor = room_cursor(conn, room)
+    if generation is None:
+        generation_value = GENERATION_MISSING
+        status = "GENERATION_MISSING"
+    else:
+        generation_value = str(generation)
+        if cursor["generation"] in {None, UNKNOWN_LEGACY_GENERATION, GENERATION_MISSING}:
+            status = "UNKNOWN_LEGACY" if cursor["generation"] == UNKNOWN_LEGACY_GENERATION else "CURRENT"
+        elif cursor["generation"] != generation_value:
+            status = "ROOM_GENERATION_CHANGED"
+            log(
+                "room_generation_changed",
+                room=room,
+                old_generation=cursor["generation"],
+                old_last_seq=cursor["last_seq"],
+                new_generation=generation_value,
+            )
+        else:
+            status = "CURRENT"
+    if last_seq is not None:
+        set_state(conn, f"cursor:{room}:seq", str(last_seq))
+        set_state(conn, f"cursor:{room}", str(last_seq))
+    set_state(conn, f"cursor:{room}:generation", generation_value)
+    set_state(conn, f"cursor:{room}:continuity", status)
+    return status
 
 
 def utc_now() -> str:
@@ -346,7 +579,65 @@ def init_observer_db(conn: sqlite3.Connection) -> None:
             created_at TEXT,
             imported_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS service_state (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS validation_watches (
+            validation_id TEXT PRIMARY KEY,
+            target_did TEXT NOT NULL,
+            outbound_room TEXT NOT NULL,
+            outbound_seq INTEGER NOT NULL,
+            outbound_timestamp TEXT,
+            preferred_response_room TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'watching',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS validation_response_candidates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            validation_id TEXT NOT NULL,
+            response_type TEXT NOT NULL,
+            room TEXT NOT NULL,
+            seq INTEGER NOT NULL,
+            timestamp TEXT,
+            sender TEXT NOT NULL,
+            validation_id_present INTEGER NOT NULL,
+            message_hash TEXT NOT NULL,
+            bounded_text TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE (validation_id, room, seq)
+        );
+
+        CREATE TABLE IF NOT EXISTS evidence_records (
+            evidence_id TEXT PRIMARY KEY,
+            room TEXT NOT NULL,
+            generation TEXT NOT NULL,
+            seq INTEGER NOT NULL,
+            server_timestamp TEXT,
+            did TEXT,
+            nonce INTEGER,
+            sig TEXT,
+            text TEXT NOT NULL,
+            message_hash TEXT NOT NULL,
+            canonical_payload_hash TEXT,
+            retrieved_at TEXT NOT NULL,
+            source TEXT NOT NULL,
+            verification_status TEXT NOT NULL,
+            raw_record_json TEXT NOT NULL,
+            UNIQUE (room, generation, seq, evidence_id)
+        );
         """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_validation_responses_validation ON validation_response_candidates(validation_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_evidence_records_room_generation_seq ON evidence_records(room, generation, seq)"
     )
     for column, ddl in {
         "template_normalized_text": "ALTER TABLE messages ADD COLUMN template_normalized_text TEXT NOT NULL DEFAULT ''",
@@ -445,7 +736,166 @@ def message_timestamp(raw: dict[str, Any]) -> str | None:
     return str(ts) if ts is not None else None
 
 
-def ingest_messages(conn: sqlite3.Connection, room: str, raw_messages: list[dict[str, Any]]) -> dict[str, int]:
+def message_did(raw: dict[str, Any]) -> str | None:
+    candidate = raw.get("did") or raw.get("from")
+    if candidate is None:
+        return None
+    candidate = str(candidate)
+    return candidate if is_valid_ed25519_did(candidate) else None
+
+
+def message_nonce(raw: dict[str, Any]) -> int | None:
+    nonce = raw.get("nonce")
+    if nonce is None or isinstance(nonce, bool):
+        return None
+    try:
+        return int(nonce)
+    except (TypeError, ValueError):
+        return None
+
+
+def message_sig(raw: dict[str, Any]) -> str | None:
+    sig = raw.get("sig")
+    return str(sig) if isinstance(sig, str) else None
+
+
+def message_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def canonical_payload_hash(room: str, nonce: int, text: str) -> str:
+    payload = f"{room}|{nonce}|{text}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def verify_signed_record_offline(room: str, raw: dict[str, Any]) -> str:
+    text = raw.get("text")
+    if not isinstance(text, str):
+        return "PROVENANCE_INCOMPLETE"
+    raw_did = raw.get("did") or raw.get("from")
+    did = message_did(raw)
+    sender = raw.get("from")
+    nonce = message_nonce(raw)
+    sig = message_sig(raw)
+    if did is None:
+        if raw_did is not None and (sig is not None or nonce is not None):
+            return "INVALID_SIGNATURE"
+        if sig is not None:
+            return "SIGNATURE_PRESENT_UNVERIFIED"
+        return "UNSIGNED"
+    if sender is not None and str(sender) != did:
+        return "PROVENANCE_INCOMPLETE"
+    if nonce is None:
+        return "SIGNATURE_PRESENT_UNVERIFIED" if sig is not None else "PROVENANCE_INCOMPLETE"
+    if sig is None:
+        return "LEGACY_SERVER_VERIFIED_NO_SIGNATURE"
+    try:
+        sig_bytes = b64u_decode_canonical(sig)
+    except Exception:
+        return "INVALID_SIGNATURE"
+    if len(sig_bytes) != 64:
+        return "INVALID_SIGNATURE"
+    try:
+        public_key = public_key_from_did(did)
+        public_key.verify(sig_bytes, f"{valid_room(room)}|{nonce}|{text}".encode("utf-8"))
+    except Exception:
+        return "INVALID_SIGNATURE"
+    return "VERIFIED_OFFLINE"
+
+
+def evidence_id_for(record: dict[str, Any]) -> str:
+    bound = {
+        "room": record["room"],
+        "generation": record["generation"],
+        "seq": record["seq"],
+        "did": record.get("did"),
+        "nonce": record.get("nonce"),
+        "sig": record.get("sig"),
+        "message_hash": record["message_hash"],
+    }
+    return hashlib.sha256(
+        json.dumps(bound, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def evidence_record_from_message(
+    room: str,
+    generation: str | None,
+    raw: dict[str, Any],
+    *,
+    source: str,
+    retrieved_at: str | None = None,
+) -> dict[str, Any] | None:
+    try:
+        seq = int(raw["seq"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    text = raw.get("text")
+    if not isinstance(text, str):
+        return None
+    generation_value = str(generation) if generation is not None else UNKNOWN_LEGACY_GENERATION
+    did = message_did(raw)
+    nonce = message_nonce(raw)
+    sig = message_sig(raw)
+    record = {
+        "room": valid_room(room),
+        "generation": generation_value,
+        "seq": seq,
+        "server_timestamp": message_timestamp(raw),
+        "did": did,
+        "nonce": nonce,
+        "sig": sig,
+        "text": text,
+        "message_hash": message_hash(text),
+        "canonical_payload_hash": canonical_payload_hash(room, nonce, text)
+        if did is not None and nonce is not None
+        else None,
+        "retrieved_at": retrieved_at or utc_now(),
+        "source": source,
+        "verification_status": verify_signed_record_offline(room, raw),
+        "raw_record_json": json.dumps(raw, sort_keys=True, ensure_ascii=False, separators=(",", ":")),
+    }
+    record["evidence_id"] = evidence_id_for(record)
+    return record
+
+
+def store_evidence_record(conn: sqlite3.Connection, record: dict[str, Any]) -> None:
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO evidence_records
+            (evidence_id, room, generation, seq, server_timestamp, did, nonce, sig,
+             text, message_hash, canonical_payload_hash, retrieved_at, source,
+             verification_status, raw_record_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record["evidence_id"],
+            record["room"],
+            record["generation"],
+            record["seq"],
+            record["server_timestamp"],
+            record["did"],
+            record["nonce"],
+            record["sig"],
+            record["text"],
+            record["message_hash"],
+            record["canonical_payload_hash"],
+            record["retrieved_at"],
+            record["source"],
+            record["verification_status"],
+            record["raw_record_json"],
+        ),
+    )
+
+
+def ingest_messages(
+    conn: sqlite3.Connection,
+    room: str,
+    raw_messages: list[dict[str, Any]],
+    *,
+    generation: str | int | None = None,
+    source: str = "room-read",
+) -> dict[str, int]:
     now = utc_now()
     received = len(raw_messages)
     inserted = 0
@@ -453,6 +903,15 @@ def ingest_messages(conn: sqlite3.Connection, room: str, raw_messages: list[dict
     unsigned_writers: set[str] = set()
 
     for raw in raw_messages:
+        evidence = evidence_record_from_message(
+            room,
+            str(generation) if generation is not None else None,
+            raw,
+            source=source,
+            retrieved_at=now,
+        )
+        if evidence is not None:
+            store_evidence_record(conn, evidence)
         try:
             seq = int(raw["seq"])
             text = str(raw.get("text", ""))
@@ -565,6 +1024,7 @@ def import_local_history(conn: sqlite3.Connection) -> int:
             )
 
     conn.commit()
+    migrate_legacy_local_activity_to_evidence(conn)
     return imported
 
 
@@ -617,6 +1077,44 @@ def import_local_activity_record(
         ),
     )
     return 1 if conn.total_changes > before else 0
+
+
+def migrate_legacy_local_activity_to_evidence(conn: sqlite3.Connection) -> int:
+    rows = conn.execute(
+        """
+        SELECT did, room, seq, nonce, text, created_at, source, source_key
+        FROM local_signed_activity
+        WHERE seq IS NOT NULL
+        """
+    ).fetchall()
+    inserted = 0
+    for row in rows:
+        raw: dict[str, Any] = {
+            "seq": row["seq"],
+            "from": row["did"],
+            "did": row["did"],
+            "nonce": row["nonce"],
+            "text": row["text"],
+        }
+        if row["created_at"]:
+            raw["ts"] = row["created_at"]
+        before = conn.total_changes
+        record = evidence_record_from_message(
+            row["room"],
+            UNKNOWN_LEGACY_GENERATION,
+            raw,
+            source=f"legacy-local-{row['source']}:{row['source_key']}",
+            retrieved_at=utc_now(),
+        )
+        if record is None:
+            continue
+        if record["verification_status"] == "SIGNATURE_PRESENT_UNVERIFIED":
+            record["verification_status"] = "LEGACY_SERVER_VERIFIED_NO_SIGNATURE"
+        store_evidence_record(conn, record)
+        if conn.total_changes > before:
+            inserted += 1
+    conn.commit()
+    return inserted
 
 
 CAPABILITY_TAXONOMY = [
@@ -896,6 +1394,7 @@ def classify_opportunity(
     text: str,
     normalized_duplicate_count: int = 1,
     distinct_dids_using_template: int = 1,
+    source_room: str | None = None,
 ) -> dict[str, Any]:
     normalized = analysis_normalize_text(text)
     signed = is_signed_sender(sender)
@@ -914,6 +1413,8 @@ def classify_opportunity(
 
     if distinct_dids_using_template >= 2:
         noise_flags.append("repeated_signed_template")
+    if source_room == MAILBOX_ROOM and not signed:
+        noise_flags.append("unsigned_mailbox_message")
 
     category = capability if capability_match != "LOW" else "General request"
     reason_parts = []
@@ -927,6 +1428,8 @@ def classify_opportunity(
     reason_parts.extend(actionability_reasons)
     if signed:
         reason_parts.append("from a signed DID")
+    if source_room == MAILBOX_ROOM and signed:
+        reason_parts.append("direct signed mailbox contact")
     rejection_reasons: list[str] = []
     if not signed:
         rejection_reasons.append("sender is not signed")
@@ -974,6 +1477,8 @@ def classify_opportunity(
     else:
         tier = "LOW"
         confidence = 0.20
+    if source_room == MAILBOX_ROOM and signed and tier in {"HIGH", "MEDIUM", "LOW"}:
+        confidence = min(0.95, confidence + 0.03)
 
     return {
         "category": category,
@@ -1029,6 +1534,7 @@ def refresh_opportunities(conn: sqlite3.Connection) -> int:
             row["text"],
             normalized_duplicate_count=int(row["exact_duplicate_count"]),
             distinct_dids_using_template=int(row["exact_sender_count"]),
+            source_room=row["room"],
         )
         result["exact_distinct_dids"] = int(row["exact_sender_count"])
         result["template_message_count"] = int(row["template_count"])
@@ -1341,6 +1847,606 @@ def experimental_score(conn: sqlite3.Connection, did: str | None = None, cap: in
     }
 
 
+def duplicate_policy_from_config(obj: dict[str, Any]) -> dict[str, int]:
+    source = obj.get("settings") if isinstance(obj.get("settings"), dict) else obj
+    policy: dict[str, int] = {}
+    for key in CONFIG_DUPLICATE_KEYS:
+        value = source.get(key)
+        if isinstance(value, bool):
+            raise ValueError(f"{key} must be an integer.")
+        try:
+            int_value = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be an integer.") from exc
+        if int_value < 0:
+            raise ValueError(f"{key} must be non-negative.")
+        policy[key] = int_value
+    return policy
+
+
+def fetch_duplicate_policy() -> dict[str, int]:
+    req = urllib.request.Request(
+        f"{BASE_URL}/config",
+        method="GET",
+        headers={"Accept": "application/json", "User-Agent": USER_AGENT},
+    )
+    obj = request_json(req)
+    try:
+        return duplicate_policy_from_config(obj)
+    except ValueError as exc:
+        raise SystemExit(f"Technocore /config did not contain a safe duplicate policy: {exc}") from exc
+
+
+def duplicate_preflight(conn: sqlite3.Connection, room: str, text: str) -> dict[str, Any]:
+    room = valid_room(room)
+    exact_hash = normalized_hash(text)
+    templ_hash = template_hash(text)
+    exact_matches = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM messages
+        WHERE room = ? AND normalized_hash = ?
+        """,
+        (room, exact_hash),
+    ).fetchone()[0]
+    template_messages = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM messages
+        WHERE room = ? AND template_normalized_hash = ?
+        """,
+        (room, templ_hash),
+    ).fetchone()[0]
+    template_distinct_dids = conn.execute(
+        """
+        SELECT COUNT(DISTINCT sender)
+        FROM messages
+        WHERE room = ?
+          AND template_normalized_hash = ?
+          AND signed = 1
+        """,
+        (room, templ_hash),
+    ).fetchone()[0]
+    known_template = template_messages > 0
+    repeated_template = template_distinct_dids >= 2 or template_messages >= 2
+    if exact_matches > 0 or repeated_template:
+        risk = "HIGH"
+    elif known_template:
+        risk = "MEDIUM"
+    else:
+        risk = "LOW"
+    return {
+        "exact_matches": int(exact_matches),
+        "template_messages": int(template_messages),
+        "template_distinct_dids": int(template_distinct_dids),
+        "template_originality": "REPEATED" if known_template else "UNIQUE",
+        "risk": risk,
+        "known_template": known_template,
+        "normalized_hash": exact_hash,
+        "template_hash": templ_hash,
+    }
+
+
+def print_duplicate_preflight(stats: dict[str, Any]) -> None:
+    print("\nOriginality preflight")
+    print("---------------------")
+    print(f"Exact matches recently observed:      {stats['exact_matches']}")
+    print(f"Near-template family messages:        {stats['template_messages']}")
+    print(f"Distinct DIDs using template:         {stats['template_distinct_dids']}")
+    print(f"Template originality:            {stats['template_originality']}")
+    print(f"Risk of Technocore 422:           {stats['risk']}")
+    if stats["template_distinct_dids"] >= 2 or stats["known_template"]:
+        print(
+            "\nWARNING:\n"
+            "This message resembles recent Technocore traffic.\n"
+            "It may be refused by the server's duplicate-content filter and may not represent\n"
+            "a useful original contribution."
+        )
+
+
+def duplicate_preflight_for(room: str, text: str) -> dict[str, Any]:
+    if OBSERVER_DB.exists():
+        conn = sqlite3.connect(f"file:{OBSERVER_DB}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+    else:
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        init_observer_db(conn)
+    try:
+        return duplicate_preflight(conn, room, text)
+    finally:
+        conn.close()
+
+
+def log_duplicate_refusal(room: str, did: str, nonce: int, text: str, body: str) -> None:
+    log(
+        "signed_message_rejected",
+        room=room,
+        did=did,
+        nonce=nonce,
+        exact_text_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        normalized_hash=normalized_hash(text),
+        template_hash=template_hash(text),
+        http_status=422,
+        response_body_untrusted=body[:4000],
+        outcome="rejected_duplicate",
+    )
+
+
+def duplicate_policy() -> None:
+    policy = fetch_duplicate_policy()
+    print("Technocore Duplicate Policy")
+    print(f"dupe_filter_seconds: {policy['dupe_filter_seconds']}")
+    print(f"dupe_max_copies: {policy['dupe_max_copies']}")
+    print(f"dupe_min_length: {policy['dupe_min_length']}")
+    print("\nNo network writes performed.")
+
+
+def valid_validation_id(validation_id: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}", validation_id):
+        raise ValueError("Invalid validation ID.")
+    return validation_id
+
+
+def parse_timestamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def message_after_validation(row: sqlite3.Row, watch: sqlite3.Row) -> bool:
+    if row["room"] == watch["outbound_room"]:
+        return int(row["seq"]) > int(watch["outbound_seq"])
+    outbound_ts = parse_timestamp(watch["outbound_timestamp"])
+    message_ts = parse_timestamp(row["timestamp"])
+    if outbound_ts is not None and message_ts is not None:
+        return message_ts > outbound_ts
+    return True
+
+
+VALIDATION_RELATED_PATTERNS = [
+    r"\bvalidat",
+    r"\bresponse\b",
+    r"\breply\b",
+    r"\bconfirm",
+    r"\bverified?\b",
+    r"\btested?\b",
+    r"\brepro",
+    r"\bresult\b",
+    r"\bpass(?:ed)?\b",
+    r"\bfail(?:ed|ing)?\b",
+    r"\bapi\b",
+    r"\bsign(?:ed|ing|ature)?\b",
+    r"\bdid\b",
+    r"\bnonce\b",
+    r"\btechnocore\b",
+]
+
+
+def validation_related_text(text: str) -> bool:
+    normalized = analysis_normalize_text(text)
+    return has_any(normalized, VALIDATION_RELATED_PATTERNS)
+
+
+def classify_validation_message(watch: sqlite3.Row, row: sqlite3.Row) -> str | None:
+    text = row["text"]
+    sender = row["sender"]
+    validation_id_present = watch["validation_id"].casefold() in text.casefold()
+    if not message_after_validation(row, watch):
+        return None
+    if validation_id_present and sender != watch["target_did"]:
+        return "WRONG_DID_RESPONSE"
+    if sender != watch["target_did"]:
+        return None
+    if validation_id_present:
+        return "EXACT_RESPONSE"
+    if validation_related_text(text):
+        return "POSSIBLE_RESPONSE"
+    return "UNRELATED_TARGET_ACTIVITY"
+
+
+def store_validation_responses(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    now = utc_now()
+    watches = conn.execute(
+        """
+        SELECT *
+        FROM validation_watches
+        WHERE status = 'watching'
+        ORDER BY validation_id
+        """
+    ).fetchall()
+    for watch in watches:
+        rooms = sorted({watch["preferred_response_room"], watch["outbound_room"]})
+        placeholders = ",".join("?" for _ in rooms)
+        rows = conn.execute(
+            f"""
+            SELECT *
+            FROM messages
+            WHERE room IN ({placeholders})
+            ORDER BY room, seq
+            """,
+            rooms,
+        ).fetchall()
+        for row in rows:
+            response_type = classify_validation_message(watch, row)
+            if response_type is None:
+                continue
+            text = row["text"]
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO validation_response_candidates
+                    (validation_id, response_type, room, seq, timestamp, sender,
+                     validation_id_present, message_hash, bounded_text, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    watch["validation_id"],
+                    response_type,
+                    row["room"],
+                    row["seq"],
+                    row["timestamp"],
+                    row["sender"],
+                    1 if watch["validation_id"].casefold() in text.casefold() else 0,
+                    hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                    text[:1000],
+                    now,
+                ),
+            )
+    conn.commit()
+    return recent_validation_responses(conn)
+
+
+def recent_validation_responses(conn: sqlite3.Connection, validation_id: str | None = None) -> list[sqlite3.Row]:
+    params: list[Any] = []
+    where = ""
+    if validation_id is not None:
+        where = "WHERE validation_id = ?"
+        params.append(valid_validation_id(validation_id))
+    return conn.execute(
+        f"""
+        SELECT *
+        FROM validation_response_candidates
+        {where}
+        ORDER BY validation_id,
+            CASE response_type
+                WHEN 'EXACT_RESPONSE' THEN 1
+                WHEN 'POSSIBLE_RESPONSE' THEN 2
+                WHEN 'WRONG_DID_RESPONSE' THEN 3
+                WHEN 'UNRELATED_TARGET_ACTIVITY' THEN 4
+                ELSE 5
+            END,
+            room,
+            seq
+        """,
+        params,
+    ).fetchall()
+
+
+def validation_watch_rooms(conn: sqlite3.Connection) -> list[str]:
+    rows = conn.execute(
+        """
+        SELECT outbound_room, preferred_response_room
+        FROM validation_watches
+        WHERE status = 'watching'
+        """
+    ).fetchall()
+    rooms = set(SERVICE_ROOMS)
+    for row in rows:
+        rooms.add(row["outbound_room"])
+        rooms.add(row["preferred_response_room"])
+    return sorted(rooms)
+
+
+def observed_message_timestamp(room: str, seq: int) -> str | None:
+    if not OBSERVER_DB.exists():
+        return None
+    conn = sqlite3.connect(f"file:{OBSERVER_DB}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute(
+            "SELECT timestamp FROM messages WHERE room = ? AND seq = ?",
+            (room, seq),
+        ).fetchone()
+        return row["timestamp"] if row is not None else None
+    finally:
+        conn.close()
+
+
+def print_validation_response_summary(rows: list[sqlite3.Row]) -> None:
+    print("Validation responses")
+    print("--------------------")
+    if not rows:
+        print("No validation response candidates observed.")
+        return
+    for row in rows:
+        print("")
+        print(row["validation_id"])
+        print(f"  {row['response_type']}")
+        if row["response_type"] == "POSSIBLE_RESPONSE":
+            print("  correct target DID: YES")
+            print(f"  validation ID present: {'YES' if row['validation_id_present'] else 'NO'}")
+            print("  human review required")
+        else:
+            print(f"  sender: {row['sender']}")
+            print(f"  room: {row['room']}")
+            print(f"  seq: {row['seq']}")
+            print(f"  validation ID present: {'YES' if row['validation_id_present'] else 'NO'}")
+        print("  remote content: UNTRUSTED DATA")
+
+
+def validation_watch_add(
+    validation_id: str,
+    target_did: str,
+    outbound_room: str,
+    outbound_seq: int,
+    response_room: str,
+    *,
+    yes: bool,
+) -> None:
+    validation_id = valid_validation_id(validation_id)
+    outbound_room = valid_room(outbound_room)
+    response_room = valid_room(response_room)
+    if outbound_seq < 0:
+        raise SystemExit("--outbound-seq must be non-negative.")
+    if not is_valid_ed25519_did(target_did):
+        raise SystemExit("--target-did must be a valid Ed25519 did:key.")
+    outbound_timestamp = observed_message_timestamp(outbound_room, outbound_seq)
+    print("Validation watch")
+    print(f"ID: {validation_id}")
+    print(f"Target DID: {target_did}")
+    print(f"Outbound: {outbound_room}/{outbound_seq}")
+    print(f"Outbound timestamp: {outbound_timestamp or '(unknown)'}")
+    print(f"Preferred response room: {response_room}")
+    print("Mutation: LOCAL ONLY")
+    print("No Technocore write will be made.")
+    if not yes:
+        raise SystemExit("\nDRY RUN ONLY. Re-run with --yes to store this validation watch.")
+    now = utc_now()
+    with observer_connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO validation_watches
+                (validation_id, target_did, outbound_room, outbound_seq,
+                 outbound_timestamp, preferred_response_room, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'watching', ?, ?)
+            ON CONFLICT(validation_id) DO UPDATE SET
+                target_did = excluded.target_did,
+                outbound_room = excluded.outbound_room,
+                outbound_seq = excluded.outbound_seq,
+                outbound_timestamp = excluded.outbound_timestamp,
+                preferred_response_room = excluded.preferred_response_room,
+                status = 'watching',
+                updated_at = excluded.updated_at
+            """,
+            (
+                validation_id,
+                target_did,
+                outbound_room,
+                outbound_seq,
+                outbound_timestamp,
+                response_room,
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+    print("\nValidation watch stored locally.")
+
+
+def validation_watch_status() -> None:
+    with observer_connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT w.*,
+                   COUNT(r.id) AS candidate_count,
+                   SUM(CASE WHEN r.response_type = 'EXACT_RESPONSE' THEN 1 ELSE 0 END) AS exact_count,
+                   SUM(CASE WHEN r.response_type = 'POSSIBLE_RESPONSE' THEN 1 ELSE 0 END) AS possible_count
+            FROM validation_watches w
+            LEFT JOIN validation_response_candidates r ON r.validation_id = w.validation_id
+            GROUP BY w.validation_id
+            ORDER BY w.validation_id
+            """
+        ).fetchall()
+    print("Validation Watches")
+    print("------------------")
+    if not rows:
+        print("No validation watches stored.")
+        print("\nNo network writes performed.")
+        return
+    for row in rows:
+        print(f"\n{row['validation_id']}")
+        print(f"  target DID: {row['target_did']}")
+        print(f"  outbound: {row['outbound_room']}/{row['outbound_seq']}")
+        print(f"  outbound timestamp: {row['outbound_timestamp'] or '(unknown)'}")
+        print(f"  preferred response room: {row['preferred_response_room']}")
+        print(f"  status: {row['status']}")
+        print(f"  response candidates: {row['candidate_count']}")
+        print(f"  exact responses: {row['exact_count'] or 0}")
+        print(f"  possible responses: {row['possible_count'] or 0}")
+    print("\nNo network writes performed.")
+
+
+def validation_watch_responses(validation_id: str) -> None:
+    validation_id = valid_validation_id(validation_id)
+    with observer_connect() as conn:
+        store_validation_responses(conn)
+        rows = recent_validation_responses(conn, validation_id)
+    print_validation_response_summary(rows)
+    print("\nNo network writes performed.")
+
+
+def safe_path_component(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.:-]+", "_", value)
+
+
+def fetch_room_export(room: str) -> tuple[bytes, str | None]:
+    room = valid_room(room)
+    req = urllib.request.Request(
+        f"{BASE_URL}/r/{urllib.parse.quote(room, safe='')}/export",
+        method="GET",
+        headers={"Accept": "application/jsonl", "User-Agent": USER_AGENT},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read(100_000_000)
+            generation = resp.headers.get("X-Room-Generation")
+    except urllib.error.HTTPError as exc:
+        body = exc.read(4000).decode("utf-8", errors="replace")
+        raise SystemExit(f"Technocore HTTP {exc.code}: {body}") from None
+    except Exception as exc:
+        raise SystemExit(f"Technocore request failed: {exc}") from exc
+    return raw, str(generation) if generation is not None else None
+
+
+def verify_export_bytes(raw: bytes, room: str, generation: str | None = None) -> dict[str, Any]:
+    record_count = 0
+    signed_records = 0
+    offline_verified = 0
+    legacy_records = 0
+    unsigned_records = 0
+    invalid_signatures = 0
+    duplicate_anomalies: list[str] = []
+    seen: set[tuple[str, str, int]] = set()
+    statuses: dict[str, int] = {}
+    for line_no, line in enumerate(raw.splitlines(), start=1):
+        if not line:
+            continue
+        try:
+            obj = json.loads(line.decode("utf-8"))
+        except Exception as exc:
+            raise ValueError(f"JSONL line {line_no} did not parse.") from exc
+        if not isinstance(obj, dict):
+            raise ValueError(f"JSONL line {line_no} is not an object.")
+        try:
+            seq = int(obj["seq"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"JSONL line {line_no} has no valid seq.") from exc
+        generation_value = str(generation) if generation is not None else UNKNOWN_LEGACY_GENERATION
+        key = (room, generation_value, seq)
+        if key in seen:
+            duplicate_anomalies.append(f"{room}/{generation_value}/{seq}")
+        seen.add(key)
+        status = verify_signed_record_offline(room, obj)
+        statuses[status] = statuses.get(status, 0) + 1
+        record_count += 1
+        if message_did(obj) is not None:
+            signed_records += 1
+        if status == "VERIFIED_OFFLINE":
+            offline_verified += 1
+        elif status == "LEGACY_SERVER_VERIFIED_NO_SIGNATURE":
+            legacy_records += 1
+        elif status == "UNSIGNED":
+            unsigned_records += 1
+        elif status == "INVALID_SIGNATURE":
+            invalid_signatures += 1
+    return {
+        "room": room,
+        "generation": str(generation) if generation is not None else UNKNOWN_LEGACY_GENERATION,
+        "export_sha256": hashlib.sha256(raw).hexdigest(),
+        "byte_count": len(raw),
+        "record_count": record_count,
+        "signed_records": signed_records,
+        "offline_verified_records": offline_verified,
+        "legacy_records_without_sig": legacy_records,
+        "unsigned_records": unsigned_records,
+        "invalid_signatures": invalid_signatures,
+        "duplicate_room_generation_seq_anomalies": duplicate_anomalies,
+        "verification_status_counts": statuses,
+    }
+
+
+def export_room_evidence(room: str, *, yes: bool) -> None:
+    room = valid_room(room)
+    print("Evidence room export")
+    print(f"Room: {room}")
+    print("Fetch: GET /r/<room>/export")
+    print("Raw JSONL will be preserved byte-exactly.")
+    print("No Technocore write will be made.")
+    if room not in DEFAULT_EVIDENCE_ROOMS:
+        print("Policy: public/non-default rooms should be exported only when preserving relied-upon evidence.")
+    if not yes:
+        raise SystemExit("\nDRY RUN ONLY. Re-run with --yes to fetch and store this export.")
+    raw, generation = fetch_room_export(room)
+    generation_value = generation if generation is not None else GENERATION_MISSING
+    EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    directory = EXPORTS_DIR / safe_path_component(room) / f"generation-{safe_path_component(generation_value)}"
+    directory.mkdir(parents=True, exist_ok=True)
+    export_path = directory / "room.jsonl"
+    manifest_path = directory / "manifest.json"
+    export_path.write_bytes(raw)
+    manifest = verify_export_bytes(raw, room, generation)
+    manifest.update(
+        {
+            "generation": generation_value,
+            "retrieved_at": utc_now(),
+            "source": f"{BASE_URL}/r/{room}/export",
+            "raw_export_path": str(export_path),
+            "evidence_id_construction": (
+                "sha256(json({room,generation,seq,did,nonce,sig,message_hash},"
+                "sort_keys=True,separators=(',',':')))"
+            ),
+            "note": "Evidence IDs bind provenance fields but do not replace cryptographic verification.",
+        }
+    )
+    save_json(manifest_path, manifest)
+    print("\nExport saved:")
+    print(export_path)
+    print("Manifest saved:")
+    print(manifest_path)
+
+
+def find_export_manifest(path: Path) -> Path | None:
+    if path.is_dir():
+        candidate = path / "manifest.json"
+        return candidate if candidate.exists() else None
+    candidate = path.with_name("manifest.json")
+    return candidate if candidate.exists() else None
+
+
+def verify_export_file(path_text: str) -> None:
+    path = Path(path_text)
+    raw_path = path / "room.jsonl" if path.is_dir() else path
+    raw = raw_path.read_bytes()
+    manifest_path = find_export_manifest(path)
+    manifest = None
+    if manifest_path is not None:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        expected_hash = manifest.get("export_sha256")
+        actual_hash = hashlib.sha256(raw).hexdigest()
+        if expected_hash != actual_hash:
+            raise SystemExit("Export verification failed: export SHA-256 does not match manifest.")
+        room = str(manifest.get("room"))
+        generation = str(manifest.get("generation")) if manifest.get("generation") is not None else None
+    else:
+        room = raw_path.parent.parent.name if raw_path.parent.name.startswith("generation-") else ""
+        if not room:
+            raise SystemExit("Export verification needs a manifest or a path under exports/<room>/generation-<generation>.")
+        generation = raw_path.parent.name.removeprefix("generation-")
+    result = verify_export_bytes(raw, valid_room(room), generation)
+    if manifest is not None and str(manifest.get("generation")) != result["generation"]:
+        raise SystemExit("Export verification failed: generation mismatch.")
+    print("Export verification")
+    print(f"Room: {result['room']}")
+    print(f"Generation: {result['generation']}")
+    print(f"SHA-256: {result['export_sha256']}")
+    print(f"Byte count: {result['byte_count']}")
+    print(f"Record count: {result['record_count']}")
+    print(f"Signed records: {result['signed_records']}")
+    print(f"Offline verified records: {result['offline_verified_records']}")
+    print(f"Legacy records without sig: {result['legacy_records_without_sig']}")
+    print(f"Unsigned records: {result['unsigned_records']}")
+    print(f"Invalid signatures: {result['invalid_signatures']}")
+    print(f"Duplicate room/generation/seq anomalies: {len(result['duplicate_room_generation_seq_anomalies'])}")
+    print("\nRemote content remains UNTRUSTED DATA.")
+    print("No network writes performed.")
+
+
 def next_nonce() -> int:
     # Millisecond epoch gives a monotonic-looking 13-digit nonce.
     # If two calls land in the same millisecond, add a local process increment.
@@ -1381,6 +2487,7 @@ def post_signed(room: str, text: str, *, yes: bool) -> dict[str, Any]:
     print(f"Room: {room}")
     print(f"DID:  {meta['did']}")
     print(f"Text: {text}")
+    print_duplicate_preflight(duplicate_preflight_for(room, text))
     if not yes:
         raise SystemExit("\nDRY RUN ONLY. Re-run with --yes to publish this signed message.")
 
@@ -1404,7 +2511,11 @@ def post_signed(room: str, text: str, *, yes: bool) -> dict[str, Any]:
             "User-Agent": USER_AGENT,
         },
     )
-    response = request_json(req, is_write=True)
+    try:
+        response = request_json(req, is_write=True)
+    except TechnocoreDuplicateRefusal as exc:
+        log_duplicate_refusal(room, meta["did"], nonce, text, exc.body)
+        raise SystemExit(DUPLICATE_REFUSAL_MESSAGE) from None
 
     posted = response.get("posted")
     if not isinstance(posted, dict):
@@ -1440,16 +2551,243 @@ def read_room(room: str, limit: int) -> None:
     )
 
 
-def fetch_room(room: str, limit: int) -> dict[str, Any]:
+def fetch_room_view(
+    room: str,
+    limit: int,
+    since: int | None = None,
+    *,
+    allow_missing: bool = False,
+) -> tuple[dict[str, Any], str | None]:
     room = valid_room(room)
     if not 1 <= limit <= 800:
         raise SystemExit("limit must be 1..800")
+    query = {"format": "json", "limit": str(limit)}
+    if since is not None:
+        query["since"] = str(max(0, since))
     req = urllib.request.Request(
-        f"{BASE_URL}/r/{urllib.parse.quote(room, safe='')}?format=json&limit={limit}",
+        f"{BASE_URL}/r/{urllib.parse.quote(room, safe='')}?{urllib.parse.urlencode(query)}",
         method="GET",
         headers={"Accept": "application/json", "User-Agent": USER_AGENT},
     )
-    return request_json(req)
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            raw = resp.read(1_000_001)
+            header_generation = resp.headers.get("X-Room-Generation")
+    except urllib.error.HTTPError as exc:
+        body = exc.read(4000).decode("utf-8", errors="replace")
+        if allow_missing and exc.code == 404:
+            return {}, None
+        raise SystemExit(f"Technocore HTTP {exc.code}: {body}") from None
+    except Exception as exc:
+        raise SystemExit(f"Technocore request failed: {exc}") from exc
+    if len(raw) > 1_000_000:
+        raise SystemExit("Technocore response exceeded local safety limit.")
+    try:
+        obj = json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        raise SystemExit("Technocore returned an invalid JSON response.") from exc
+    if not isinstance(obj, dict):
+        raise SystemExit("Technocore returned unexpected JSON.")
+    generation = obj.get("generation")
+    if generation is None:
+        generation = header_generation
+    return obj, str(generation) if generation is not None else None
+
+
+def fetch_room(room: str, limit: int, since: int | None = None, *, allow_missing: bool = False) -> dict[str, Any]:
+    obj, _generation = fetch_room_view(room, limit, since=since, allow_missing=allow_missing)
+    return obj
+
+
+def room_summary_from_messages(messages: list[dict[str, Any]]) -> dict[str, Any]:
+    if not messages:
+        return {"last_seq": None, "idle_age": "unknown", "message_count": 0}
+    seqs = []
+    timestamps = []
+    for msg in messages:
+        try:
+            seqs.append(int(msg.get("seq")))
+        except (TypeError, ValueError):
+            pass
+        ts = message_timestamp(msg)
+        if ts:
+            try:
+                timestamps.append(datetime.fromisoformat(ts.replace("Z", "+00:00")))
+            except ValueError:
+                pass
+    idle_age = "unknown"
+    if timestamps:
+        seconds = max(0.0, (datetime.now(timezone.utc) - max(timestamps)).total_seconds())
+        idle_age = format_age(seconds)
+    return {
+        "last_seq": max(seqs) if seqs else None,
+        "idle_age": idle_age,
+        "message_count": len(messages),
+    }
+
+
+def format_age(seconds: float) -> str:
+    if seconds < 120:
+        return f"{seconds:.0f} seconds"
+    if seconds < 7200:
+        return f"{seconds / 60:.1f} minutes"
+    if seconds < 172800:
+        return f"{seconds / 3600:.1f} hours"
+    return f"{seconds / 86400:.1f} days"
+
+
+def idle_warning(message_count: int, idle_seconds: float | None, room: str) -> str | None:
+    if idle_seconds is None:
+        return None
+    if message_count <= 1 and idle_seconds >= 18 * 3600:
+        return (
+            f"WARNING:\n{room} has only one message and has been idle for "
+            f"{format_age(idle_seconds)}.\n\nRecommendation:\nOnly post if you have a "
+            "legitimate update.\nDo not manufacture activity solely to preserve the room."
+        )
+    if message_count > 1 and idle_seconds >= 6 * 86400:
+        return (
+            f"WARNING:\n{room} has been idle for {format_age(idle_seconds)}.\n\n"
+            "Recommendation:\nOnly post if you have a legitimate update.\n"
+            "Do not manufacture activity solely to preserve the room."
+        )
+    return None
+
+
+def room_status(room: str) -> dict[str, Any]:
+    room = valid_room(room)
+    did = load_meta()["did"]
+    owner = get_room_owner(room)
+    nonce = get_room_nonce(room)
+    obj = fetch_room(room, 200, allow_missing=True)
+    messages = extract_room_messages(obj)
+    summary = room_summary_from_messages(messages)
+    idle_seconds = None
+    timestamps = []
+    for msg in messages:
+        ts = message_timestamp(msg)
+        if ts:
+            try:
+                timestamps.append(datetime.fromisoformat(ts.replace("Z", "+00:00")))
+            except ValueError:
+                pass
+    if timestamps:
+        idle_seconds = max(0.0, (datetime.now(timezone.utc) - max(timestamps)).total_seconds())
+    owned_by_us = owner == did
+    print(f"Room: {room}")
+    print(f"Owner: {owner or '(none)'}")
+    print(f"Our DID: {did}")
+    print(f"Owned by us: {'YES' if owned_by_us else 'NO'}")
+    print(f"Room nonce: {nonce}")
+    print(f"Last sequence: {summary['last_seq'] if summary['last_seq'] is not None else '(none)'}")
+    print(f"Idle age: {summary['idle_age']}")
+    print(f"Messages: {summary['message_count']}")
+    warning = idle_warning(summary["message_count"], idle_seconds, room)
+    if warning:
+        print("\n" + warning)
+    print("\nNo network writes performed.")
+    return {
+        "room": room,
+        "owner": owner,
+        "our_did": did,
+        "owned_by_us": owned_by_us,
+        "room_nonce": nonce,
+        **summary,
+    }
+
+
+def claim_room(room: str, *, yes: bool) -> None:
+    room = valid_room(room)
+    if not room.startswith("d-"):
+        raise SystemExit("Only d- rooms are ownable.")
+    did = load_meta()["did"]
+    existing_owner = get_room_owner(room)
+    print(f"Room: {room}")
+    print(f"Existing owner: {existing_owner or '(none)'}")
+    print(f"Our DID: {did}")
+    if existing_owner:
+        if existing_owner == did:
+            print("\nRoom is already owned by this FLOP Scout DID. No write required.")
+            print("No network writes performed.")
+            return
+        raise SystemExit(f"Refusing to overwrite existing owner: {existing_owner}")
+    nonce = get_room_nonce(room) + 1
+    print(f"Claim nonce: {nonce}")
+    print("if_absent: 1")
+    print(f"Signing payload: room-owners|{room}|{nonce}|{did}")
+    if not yes:
+        raise SystemExit("\nDRY RUN ONLY. Re-run with --yes to claim this owned room.")
+
+    key = load_key()
+    sig = b64u(key.sign(room_owner_claim_payload(room, did, nonce)))
+    url = (
+        f"{BASE_URL}/kv/room-owners/{urllib.parse.quote(room, safe='')}/set-signed/"
+        f"{urllib.parse.quote(did, safe='')}/{urllib.parse.quote(sig, safe='')}/"
+        f"{nonce}/{urllib.parse.quote(did, safe='')}?if_absent=1"
+    )
+    req = urllib.request.Request(url, method="GET", headers={"User-Agent": USER_AGENT})
+    request_text(req, is_write=True)
+    verified_owner = get_room_owner(room)
+    if verified_owner != did:
+        raise SystemExit("Safety stop: owner note did not verify after claim.")
+    evidence = {
+        "created_at": utc_now(),
+        "event": "room_claimed",
+        "room": room,
+        "did": did,
+        "nonce": nonce,
+        "owner_note": verified_owner,
+        "note": "Public Technocore owned-room claim evidence.",
+    }
+    filename = EVIDENCE_DIR / f"room-claim-{room}.json"
+    save_json(filename, evidence)
+    print("\nRoom ownership verified.")
+    print(f"Evidence saved: {filename}")
+
+
+def profile_note_value(did: str) -> str:
+    return "\n".join(
+        [
+            did,
+            f"mailbox: {MAILBOX_ROOM}",
+            f"canonical_room: {CANONICAL_ROOM}",
+            f"github: {GITHUB_URL}",
+        ]
+    )
+
+
+def profile_publish(*, yes: bool) -> None:
+    did = load_meta()["did"]
+    namespace, key, fingerprint = did_profile_path(did)
+    current = get_note(namespace, key)
+    proposed = profile_note_value(did)
+    print("DID profile note")
+    print(f"DID: {did}")
+    print(f"Fingerprint: {fingerprint}")
+    print(f"Namespace: {namespace}")
+    print(f"Key: {key}")
+    print("\nCurrent note:")
+    print(current or "(none)")
+    print("\nProposed note:")
+    print(proposed)
+    print(
+        "\nDID notes are a world-writable convention, not proof of identity. "
+        "Authoritative evidence is signed DID activity and the owned canonical room."
+    )
+    if not yes:
+        raise SystemExit("\nDRY RUN ONLY. Re-run with --yes to publish this profile note.")
+    body = json.dumps({"value": proposed}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        f"{BASE_URL}/kv/{urllib.parse.quote(namespace, safe='')}/{urllib.parse.quote(key, safe='')}",
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json; charset=utf-8",
+            "User-Agent": USER_AGENT,
+        },
+    )
+    request_text(req, is_write=True)
+    print("\nProfile note published.")
 
 
 def observe(rooms: list[str], limit: int) -> None:
@@ -1502,6 +2840,237 @@ def observe(rooms: list[str], limit: int) -> None:
     if refreshed:
         print(f"Candidate records refreshed:   {refreshed:>6}")
     print("\nNo network writes performed.")
+
+
+def max_message_seq(messages: list[dict[str, Any]]) -> int | None:
+    seqs = []
+    for msg in messages:
+        try:
+            seqs.append(int(msg.get("seq")))
+        except (TypeError, ValueError):
+            pass
+    return max(seqs) if seqs else None
+
+
+def inbox_status() -> None:
+    with observer_connect() as conn:
+        cursor = get_state(conn, f"cursor:{MAILBOX_ROOM}", "0")
+        obj = fetch_room(MAILBOX_ROOM, 200, allow_missing=True)
+        messages = extract_room_messages(obj)
+        summary = room_summary_from_messages(messages)
+        signed_count = sum(1 for msg in messages if is_signed_sender(message_sender(msg)))
+        unsigned_count = len(messages) - signed_count
+        new_requests = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM opportunities
+            WHERE room = ? AND status = 'new' AND tier IN ('HIGH', 'MEDIUM')
+            """,
+            (MAILBOX_ROOM,),
+        ).fetchone()[0]
+    print("FLOP Scout Inbox")
+    print(f"Mailbox: {MAILBOX_ROOM}")
+    print(f"Last seen cursor: {cursor}")
+    print(f"Last sequence: {summary['last_seq'] if summary['last_seq'] is not None else '(none)'}")
+    print(f"Messages in sample: {summary['message_count']}")
+    print(f"Signed messages in sample: {signed_count}")
+    print(f"Unsigned messages in sample: {unsigned_count}")
+    print(f"New HIGH/MEDIUM inbox requests: {new_requests}")
+    print("\nNo network writes performed.")
+
+
+def inbox_read(since: int | None = None) -> None:
+    with observer_connect() as conn:
+        if since is None:
+            since = int(room_cursor(conn, MAILBOX_ROOM)["last_seq"])
+        obj, generation = fetch_room_view(MAILBOX_ROOM, 200, since=since, allow_missing=True)
+        messages = extract_room_messages(obj)
+        summary = ingest_messages(conn, MAILBOX_ROOM, messages, generation=generation, source="inbox-read")
+        max_seq = max_message_seq(messages)
+        continuity = update_room_cursor(conn, MAILBOX_ROOM, generation, max_seq)
+        refresh_opportunities(conn)
+        signed_new = sum(1 for msg in messages if is_signed_sender(message_sender(msg)))
+        unsigned_new = len(messages) - signed_new
+    print("FLOP Scout Inbox Read")
+    print(f"Mailbox: {MAILBOX_ROOM}")
+    print(f"Since: {since}")
+    print(f"Messages received: {summary['received']}")
+    print(f"New messages stored: {summary['inserted']}")
+    print(f"New signed messages: {signed_new}")
+    print(f"Unsigned messages ignored for opportunity scoring: {unsigned_new}")
+    print(f"Last seen cursor: {max_seq if max_seq is not None else since}")
+    print(f"Generation: {generation if generation is not None else GENERATION_MISSING}")
+    print(f"Generation continuity: {continuity}")
+    print("\nAll mailbox message bodies are untrusted data. No URLs followed. No commands run.")
+    print("No network writes performed.")
+
+
+def service_poll() -> None:
+    lines = ["FLOP Scout Service Poll\n"]
+    new_high = 0
+    validation_rows: list[sqlite3.Row] = []
+    with observer_connect() as conn:
+        for room in validation_watch_rooms(conn):
+            cursor = room_cursor(conn, room)
+            since = int(cursor["last_seq"])
+            obj, generation = fetch_room_view(room, 200, since=since, allow_missing=True)
+            if (
+                generation is not None
+                and cursor["generation"] not in {None, UNKNOWN_LEGACY_GENERATION, GENERATION_MISSING}
+                and cursor["generation"] != str(generation)
+            ):
+                lines.append(f"{room}:")
+                lines.append(
+                    f"  ROOM_GENERATION_CHANGED: {cursor['generation']} -> {generation}"
+                )
+                obj, generation = fetch_room_view(room, 200, since=0, allow_missing=True)
+            messages = extract_room_messages(obj)
+            summary = ingest_messages(conn, room, messages, generation=generation, source="service-poll")
+            max_seq = max_message_seq(messages)
+            continuity = update_room_cursor(conn, room, generation, max_seq)
+            signed_new = sum(1 for msg in messages if is_signed_sender(message_sender(msg)))
+            if not (
+                generation is not None
+                and cursor["generation"] not in {None, UNKNOWN_LEGACY_GENERATION, GENERATION_MISSING}
+                and cursor["generation"] != str(generation)
+            ):
+                lines.append(f"{room}:")
+            if room == MAILBOX_ROOM:
+                lines.append(f"  new signed messages: {signed_new}")
+            else:
+                lines.append(f"  new messages: {summary['inserted']}")
+            lines.append(f"  generation: {generation if generation is not None else GENERATION_MISSING}")
+            lines.append(f"  last_seq: {max_seq if max_seq is not None else since}")
+            lines.append(f"  continuity: {continuity}")
+            lines.append("")
+        refresh_opportunities(conn)
+        new_high = conn.execute(
+            "SELECT COUNT(*) FROM opportunities WHERE status = 'new' AND tier = 'HIGH'"
+        ).fetchone()[0]
+        validation_rows = store_validation_responses(conn)
+        set_state(conn, "last_service_poll", utc_now())
+    lines.append(f"New HIGH opportunities: {new_high}")
+    lines.append("")
+    print("\n".join(lines))
+    print_validation_response_summary(validation_rows)
+    print("")
+    print("No network writes performed.")
+
+
+def service_status() -> None:
+    policy = fetch_duplicate_policy()
+    with observer_connect() as conn:
+        did = load_meta()["did"]
+        owner = get_room_owner(CANONICAL_ROOM)
+        mailbox_cursor = get_state(conn, f"cursor:{MAILBOX_ROOM}", "0")
+        last_poll = get_state(conn, "last_service_poll", "(never)")
+        known = local_history_stats(conn, did)["known_signed_posts"]
+        evidence_records = len(list(EVIDENCE_DIR.glob("*.json"))) if EVIDENCE_DIR.exists() else 0
+        watched_room_rows = [
+            (
+                room,
+                room_cursor(conn, room),
+                get_state(conn, f"cursor:{room}:continuity", room_cursor(conn, room)["continuity"]),
+            )
+            for room in validation_watch_rooms(conn)
+        ]
+        new_inbox = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM opportunities
+            WHERE room = ? AND status = 'new' AND tier IN ('HIGH', 'MEDIUM')
+            """,
+            (MAILBOX_ROOM,),
+        ).fetchone()[0]
+    print("FLOP Scout Service")
+    print(f"DID: {did}")
+    print(f"Canonical room: {CANONICAL_ROOM}")
+    print(f"Mailbox: {MAILBOX_ROOM}")
+    print(f"GitHub: {GITHUB_URL}")
+    print(f"Known signed posts: {known}")
+    print(f"Known contribution evidence: {evidence_records}")
+    print(f"Room ownership status: {'owned by us' if owner == did else ('unclaimed' if not owner else 'owned by another DID')}")
+    print(f"Mailbox cursor: {mailbox_cursor}")
+    print(f"New inbox requests: {new_inbox}")
+    print(f"Last service poll: {last_poll}")
+    print("Technocore provenance support:")
+    print("  room generation: supported")
+    print("  signed record signatures: supported")
+    print("  offline verification: supported")
+    print("Watched rooms:")
+    for room, cursor, continuity in watched_room_rows:
+        print(
+            f"  {room}: generation={cursor['generation'] or '(none)'} "
+            f"last_seq={cursor['last_seq']} continuity={continuity}"
+        )
+    print("Duplicate policy:")
+    print(f"  dupe_filter_seconds: {policy['dupe_filter_seconds']}")
+    print(f"  dupe_max_copies: {policy['dupe_max_copies']}")
+    print(f"  dupe_min_length: {policy['dupe_min_length']}")
+    print("\nNo network writes performed.")
+
+
+def inbox_opportunities(limit: int, include_all: bool = False, explain: bool = False) -> None:
+    with observer_connect() as conn:
+        refresh_opportunities(conn)
+        clauses = ["room = ?"]
+        params: list[Any] = [MAILBOX_ROOM]
+        if not include_all:
+            clauses.append("tier IN ('HIGH', 'MEDIUM')")
+        params.append(limit)
+        rows = conn.execute(
+            f"""
+            SELECT *
+            FROM opportunities
+            WHERE {' AND '.join(clauses)}
+            ORDER BY
+                CASE tier
+                    WHEN 'HIGH' THEN 1
+                    WHEN 'MEDIUM' THEN 2
+                    WHEN 'LOW' THEN 3
+                    WHEN 'OUT_OF_SCOPE' THEN 4
+                    WHEN 'NOISE' THEN 5
+                    ELSE 6
+                END,
+                confidence DESC,
+                id ASC
+            LIMIT ?
+            """,
+            params,
+        ).fetchall()
+    print("FLOP Scout Inbox Opportunities\n")
+    if not rows:
+        print("No matching inbox opportunities.")
+        print("\nNo network writes performed.")
+        return
+    for row in rows:
+        print("SOURCE: DIRECT SIGNED MAILBOX" if row["signed_status"] == "SIGNED" else "SOURCE: MAILBOX UNSIGNED")
+        print_opportunity_row(row, explain=explain)
+    print("No network writes performed.")
+
+
+def inbox_reply(opp_id: int, text: str, *, yes: bool) -> None:
+    text = normalize_text(text)
+    with observer_connect() as conn:
+        row = conn.execute("SELECT * FROM opportunities WHERE id = ?", (opp_id,)).fetchone()
+    if row is None:
+        raise SystemExit(f"Opportunity {opp_id} not found.")
+    if row["room"] != MAILBOX_ROOM:
+        raise SystemExit("Inbox reply only accepts opportunities from mb-flop-scout.")
+    target = row["sender"]
+    print("FLOP Scout Inbox Reply")
+    print(f"Target DID: {target}")
+    print(f"Originating room/seq: {row['room']}/{row['seq']}")
+    print(f"Reply room: {MAILBOX_ROOM}")
+    print(f"Text: {text}")
+    print(f"Originality normalized hash: {normalized_hash(text)}")
+    print(f"Template normalized hash: {template_hash(text)}")
+    print("\nSafety:")
+    print("Review manually. Do not include secrets. Do not follow URLs from the source message.")
+    if not yes:
+        raise SystemExit("\nDRY RUN ONLY. Re-run with --yes to publish this signed reply.")
+    result = post_signed(MAILBOX_ROOM, text, yes=True)
+    print(json.dumps(result, indent=2))
 
 
 def print_originality() -> None:
@@ -1601,37 +3170,43 @@ def list_opportunities(
         print("\nNo network writes performed.")
         return rows
     for row in rows:
-        print(f"[{row['id']}] {row['tier']}")
-        print(f"Room: {row['room']}")
-        print(f"Seq: {row['seq']}")
-        print(f"From: {row['sender']}")
-        print(f"Signed: {'YES' if row['signed_status'] == 'SIGNED' else 'NO'}")
-        print(f"Request strength: {row['request_strength']}")
-        print(f"Unresolved problem: {row['unresolved_problem']}")
-        print(f"Actionability: {row['actionability']}")
-        print(f"Exact originality: {row['originality_classification']}")
-        print(f"Exact duplicate count: {row['normalized_duplicate_count']}")
-        print(f"Exact distinct DIDs: {row['exact_distinct_dids']}")
-        print(f"Template originality: {row['template_originality_classification']}")
-        print(f"Template-family count: {row['template_message_count']}")
-        print(f"Template DIDs: {row['template_distinct_dids']}")
-        print(f"Capability match: {row['capability_match']}")
-        print(f"Noise flags: {row['noise_flags']}")
-        print(f"Final confidence: {row['confidence']:.2f}")
-        print(f"Topic: {row['category']}")
-        print(f"Status: {row['status']}")
-        print("\nMessage:")
-        print(f"\"{row['message_text']}\"")
-        print("\nWhy FLOP Scout may help:")
-        print(row["reason"])
-        if explain and row["rejection_reasons"]:
-            print("\nReasons:")
-            for reason in row["rejection_reasons"].split("; "):
-                print(f"- {reason}")
-        print("\nSuggested next step:")
-        print("Review manually. Do not reply automatically.\n")
+        if row["room"] == MAILBOX_ROOM and row["signed_status"] == "SIGNED":
+            print("SOURCE: DIRECT SIGNED MAILBOX")
+        print_opportunity_row(row, explain=explain)
     print("No network writes performed.")
     return rows
+
+
+def print_opportunity_row(row: sqlite3.Row, *, explain: bool = False) -> None:
+    print(f"[{row['id']}] {row['tier']}")
+    print(f"Room: {row['room']}")
+    print(f"Seq: {row['seq']}")
+    print(f"From: {row['sender']}")
+    print(f"Signed: {'YES' if row['signed_status'] == 'SIGNED' else 'NO'}")
+    print(f"Request strength: {row['request_strength']}")
+    print(f"Unresolved problem: {row['unresolved_problem']}")
+    print(f"Actionability: {row['actionability']}")
+    print(f"Exact originality: {row['originality_classification']}")
+    print(f"Exact duplicate count: {row['normalized_duplicate_count']}")
+    print(f"Exact distinct DIDs: {row['exact_distinct_dids']}")
+    print(f"Template originality: {row['template_originality_classification']}")
+    print(f"Template-family count: {row['template_message_count']}")
+    print(f"Template DIDs: {row['template_distinct_dids']}")
+    print(f"Capability match: {row['capability_match']}")
+    print(f"Noise flags: {row['noise_flags']}")
+    print(f"Final confidence: {row['confidence']:.2f}")
+    print(f"Topic: {row['category']}")
+    print(f"Status: {row['status']}")
+    print("\nMessage:")
+    print(f"\"{row['message_text']}\"")
+    print("\nWhy FLOP Scout may help:")
+    print(row["reason"])
+    if explain and row["rejection_reasons"]:
+        print("\nReasons:")
+        for reason in row["rejection_reasons"].split("; "):
+            print(f"- {reason}")
+    print("\nSuggested next step:")
+    print("Review manually. Do not reply automatically.\n")
 
 
 def opportunity_show(opp_id: int) -> sqlite3.Row:
@@ -1710,7 +3285,7 @@ def dashboard() -> None:
         }
         observed_rooms = conn.execute("SELECT COUNT(*) FROM rooms").fetchone()[0]
         evidence_records = len(list(EVIDENCE_DIR.glob("*.json"))) if EVIDENCE_DIR.exists() else 0
-    print("FLOP Scout v0.3.2\n")
+    print("FLOP Scout v0.3.3\n")
     print("Identity")
     print("--------")
     print(f"DID: {did}\n")
@@ -1855,7 +3430,7 @@ def self_test() -> None:
 
 def main() -> None:
     ensure_home()
-    p = argparse.ArgumentParser(description="FLOP Scout v0.3.2 - Precision Opportunity Filtering")
+    p = argparse.ArgumentParser(description="FLOP Scout v0.3.3 - Service Presence")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("init")
@@ -1863,9 +3438,63 @@ def main() -> None:
     sub.add_parser("doctor")
     sub.add_parser("self-test")
     sub.add_parser("protocol-watch")
+    sub.add_parser("duplicate-policy")
     sub.add_parser("originality")
     sub.add_parser("network")
     sub.add_parser("dashboard")
+    sub.add_parser("service-poll")
+
+    room_parser = sub.add_parser("room")
+    room_sub = room_parser.add_subparsers(dest="room_cmd", required=True)
+    room_status_parser = room_sub.add_parser("status")
+    room_status_parser.add_argument("room")
+    room_claim_parser = room_sub.add_parser("claim")
+    room_claim_parser.add_argument("room")
+    room_claim_parser.add_argument("--yes", action="store_true")
+
+    inbox_parser = sub.add_parser("inbox")
+    inbox_sub = inbox_parser.add_subparsers(dest="inbox_cmd", required=True)
+    inbox_sub.add_parser("status")
+    inbox_read_parser = inbox_sub.add_parser("read")
+    inbox_read_parser.add_argument("--since", type=int)
+    inbox_opps_parser = inbox_sub.add_parser("opportunities")
+    inbox_opps_parser.add_argument("--limit", type=int, default=20)
+    inbox_opps_parser.add_argument("--all", action="store_true")
+    inbox_opps_parser.add_argument("--explain", action="store_true")
+    inbox_reply_parser = inbox_sub.add_parser("reply")
+    inbox_reply_parser.add_argument("id", type=int)
+    inbox_reply_parser.add_argument("text")
+    inbox_reply_parser.add_argument("--yes", action="store_true")
+
+    service_parser = sub.add_parser("service")
+    service_sub = service_parser.add_subparsers(dest="service_cmd", required=True)
+    service_sub.add_parser("status")
+
+    evidence_parser = sub.add_parser("evidence")
+    evidence_sub = evidence_parser.add_subparsers(dest="evidence_cmd", required=True)
+    evidence_export = evidence_sub.add_parser("export-room")
+    evidence_export.add_argument("room")
+    evidence_export.add_argument("--yes", action="store_true")
+    evidence_verify = evidence_sub.add_parser("verify-export")
+    evidence_verify.add_argument("path")
+
+    validation_parser = sub.add_parser("validation-watch")
+    validation_sub = validation_parser.add_subparsers(dest="validation_cmd", required=True)
+    validation_add = validation_sub.add_parser("add")
+    validation_add.add_argument("--id", required=True)
+    validation_add.add_argument("--target-did", required=True)
+    validation_add.add_argument("--outbound-room", required=True)
+    validation_add.add_argument("--outbound-seq", type=int, required=True)
+    validation_add.add_argument("--response-room", required=True)
+    validation_add.add_argument("--yes", action="store_true")
+    validation_sub.add_parser("status")
+    validation_responses = validation_sub.add_parser("responses")
+    validation_responses.add_argument("id")
+
+    profile_parser = sub.add_parser("profile")
+    profile_sub = profile_parser.add_subparsers(dest="profile_cmd", required=True)
+    profile_publish_parser = profile_sub.add_parser("publish")
+    profile_publish_parser.add_argument("--yes", action="store_true")
 
     o = sub.add_parser("observe")
     o.add_argument("--rooms", nargs="+", default=list(DEFAULT_OBSERVE_ROOMS))
@@ -1914,6 +3543,8 @@ def main() -> None:
         self_test()
     elif a.cmd == "protocol-watch":
         protocol_watch()
+    elif a.cmd == "duplicate-policy":
+        duplicate_policy()
     elif a.cmd == "observe":
         observe(a.rooms, a.limit)
     elif a.cmd == "originality":
@@ -1922,6 +3553,47 @@ def main() -> None:
         print_network()
     elif a.cmd == "dashboard":
         dashboard()
+    elif a.cmd == "service-poll":
+        service_poll()
+    elif a.cmd == "room":
+        if a.room_cmd == "status":
+            room_status(a.room)
+        elif a.room_cmd == "claim":
+            claim_room(a.room, yes=a.yes)
+    elif a.cmd == "inbox":
+        if a.inbox_cmd == "status":
+            inbox_status()
+        elif a.inbox_cmd == "read":
+            inbox_read(since=a.since)
+        elif a.inbox_cmd == "opportunities":
+            inbox_opportunities(a.limit, include_all=a.all, explain=a.explain)
+        elif a.inbox_cmd == "reply":
+            inbox_reply(a.id, a.text, yes=a.yes)
+    elif a.cmd == "service":
+        if a.service_cmd == "status":
+            service_status()
+    elif a.cmd == "evidence":
+        if a.evidence_cmd == "export-room":
+            export_room_evidence(a.room, yes=a.yes)
+        elif a.evidence_cmd == "verify-export":
+            verify_export_file(a.path)
+    elif a.cmd == "validation-watch":
+        if a.validation_cmd == "add":
+            validation_watch_add(
+                a.id,
+                a.target_did,
+                a.outbound_room,
+                a.outbound_seq,
+                a.response_room,
+                yes=a.yes,
+            )
+        elif a.validation_cmd == "status":
+            validation_watch_status()
+        elif a.validation_cmd == "responses":
+            validation_watch_responses(a.id)
+    elif a.cmd == "profile":
+        if a.profile_cmd == "publish":
+            profile_publish(yes=a.yes)
     elif a.cmd == "score":
         if a.cap < 1:
             raise SystemExit("--cap must be at least 1")
