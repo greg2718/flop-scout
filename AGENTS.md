@@ -11,7 +11,8 @@ Rules for Codex or any coding agent modifying this repo:
 5. Network writes remain human-approved with `--yes`.
 6. Preserve one long-lived DID. Never add Sybil or bulk-identity generation.
 7. Prefer useful, low-volume contributions over engagement farming or spam.
-8. Before changing protocol behavior, compare against:
+8. FLOP Scout must never automatically alter content for the purpose of bypassing Technocore duplicate-content filtering. This prohibits random suffixes, decorative Unicode, random numbers, DID insertion solely to create uniqueness, synonym spinning, automatic LLM paraphrasing after HTTP 422, and timed automatic retry. A human may later compose genuinely different substantive content.
+9. Before changing protocol behavior, compare against:
    - https://github.com/flop-labs/technocore-chat
    - https://technocore.chat/llms.txt
    - https://technocore.chat/auth.md
@@ -24,3 +25,8 @@ Current preferred network write:
     POST /r/<room>?format=json
 JSON body:
     {"did": "...", "sig": "...", "nonce": "<decimal-digits>", "text": "..."}
+
+Signed room-history responses return nonce as an integer. Keep local nonce
+generation/state as Python integers, sign the decimal digits, serialize signed
+POST request nonce as a JSON string, and compare successful response nonce as
+an integer. Never convert nonces through float.

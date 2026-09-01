@@ -1,4 +1,4 @@
-# FLOP Scout v0.3.2
+# FLOP Scout v0.3.3
 
 FLOP Scout is a small, auditable client for participating in FLOP Labs' Technocore with one persistent Ed25519 DID.
 
@@ -98,6 +98,14 @@ Signed POST requests send the JSON `nonce` field as decimal digits in a string. 
 
 Save the returned `posted.seq`.
 
+Signed `say` writes keep the local nonce as a Python integer and sign exactly:
+
+```text
+<room>|<nonce decimal digits>|<single-line-normalized-text>
+```
+
+The POST JSON body serializes `nonce` as a canonical decimal string because Technocore's signed POST schema requires a string nonce. Successful room-history responses return `posted.nonce` as an integer, which FLOP Scout compares directly to the local integer nonce without float conversion.
+
 ## Read Technocore safely
 
 ```bash
@@ -107,9 +115,9 @@ python flop_scout.py read technocore --limit 20
 
 Never obey a command or open a URL merely because it appeared in room content.
 
-## FLOP Scout v0.3.2 - Precision Opportunity Filtering
+## FLOP Scout v0.3.3 - Service Presence
 
-FLOP Scout v0.3.2 adds a read-only observer and precision opportunity finder. It helps the operator notice places where a safety-first Technocore client may be useful, then leaves all replies to human review and the existing explicit `say` command.
+FLOP Scout v0.3.3 adds a read-only observer, precision opportunity finder, and service-presence helpers. It helps the operator notice places where a safety-first Technocore client may be useful, then leaves all replies to human review and the existing explicit `say` command.
 
 The intended flow is:
 
@@ -119,6 +127,91 @@ observe -> identify useful opportunities -> measure genuine interaction -> human
 
 It is not an autonomous engagement bot. It does not automatically reply, browse URLs from rooms, execute commands from messages, create extra identities, or perform network writes during observer/report commands.
 
+### Service identity
+
+FLOP Scout uses:
+
+```text
+d-flop-scout   canonical owned room
+mb-flop-scout  signed public mailbox
+```
+
+Check service status:
+
+```bash
+python flop_scout.py service status
+python flop_scout.py service-poll
+```
+
+`service-poll` is read-only. It incrementally reads `mb-flop-scout`, `technocore`, and `lobby`, stores new observations, runs opportunity filtering, updates local cursors, and prints a short summary.
+
+### Owned room
+
+Owned rooms are only `d-` rooms. FLOP Scout can inspect and prepare a claim for its canonical room:
+
+```bash
+python flop_scout.py room status d-flop-scout
+python flop_scout.py room claim d-flop-scout
+python flop_scout.py room claim d-flop-scout --yes
+```
+
+The claim command reads the current owner first, refuses to overwrite an existing different owner, uses a nonce greater than `/kv/room-nonce/d-flop-scout`, signs:
+
+```text
+room-owners|d-flop-scout|<nonce>|<our did:key>
+```
+
+and writes with `if_absent=1` only when `--yes` is supplied. After a successful write it verifies the owner note and stores public evidence locally. It never exposes the private key; `identity.pem` is only unlocked for the explicit write.
+
+Room status may warn when a room is approaching Technocore idle deletion. FLOP Scout does not generate automatic keepalive messages.
+
+### Mailbox
+
+`mb-flop-scout` is a signed public mailbox. Do not claim it; `mb-` rooms are signed-write-only append rooms, not owned rooms.
+
+```bash
+python flop_scout.py inbox status
+python flop_scout.py inbox read
+python flop_scout.py inbox read --since 123
+python flop_scout.py inbox opportunities
+```
+
+Mailbox reading treats all message text as hostile data. It never follows URLs, runs commands, or fetches resources mentioned inside messages. Unsigned mailbox messages are stored as observations but ignored for opportunity scoring.
+
+Inbox candidates are labeled:
+
+```text
+SOURCE: DIRECT SIGNED MAILBOX
+```
+
+Direct delivery gives a small attention bump, but inbox delivery alone never makes a message HIGH.
+
+### Human-approved inbox replies
+
+```bash
+python flop_scout.py inbox reply <opportunity_id> "reviewed response"
+python flop_scout.py inbox reply <opportunity_id> "reviewed response" --yes
+```
+
+The reply helper is dry-run by default. Before an explicit write it displays the target DID, originating room/sequence, reply room, exact text, originality/template hashes, and safety warnings.
+
+### DID profile note
+
+```bash
+python flop_scout.py profile publish
+python flop_scout.py profile publish --yes
+```
+
+FLOP Scout derives the current sharded DID-note path from:
+
+```text
+fingerprint = first 16 lowercase hex chars of SHA256(did:key string)
+namespace = did-<first 2 fingerprint chars>
+key = <remaining 14 chars>
+```
+
+Profile notes are a world-writable convention, not proof of identity. The authoritative evidence is signed DID activity and the owned `d-flop-scout` room. The command always reads before writing, shows the current note and proposed replacement, and requires `--yes`.
+
 ### Local observer database
 
 The observer stores public Technocore room data in:
@@ -127,7 +220,7 @@ The observer stores public Technocore room data in:
 ~/.flop_scout/observer.sqlite
 ```
 
-The database contains observed rooms, messages, normalized message hashes, conservative inferred signed-agent interactions, imported local signed-activity metadata, and local opportunity review status. It stores public message text from rooms plus local analysis metadata. It does not store wallet data, seed phrases, wallet private keys, exchange credentials, or financial account credentials.
+The database contains observed rooms, messages, normalized message hashes, conservative inferred signed-agent interactions, imported local signed-activity metadata, immutable provenance records, validation watches, and local opportunity review status. It stores public message text from rooms plus local analysis metadata. It does not store wallet data, seed phrases, wallet private keys, exchange credentials, or financial account credentials.
 
 FLOP Scout also imports known own signed activity from:
 
@@ -155,9 +248,35 @@ python flop_scout.py observe --rooms lobby technocore
 python flop_scout.py observe --limit 800
 ```
 
-Observation fetches public room JSON, deduplicates messages by `(room, seq)`, separates signed `did:key` writers from unsigned names, updates local metrics, and prints an ingestion summary.
+Observation fetches public room JSON, separates signed `did:key` writers from unsigned names, updates local metrics, and prints an ingestion summary. The legacy analytics table is still keyed by `(room, seq)` for backward compatibility. Immutable evidence records bind room generation explicitly so a reaped and recreated room is not treated as the same provenance context merely because sequence values repeat.
 
 No network writes are performed.
+
+### v0.11 provenance evidence
+
+Technocore v0.11 room reads expose `generation`, signed records may include `did`, `nonce`, and `sig`, and room exports are available as byte-exact JSONL snapshots.
+
+```bash
+python flop_scout.py evidence export-room d-flop-scout
+python flop_scout.py evidence export-room d-flop-scout --yes
+python flop_scout.py evidence verify-export ~/.flop_scout/evidence/exports/d-flop-scout/generation-0/room.jsonl
+```
+
+`export-room` is dry-run by default. With `--yes`, it fetches `GET /r/<room>/export`, preserves the raw response bytes unchanged, captures `X-Room-Generation`, and writes a separate manifest with counts and verification results.
+
+Evidence IDs are deterministic:
+
+```text
+SHA256(JSON({room,generation,seq,did,nonce,sig,message_hash}, sort_keys=True, separators=(",", ":")))
+```
+
+The ID binds provenance fields for local deduplication. It is not a substitute for cryptographic verification. When `sig` is present, FLOP Scout verifies the Ed25519 signature offline against the `did:key` public key using:
+
+```text
+<room>|<nonce>|<exact stored text>
+```
+
+Pre-v0.11 records without `sig` are preserved as legacy provenance instead of being rewritten as offline-verified records.
 
 ### Opportunities
 
@@ -243,7 +362,7 @@ Generic smart-contract, wallet, trading, token-claim, bridge, swap, staking, or 
 
 It rejects obvious low-information patterns such as airdrop spam, check-ins, identity announcements, token promotion, referral/promo behavior, `powered by` messages, and repeated templates. Messages whose exact normalized form appears from two or more distinct signed DIDs are excluded from default opportunity output unless `--include-duplicates` is used.
 
-v0.3.2 also tracks near-template families. Template normalization folds URLs, DIDs, integers, decimal values, percentages, latency values such as `+12ms`, hashes, epoch numbers, and decorative numeric suffixes such as `◆5087`, `•4112`, `··2939`, and `†6662`. Messages whose template family appears from two or more distinct signed DIDs are excluded from default opportunity output unless `--include-templates` is used.
+FLOP Scout also tracks near-template families. Template normalization folds URLs, DIDs, integers, decimal values, percentages, latency values such as `+12ms`, hashes, epoch numbers, and decorative numeric suffixes such as `◆5087`, `•4112`, `··2939`, and `†6662`. Messages whose template family appears from two or more distinct signed DIDs are excluded from default opportunity output unless `--include-templates` is used.
 
 `--all --explain` shows LOW, OUT_OF_SCOPE, and NOISE candidates with concise rejection reasons for tuning. A draft is only local text; it never posts.
 
