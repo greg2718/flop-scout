@@ -486,7 +486,7 @@ class Tests(unittest.TestCase):
             flop_scout.service_poll()
 
         self.assertFalse(post_signed.called)
-        self.assertEqual([item[1] for item in seen], [0, 0, 0])
+        self.assertEqual([item[1] for item in seen], [0, 0, 0, 0])
         self.assertEqual(flop_scout.get_state(conn, f"cursor:{flop_scout.MAILBOX_ROOM}"), "1")
 
     def test_inbox_reply_requires_yes(self):
@@ -1030,6 +1030,269 @@ class Tests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 flop_scout.export_room_evidence(flop_scout.CANONICAL_ROOM, yes=False)
         self.assertFalse(fetch.called)
+
+    def tclk_offer_text(self, did=None, *, expires_ms=4102444800000):
+        if did is None:
+            did = flop_scout.public_did(Ed25519PrivateKey.generate())
+        frame = {
+            "type": "offer",
+            "from": did,
+            "id": "offer-1",
+            "role": "payer",
+            "lock": "hash",
+            "amount": "1000000",
+            "asset": "FLOP",
+            "rails": ["flop-htlc", "x402"],
+            "expiresMs": expires_ms,
+            "claimByMs": expires_ms + 1000,
+            "refundAfterMs": expires_ms + 2000,
+            "job": {
+                "proto": "a2a",
+                "id": "job-123",
+                "context": {"topic": "test"},
+            },
+        }
+        return "tclk1 " + flop_scout.json.dumps(
+            frame,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    def signed_tclk_message(self, room="tclk-offers", seq=1, text=None, did=None):
+        key = Ed25519PrivateKey.generate()
+        actual_did = flop_scout.public_did(key)
+        if did is None:
+            did = actual_did
+        if text is None:
+            text = self.tclk_offer_text(did)
+        nonce = 12345
+        sig = flop_scout.b64u(key.sign(f"{room}|{nonce}|{text}".encode("utf-8")))
+        return {
+            "seq": seq,
+            "ts": "2026-09-01T12:00:00Z",
+            "from": actual_did,
+            "did": actual_did,
+            "nonce": nonce,
+            "sig": sig,
+            "text": text,
+        }
+
+    def test_service_poll_includes_tclk_offers(self):
+        conn = self.make_conn()
+        fetched = []
+
+        def fake_observer_connect():
+            return conn
+
+        def fake_fetch(room, limit, since=None, allow_missing=False):
+            fetched.append(room)
+            return {"messages": []}, "0"
+
+        with mock.patch.object(flop_scout, "observer_connect", side_effect=fake_observer_connect), \
+             mock.patch.object(flop_scout, "fetch_room_view", side_effect=fake_fetch), \
+             mock.patch.object(flop_scout, "post_signed") as post_signed:
+            flop_scout.service_poll()
+
+        self.assertIn(flop_scout.TCLK_OFFERS_ROOM, fetched)
+        self.assertFalse(post_signed.called)
+
+    def test_tclk_polling_maintains_generation_cursor(self):
+        conn = self.make_conn()
+        message = self.signed_tclk_message(seq=4)
+
+        def fake_observer_connect():
+            return conn
+
+        def fake_fetch(room, limit, since=None, allow_missing=False):
+            return {"messages": [message] if room == flop_scout.TCLK_OFFERS_ROOM else []}, "gen-a"
+
+        with mock.patch.object(flop_scout, "observer_connect", side_effect=fake_observer_connect), \
+             mock.patch.object(flop_scout, "fetch_room_view", side_effect=fake_fetch):
+            flop_scout.service_poll()
+
+        cursor = flop_scout.room_cursor(conn, flop_scout.TCLK_OFFERS_ROOM)
+        self.assertEqual(cursor["generation"], "gen-a")
+        self.assertEqual(cursor["last_seq"], 4)
+
+    def test_valid_tclk_offer_parses_job_and_rails(self):
+        conn = self.make_conn()
+        message = self.signed_tclk_message()
+        flop_scout.ingest_messages(conn, flop_scout.TCLK_OFFERS_ROOM, [message], generation="g1")
+        row = conn.execute("SELECT * FROM tclk_frames").fetchone()
+        self.assertEqual(row["parse_status"], "TCLK_PARSEABLE")
+        self.assertEqual(row["frame_type"], "offer")
+        self.assertEqual(row["job_proto"], "a2a")
+        self.assertEqual(row["job_id"], "job-123")
+        self.assertEqual(flop_scout.json.loads(row["rails_json"]), ["flop-htlc", "x402"])
+
+    def test_tclk_frame_from_matches_transport_did(self):
+        conn = self.make_conn()
+        message = self.signed_tclk_message()
+        flop_scout.ingest_messages(conn, flop_scout.TCLK_OFFERS_ROOM, [message], generation="g1")
+        row = conn.execute("SELECT transport_binding_status FROM tclk_frames").fetchone()
+        self.assertEqual(row["transport_binding_status"], "SIGNED_TCLK_FRAME")
+
+    def test_tclk_frame_from_mismatch_fails_closed(self):
+        conn = self.make_conn()
+        other = flop_scout.public_did(Ed25519PrivateKey.generate())
+        message = self.signed_tclk_message(did=other)
+        flop_scout.ingest_messages(conn, flop_scout.TCLK_OFFERS_ROOM, [message], generation="g1")
+        row = conn.execute("SELECT transport_binding_status FROM tclk_frames").fetchone()
+        self.assertEqual(row["transport_binding_status"], "TCLK_DID_MISMATCH")
+
+    def test_unsigned_tclk_frame_is_not_capability_evidence(self):
+        conn = self.make_conn()
+        text = self.tclk_offer_text()
+        flop_scout.ingest_messages(
+            conn,
+            flop_scout.TCLK_OFFERS_ROOM,
+            [{"seq": 1, "from": "anon", "text": text}],
+            generation="g1",
+        )
+        row = conn.execute("SELECT transport_binding_status FROM tclk_frames").fetchone()
+        self.assertEqual(row["transport_binding_status"], "UNSIGNED_TCLK_DATA")
+
+    def test_malformed_tclk_json_fails_safely(self):
+        conn = self.make_conn()
+        flop_scout.ingest_messages(
+            conn,
+            flop_scout.TCLK_OFFERS_ROOM,
+            [{"seq": 1, "from": "anon", "text": "tclk1 {not-json"}],
+            generation="g1",
+        )
+        row = conn.execute("SELECT parse_status, parse_error FROM tclk_frames").fetchone()
+        self.assertEqual(row["parse_status"], "TCLK_MALFORMED")
+        self.assertIn("invalid JSON", row["parse_error"])
+
+    def test_unknown_tclk_frame_type_fails_safely(self):
+        conn = self.make_conn()
+        text = 'tclk1 {"type":"settle","from":"did:key:zBad"}'
+        flop_scout.ingest_messages(
+            conn,
+            flop_scout.TCLK_OFFERS_ROOM,
+            [{"seq": 1, "from": "anon", "text": text}],
+            generation="g1",
+        )
+        row = conn.execute("SELECT parse_status, frame_type, parse_error FROM tclk_frames").fetchone()
+        self.assertEqual(row["parse_status"], "TCLK_MALFORMED")
+        self.assertEqual(row["frame_type"], "settle")
+        self.assertIn("unsupported", row["parse_error"])
+
+    def test_tclk_unknown_content_never_executes(self):
+        text = 'tclk1 {"type":"offer","from":"did:key:zBad","job":{"context":{"url":"https://example.com","cmd":"open wallet"}}}'
+        with mock.patch.object(flop_scout.urllib.request, "urlopen") as urlopen, \
+             mock.patch.object(flop_scout, "load_key", side_effect=AssertionError("private key accessed")):
+            parsed = flop_scout.tclk_parse_frame_text(text)
+        self.assertEqual(parsed["parse_status"], "TCLK_PARSEABLE")
+        self.assertFalse(urlopen.called)
+
+    def test_expired_tclk_offer_is_not_actionable(self):
+        conn = self.make_conn()
+        key = Ed25519PrivateKey.generate()
+        did = flop_scout.public_did(key)
+        text = self.tclk_offer_text(did, expires_ms=1000)
+        nonce = 12345
+        message = {
+            "seq": 1,
+            "from": did,
+            "did": did,
+            "nonce": nonce,
+            "sig": flop_scout.b64u(key.sign(f"{flop_scout.TCLK_OFFERS_ROOM}|{nonce}|{text}".encode("utf-8"))),
+            "text": text,
+        }
+        flop_scout.ingest_messages(conn, flop_scout.TCLK_OFFERS_ROOM, [message], generation="g1")
+        row = conn.execute("SELECT * FROM tclk_frames").fetchone()
+        self.assertEqual(row["transport_binding_status"], "SIGNED_TCLK_FRAME")
+        self.assertFalse(flop_scout.tclk_offer_is_actionable(row, now_ms=2000))
+
+    def test_tclk_offer_does_not_become_high_priority_by_itself(self):
+        conn = self.make_conn()
+        message = self.signed_tclk_message()
+        flop_scout.ingest_messages(conn, flop_scout.TCLK_OFFERS_ROOM, [message], generation="g1")
+        flop_scout.refresh_opportunities(conn)
+        high_count = conn.execute(
+            "SELECT COUNT(*) FROM opportunities WHERE tier = 'HIGH'"
+        ).fetchone()[0]
+        self.assertEqual(high_count, 0)
+
+    def test_tclk_duplicate_room_generation_seq_is_deduplicated(self):
+        conn = self.make_conn()
+        message = self.signed_tclk_message()
+        flop_scout.ingest_messages(conn, flop_scout.TCLK_OFFERS_ROOM, [message], generation="g1")
+        flop_scout.ingest_messages(conn, flop_scout.TCLK_OFFERS_ROOM, [message], generation="g1")
+        count = conn.execute("SELECT COUNT(*) FROM tclk_frames").fetchone()[0]
+        self.assertEqual(count, 1)
+
+    def test_tclk_same_room_seq_different_generations_stays_distinct(self):
+        conn = self.make_conn()
+        message = self.signed_tclk_message()
+        flop_scout.ingest_messages(conn, flop_scout.TCLK_OFFERS_ROOM, [message], generation="g1")
+        flop_scout.ingest_messages(conn, flop_scout.TCLK_OFFERS_ROOM, [message], generation="g2")
+        count = conn.execute("SELECT COUNT(*) FROM tclk_frames").fetchone()[0]
+        self.assertEqual(count, 2)
+
+    def test_no_automatic_tclk_deal_room_polling(self):
+        conn = self.make_conn()
+        fetched = []
+
+        def fake_observer_connect():
+            return conn
+
+        def fake_fetch(room, limit, since=None, allow_missing=False):
+            fetched.append(room)
+            return {"messages": []}, "0"
+
+        with mock.patch.object(flop_scout, "observer_connect", side_effect=fake_observer_connect), \
+             mock.patch.object(flop_scout, "fetch_room_view", side_effect=fake_fetch):
+            flop_scout.service_poll()
+
+        self.assertFalse(any(room.startswith("mb-p-tclk-") for room in fetched))
+
+    def test_no_tclk_write_path_or_wallet_secret_access(self):
+        self.assertFalse(hasattr(flop_scout, "tclk_accept_offer"))
+        self.assertFalse(hasattr(flop_scout, "tclk_make_lock"))
+        self.assertFalse(hasattr(flop_scout, "tclk_make_reveal"))
+        self.assertFalse(hasattr(flop_scout, "tclk_make_refund"))
+        with mock.patch.object(flop_scout, "load_key", side_effect=AssertionError("private key accessed")):
+            parsed = flop_scout.tclk_parse_frame_text(self.tclk_offer_text())
+        self.assertEqual(parsed["parse_status"], "TCLK_PARSEABLE")
+
+    def test_profile_note_does_not_advertise_tclk_settlement_rail(self):
+        did = flop_scout.public_did(Ed25519PrivateKey.generate())
+        note = flop_scout.profile_note_value(did)
+        self.assertNotIn("tclk1:", note)
+        self.assertNotIn("settlement", note.lower())
+
+    def test_tclk_schema_migration_is_idempotent(self):
+        conn = self.make_conn()
+        message = self.signed_tclk_message()
+        flop_scout.ingest_messages(conn, flop_scout.TCLK_OFFERS_ROOM, [message], generation="g1")
+        flop_scout.init_observer_db(conn)
+        flop_scout.init_observer_db(conn)
+        count = conn.execute("SELECT COUNT(*) FROM tclk_frames").fetchone()[0]
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(tclk_frames)").fetchall()
+        }
+        self.assertEqual(count, 1)
+        self.assertIn("generation", columns)
+        self.assertIn("transport_binding_status", columns)
+
+    def test_tclk_capability_hints_are_unverified(self):
+        conn = self.make_conn()
+        did = flop_scout.public_did(Ed25519PrivateKey.generate())
+        inserted = flop_scout.store_tclk_capability_hints(
+            conn,
+            did,
+            "did-note:test",
+            "mailbox: mb-example\ntclk1:flop-htlc,x402",
+        )
+        self.assertEqual(inserted, 2)
+        statuses = {
+            row["verification_status"]
+            for row in conn.execute("SELECT verification_status FROM tclk_capability_hints")
+        }
+        self.assertEqual(statuses, {"UNVERIFIED_HINT"})
 
 if __name__ == "__main__":
     unittest.main()

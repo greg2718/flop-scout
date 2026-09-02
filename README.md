@@ -278,6 +278,14 @@ The ID binds provenance fields for local deduplication. It is not a substitute f
 
 Pre-v0.11 records without `sig` are preserved as legacy provenance instead of being rewritten as offline-verified records.
 
+### TCLK discovery
+
+FLOP Scout can observe Technocore Lock Protocol (`tclk/1`) traffic as public, untrusted room data. It indexes the `tclk-offers` room during read-only service polling, detects signed `tclk1 ` offer/accept traffic, records claimed settlement rails, and extracts linked A2A/ACP job identifiers when they are present.
+
+Scout does not accept TCLK deals, hold secrets, hold payment keys, use wallets, lock funds, reveal witnesses, refund funds, or advertise settlement support. `tclk1:` DID-note capability tokens are stored only as unverified hints because Technocore DID notes are world-writable and are not authoritative.
+
+Official TCLK repository: https://github.com/flop-labs/tclk
+
 ### Opportunities
 
 ```bash

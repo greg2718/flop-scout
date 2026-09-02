@@ -36,12 +36,16 @@ DEFAULT_OBSERVE_ROOMS = ("lobby", "technocore")
 INTERACTION_WINDOW = 5
 CANONICAL_ROOM = "d-flop-scout"
 MAILBOX_ROOM = "mb-flop-scout"
+TCLK_OFFERS_ROOM = "tclk-offers"
 GITHUB_URL = "https://github.com/greg2718/flop-scout"
-SERVICE_ROOMS = (MAILBOX_ROOM, "technocore", "lobby")
+SERVICE_ROOMS = (MAILBOX_ROOM, TCLK_OFFERS_ROOM, "technocore", "lobby")
 CONFIG_DUPLICATE_KEYS = ("dupe_filter_seconds", "dupe_max_copies", "dupe_min_length")
 UNKNOWN_LEGACY_GENERATION = "UNKNOWN_LEGACY"
 GENERATION_MISSING = "GENERATION_MISSING"
 DEFAULT_EVIDENCE_ROOMS = (CANONICAL_ROOM, MAILBOX_ROOM)
+TCLK_FRAME_PREFIX = "tclk1 "
+TCLK_FRAME_TYPES = ("offer", "accept", "lock", "reveal", "refund", "cancel", "receipt")
+TCLK_OBSERVED_ONLY = "OBSERVES_TCLK_DOES_NOT_ACCEPT_SETTLEMENT"
 DUPLICATE_REFUSAL_MESSAGE = """Technocore refused this message as duplicate/repeated content (HTTP 422).
 
 The same or equivalent normalized text has recently appeared too many times
@@ -631,6 +635,47 @@ def init_observer_db(conn: sqlite3.Connection) -> None:
             raw_record_json TEXT NOT NULL,
             UNIQUE (room, generation, seq, evidence_id)
         );
+
+        CREATE TABLE IF NOT EXISTS tclk_frames (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room TEXT NOT NULL,
+            generation TEXT NOT NULL,
+            seq INTEGER NOT NULL,
+            transport_did TEXT,
+            transport_verification_status TEXT NOT NULL,
+            transport_binding_status TEXT NOT NULL,
+            frame_hash TEXT NOT NULL,
+            frame_type TEXT,
+            frame_from TEXT,
+            offer_id TEXT,
+            contract_id TEXT,
+            ref TEXT,
+            job_proto TEXT,
+            job_id TEXT,
+            job_context_json TEXT,
+            role TEXT,
+            lock_kind TEXT,
+            asset TEXT,
+            amount TEXT,
+            rails_json TEXT,
+            expires_ms INTEGER,
+            claim_by_ms INTEGER,
+            refund_after_ms INTEGER,
+            observed_at TEXT NOT NULL,
+            parse_status TEXT NOT NULL,
+            raw_text TEXT NOT NULL,
+            parse_error TEXT,
+            UNIQUE (room, generation, seq)
+        );
+
+        CREATE TABLE IF NOT EXISTS tclk_capability_hints (
+            did TEXT NOT NULL,
+            rail TEXT NOT NULL,
+            source TEXT NOT NULL,
+            observed_at TEXT NOT NULL,
+            verification_status TEXT NOT NULL DEFAULT 'UNVERIFIED_HINT',
+            PRIMARY KEY (did, rail, source)
+        );
         """
     )
     conn.execute(
@@ -638,6 +683,12 @@ def init_observer_db(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_evidence_records_room_generation_seq ON evidence_records(room, generation, seq)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_tclk_frames_type ON tclk_frames(frame_type, parse_status)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_tclk_frames_transport ON tclk_frames(transport_did, transport_binding_status)"
     )
     for column, ddl in {
         "template_normalized_text": "ALTER TABLE messages ADD COLUMN template_normalized_text TEXT NOT NULL DEFAULT ''",
@@ -888,6 +939,290 @@ def store_evidence_record(conn: sqlite3.Connection, record: dict[str, Any]) -> N
     )
 
 
+def tclk_text_is_frame(text: str) -> bool:
+    return text.startswith(TCLK_FRAME_PREFIX)
+
+
+def int_field(value: Any) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def str_field(value: Any) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def tclk_parse_frame_text(text: str) -> dict[str, Any] | None:
+    if not tclk_text_is_frame(text):
+        return None
+    remainder = text[len(TCLK_FRAME_PREFIX) :]
+    result: dict[str, Any] = {
+        "parse_status": "TCLK_MALFORMED",
+        "frame": None,
+        "parse_error": None,
+    }
+    try:
+        frame = json.loads(remainder)
+    except json.JSONDecodeError as exc:
+        result["parse_error"] = f"invalid JSON: {exc.msg}"
+        return result
+    if not isinstance(frame, dict):
+        result["parse_error"] = "frame JSON is not an object"
+        return result
+    frame_type = frame.get("type")
+    if frame_type not in TCLK_FRAME_TYPES:
+        result["parse_error"] = "unsupported or missing frame type"
+        result["frame"] = frame
+        return result
+    result["parse_status"] = "TCLK_PARSEABLE"
+    result["frame"] = frame
+    return result
+
+
+def tclk_frame_value(frame: dict[str, Any], key: str) -> str | None:
+    return str_field(frame.get(key))
+
+
+def tclk_lock_kind(frame: dict[str, Any]) -> str | None:
+    lock = frame.get("lock")
+    if isinstance(lock, str):
+        return lock
+    if isinstance(lock, dict):
+        return str_field(lock.get("kind") or lock.get("type"))
+    return None
+
+
+def tclk_rails_json(frame: dict[str, Any]) -> str | None:
+    rails = frame.get("rails")
+    if not isinstance(rails, list):
+        return None
+    return json.dumps(rails, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def tclk_transport_binding_status(
+    transport_did: str | None,
+    transport_verification_status: str,
+    frame_from: str | None,
+) -> str:
+    verified = transport_verification_status in {
+        "VERIFIED_OFFLINE",
+        "LEGACY_SERVER_VERIFIED_NO_SIGNATURE",
+    }
+    if not verified or transport_did is None:
+        return "UNSIGNED_TCLK_DATA"
+    if frame_from == transport_did:
+        return "SIGNED_TCLK_FRAME"
+    return "TCLK_DID_MISMATCH"
+
+
+def tclk_record_from_message(
+    room: str,
+    generation: str | int | None,
+    raw: dict[str, Any],
+    evidence: dict[str, Any] | None,
+    *,
+    observed_at: str,
+) -> dict[str, Any] | None:
+    text = raw.get("text")
+    if not isinstance(text, str):
+        return None
+    parsed = tclk_parse_frame_text(text)
+    if parsed is None:
+        return None
+    try:
+        seq = int(raw["seq"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    frame = parsed.get("frame") if isinstance(parsed.get("frame"), dict) else {}
+    job = frame.get("job") if isinstance(frame.get("job"), dict) else {}
+    transport_did = evidence["did"] if evidence is not None else message_did(raw)
+    verification_status = (
+        evidence["verification_status"] if evidence is not None else verify_signed_record_offline(room, raw)
+    )
+    frame_from = tclk_frame_value(frame, "from")
+    return {
+        "room": valid_room(room),
+        "generation": str(generation) if generation is not None else UNKNOWN_LEGACY_GENERATION,
+        "seq": seq,
+        "transport_did": transport_did,
+        "transport_verification_status": verification_status,
+        "transport_binding_status": tclk_transport_binding_status(
+            transport_did,
+            verification_status,
+            frame_from,
+        ),
+        "frame_hash": message_hash(text),
+        "frame_type": tclk_frame_value(frame, "type"),
+        "frame_from": frame_from,
+        "offer_id": tclk_frame_value(frame, "id"),
+        "contract_id": tclk_frame_value(frame, "contract"),
+        "ref": tclk_frame_value(frame, "ref"),
+        "job_proto": str_field(job.get("proto")),
+        "job_id": str_field(job.get("id")),
+        "job_context_json": json.dumps(job.get("context"), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        if "context" in job
+        else None,
+        "role": tclk_frame_value(frame, "role"),
+        "lock_kind": tclk_lock_kind(frame),
+        "asset": tclk_frame_value(frame, "asset"),
+        "amount": str(frame["amount"]) if "amount" in frame and not isinstance(frame.get("amount"), (dict, list)) else None,
+        "rails_json": tclk_rails_json(frame),
+        "expires_ms": int_field(frame.get("expiresMs")),
+        "claim_by_ms": int_field(frame.get("claimByMs")),
+        "refund_after_ms": int_field(frame.get("refundAfterMs")),
+        "observed_at": observed_at,
+        "parse_status": parsed["parse_status"],
+        "raw_text": text,
+        "parse_error": parsed.get("parse_error"),
+    }
+
+
+def store_tclk_frame(conn: sqlite3.Connection, record: dict[str, Any]) -> None:
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO tclk_frames
+            (room, generation, seq, transport_did, transport_verification_status,
+             transport_binding_status, frame_hash, frame_type, frame_from, offer_id,
+             contract_id, ref, job_proto, job_id, job_context_json, role, lock_kind,
+             asset, amount, rails_json, expires_ms, claim_by_ms, refund_after_ms,
+             observed_at, parse_status, raw_text, parse_error)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record["room"],
+            record["generation"],
+            record["seq"],
+            record["transport_did"],
+            record["transport_verification_status"],
+            record["transport_binding_status"],
+            record["frame_hash"],
+            record["frame_type"],
+            record["frame_from"],
+            record["offer_id"],
+            record["contract_id"],
+            record["ref"],
+            record["job_proto"],
+            record["job_id"],
+            record["job_context_json"],
+            record["role"],
+            record["lock_kind"],
+            record["asset"],
+            record["amount"],
+            record["rails_json"],
+            record["expires_ms"],
+            record["claim_by_ms"],
+            record["refund_after_ms"],
+            record["observed_at"],
+            record["parse_status"],
+            record["raw_text"],
+            record["parse_error"],
+        ),
+    )
+
+
+def parse_tclk_capability_hints(note_text: str) -> list[str]:
+    rails: list[str] = []
+    for match in re.finditer(r"\btclk1:([A-Za-z0-9_.:-]+(?:,[A-Za-z0-9_.:-]+)*)\b", note_text):
+        for rail in match.group(1).split(","):
+            if rail and rail not in rails:
+                rails.append(rail)
+    return rails
+
+
+def store_tclk_capability_hints(conn: sqlite3.Connection, did: str, source: str, note_text: str) -> int:
+    if not is_valid_ed25519_did(did):
+        return 0
+    now = utc_now()
+    inserted = 0
+    for rail in parse_tclk_capability_hints(note_text):
+        before = conn.total_changes
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO tclk_capability_hints
+                (did, rail, source, observed_at, verification_status)
+            VALUES (?, ?, ?, ?, 'UNVERIFIED_HINT')
+            """,
+            (did, rail, source, now),
+        )
+        if conn.total_changes > before:
+            inserted += 1
+    conn.commit()
+    return inserted
+
+
+def tclk_offer_is_actionable(row: sqlite3.Row, *, now_ms: int | None = None) -> bool:
+    if row["parse_status"] != "TCLK_PARSEABLE":
+        return False
+    if row["frame_type"] != "offer":
+        return False
+    if row["transport_binding_status"] != "SIGNED_TCLK_FRAME":
+        return False
+    expires_ms = row["expires_ms"]
+    if expires_ms is not None:
+        if now_ms is None:
+            now_ms = int(time.time() * 1000)
+        if int(expires_ms) <= now_ms:
+            return False
+    return True
+
+
+def tclk_discovery_rows(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        SELECT *
+        FROM tclk_frames
+        WHERE parse_status = 'TCLK_PARSEABLE'
+          AND frame_type = 'offer'
+          AND transport_binding_status = 'SIGNED_TCLK_FRAME'
+        ORDER BY observed_at DESC, room, generation, seq
+        LIMIT 20
+        """
+    ).fetchall()
+
+
+def print_tclk_discovery_summary(conn: sqlite3.Connection) -> None:
+    total = conn.execute("SELECT COUNT(*) FROM tclk_frames").fetchone()[0]
+    parseable = conn.execute(
+        "SELECT COUNT(*) FROM tclk_frames WHERE parse_status = 'TCLK_PARSEABLE'"
+    ).fetchone()[0]
+    malformed = conn.execute(
+        "SELECT COUNT(*) FROM tclk_frames WHERE parse_status = 'TCLK_MALFORMED'"
+    ).fetchone()[0]
+    signed = conn.execute(
+        "SELECT COUNT(*) FROM tclk_frames WHERE transport_binding_status = 'SIGNED_TCLK_FRAME'"
+    ).fetchone()[0]
+    mismatched = conn.execute(
+        "SELECT COUNT(*) FROM tclk_frames WHERE transport_binding_status = 'TCLK_DID_MISMATCH'"
+    ).fetchone()[0]
+    rows = [row for row in tclk_discovery_rows(conn) if tclk_offer_is_actionable(row)]
+    print("TCLK discovery")
+    print("--------------")
+    print(f"Indexed frames: {total}")
+    print(f"Parseable frames: {parseable}")
+    print(f"Malformed frames: {malformed}")
+    print(f"Signed matching frames: {signed}")
+    print(f"DID mismatches: {mismatched}")
+    print(f"Signed unexpired offers for review: {len(rows)}")
+    for row in rows[:5]:
+        rails = row["rails_json"] or "[]"
+        print("")
+        print(f"  room: {row['room']}")
+        print(f"  generation: {row['generation']}")
+        print(f"  seq: {row['seq']}")
+        print(f"  counterparty DID: {row['transport_did']}")
+        print(f"  offer id: {row['offer_id'] or '(none)'}")
+        print(f"  job: {row['job_proto'] or '(none)'}/{row['job_id'] or '(none)'}")
+        print(f"  amount/asset: {row['amount'] or '(none)'}/{row['asset'] or '(none)'}")
+        print(f"  rails: {rails}")
+        print(f"  lock type: {row['lock_kind'] or '(none)'}")
+        print(f"  expiresMs: {row['expires_ms'] if row['expires_ms'] is not None else '(none)'}")
+    print("Scout observes TCLK only; it does not accept, lock, reveal, refund, settle, or assign TCLK-only HIGH priority.")
+
+
 def ingest_messages(
     conn: sqlite3.Connection,
     room: str,
@@ -912,6 +1247,15 @@ def ingest_messages(
         )
         if evidence is not None:
             store_evidence_record(conn, evidence)
+        tclk_record = tclk_record_from_message(
+            room,
+            str(generation) if generation is not None else None,
+            raw,
+            evidence,
+            observed_at=now,
+        )
+        if tclk_record is not None:
+            store_tclk_frame(conn, tclk_record)
         try:
             seq = int(raw["seq"])
             text = str(raw.get("text", ""))
@@ -2909,6 +3253,7 @@ def service_poll() -> None:
     lines = ["FLOP Scout Service Poll\n"]
     new_high = 0
     validation_rows: list[sqlite3.Row] = []
+    tclk_summary_conn: sqlite3.Connection | None = None
     with observer_connect() as conn:
         for room in validation_watch_rooms(conn):
             cursor = room_cursor(conn, room)
@@ -2949,11 +3294,15 @@ def service_poll() -> None:
         ).fetchone()[0]
         validation_rows = store_validation_responses(conn)
         set_state(conn, "last_service_poll", utc_now())
+        tclk_summary_conn = conn
     lines.append(f"New HIGH opportunities: {new_high}")
     lines.append("")
     print("\n".join(lines))
     print_validation_response_summary(validation_rows)
     print("")
+    if tclk_summary_conn is not None:
+        print_tclk_discovery_summary(tclk_summary_conn)
+        print("")
     print("No network writes performed.")
 
 
@@ -2982,6 +3331,8 @@ def service_status() -> None:
             """,
             (MAILBOX_ROOM,),
         ).fetchone()[0]
+        tclk_frames = conn.execute("SELECT COUNT(*) FROM tclk_frames").fetchone()[0]
+        tclk_hints = conn.execute("SELECT COUNT(*) FROM tclk_capability_hints").fetchone()[0]
     print("FLOP Scout Service")
     print(f"DID: {did}")
     print(f"Canonical room: {CANONICAL_ROOM}")
@@ -2997,6 +3348,12 @@ def service_status() -> None:
     print("  room generation: supported")
     print("  signed record signatures: supported")
     print("  offline verification: supported")
+    print("TCLK discovery:")
+    print(f"  offers room: {TCLK_OFFERS_ROOM}")
+    print("  mode: observes only")
+    print("  settlement capability advertised: NO")
+    print(f"  indexed frames: {tclk_frames}")
+    print(f"  unverified capability hints: {tclk_hints}")
     print("Watched rooms:")
     for room, cursor, continuity in watched_room_rows:
         print(
