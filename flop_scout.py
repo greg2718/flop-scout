@@ -46,6 +46,7 @@ DEFAULT_EVIDENCE_ROOMS = (CANONICAL_ROOM, MAILBOX_ROOM)
 TCLK_FRAME_PREFIX = "tclk1 "
 TCLK_FRAME_TYPES = ("offer", "accept", "lock", "reveal", "refund", "cancel", "receipt")
 TCLK_OBSERVED_ONLY = "OBSERVES_TCLK_DOES_NOT_ACCEPT_SETTLEMENT"
+LOCAL_OPERATOR_GROUP = "flop-labs-local"
 DUPLICATE_REFUSAL_MESSAGE = """Technocore refused this message as duplicate/repeated content (HTTP 422).
 
 The same or equivalent normalized text has recently appeared too many times
@@ -482,6 +483,270 @@ def update_room_cursor(
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def canonical_json_bytes(value: dict[str, Any]) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+def canonical_json_hash(value: dict[str, Any]) -> str:
+    return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
+
+
+def load_json_artifact(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise SystemExit(f"{path} must contain a JSON object.")
+    return payload
+
+
+def write_json_artifact(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def scout_verification_request_preview(request_path: Path) -> dict[str, Any]:
+    request = load_json_artifact(request_path)
+    if request.get("schema_version") != "flop-verification-request/v1":
+        raise SystemExit("Unsupported verification request schema.")
+    message_hash = canonical_json_hash(request)
+    preview = {
+        "schema_version": "flop-scout.verification-request-preview/v1",
+        "request_id": request.get("request_id"),
+        "routing_decision_id": request.get("routing_decision_id"),
+        "routing_decision_hash": request.get("routing_decision_hash"),
+        "task_hash": request.get("task_hash"),
+        "requester_did": request.get("requester_did"),
+        "target_agent_did": request.get("target_agent_did"),
+        "task_type": request.get("task_type"),
+        "verification_mode": request.get("verification_mode"),
+        "specimen": request.get("specimen"),
+        "expected_properties": request.get("expected_properties"),
+        "response_destination": request.get("response_destination"),
+        "operator_group": request.get("operator_group"),
+        "same_operator": request.get("same_operator", request.get("operator_group") == LOCAL_OPERATOR_GROUP),
+        "independent_reputation": request.get("independent_reputation"),
+        "message_hash": message_hash,
+        "request_artifact_hash": hashlib.sha256(request_path.read_bytes()).hexdigest(),
+        "transport": "local_preview_only",
+        "dry_run": True,
+        "network_writes": 0,
+        "private_key_accesses": 0,
+        "tclk_settlement_actions": 0,
+    }
+    return preview
+
+
+def verification_result_authenticity(result: dict[str, Any]) -> str:
+    explicit = result.get("authenticity") or result.get("verification_status")
+    if explicit in {"VERIFIED_OFFLINE", "INVALID_SIGNATURE"}:
+        return str(explicit)
+    if result.get("sig") or result.get("signature"):
+        return "SIGNATURE_PRESENT_UNVERIFIED"
+    return "UNSIGNED_LOCAL"
+
+
+def scout_normalize_bench_result(result_path: Path, request_path: Path | None = None) -> dict[str, Any]:
+    result = load_json_artifact(result_path)
+    if result.get("schema_version") != "flop-verification-result/v1":
+        raise SystemExit("Unsupported Bench result schema.")
+    request = load_json_artifact(request_path) if request_path else None
+    request_hash = canonical_json_hash(request) if request is not None else None
+    reported_request_hash = (result.get("artifact_hashes") or {}).get("request_sha256")
+    artifact_hashes_valid = request_hash is None or request_hash == reported_request_hash
+    same_operator = bool(result.get("same_operator"))
+    authenticity = verification_result_authenticity(result)
+    normalized = {
+        "schema_version": "flop-scout.normalized-verification-result/v1",
+        "request_id": result.get("request_id"),
+        "bench_did": result.get("bench_did"),
+        "authenticity": authenticity,
+        "correctness": result.get("status"),
+        "reproducibility": result.get("reproducibility"),
+        "artifact_hashes_valid": artifact_hashes_valid,
+        "message_hash": hashlib.sha256(result_path.read_bytes()).hexdigest(),
+        "request_hash": request_hash,
+        "reported_request_hash": reported_request_hash,
+        "operator_group": result.get("operator_group"),
+        "same_operator": same_operator,
+        "independent_reputation": bool(result.get("independent_reputation")),
+        "bench_result": result,
+        "classification": {
+            "AUTHENTICITY": authenticity,
+            "CORRECTNESS": result.get("status"),
+            "REPRODUCIBILITY": result.get("reproducibility"),
+        },
+        "network_writes": 0,
+        "private_key_accesses": 0,
+        "tclk_settlement_actions": 0,
+    }
+    return normalized
+
+
+def network_result_generation(generation: str | None) -> str:
+    if generation is None or str(generation) in {"", "0"}:
+        return UNKNOWN_LEGACY_GENERATION
+    return str(generation)
+
+
+def bench_delivery_payload(delivery: dict[str, Any]) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    for key in ("result", "verification_result", "bench_result"):
+        value = delivery.get(key)
+        if isinstance(value, dict):
+            payload.update(value)
+            break
+    for key, value in delivery.items():
+        if key not in {"result", "verification_result", "bench_result"}:
+            payload[key] = value
+    return payload
+
+
+def request_linkage_matches(payload: dict[str, Any], request: dict[str, Any]) -> dict[str, bool]:
+    return {
+        key: payload.get(key) == request.get(key)
+        for key in (
+            "request_id",
+            "routing_decision_id",
+            "routing_decision_hash",
+            "task_hash",
+            "verification_mode",
+        )
+    }
+
+
+def normalize_network_bench_delivery(
+    room: str,
+    generation: str | None,
+    raw: dict[str, Any],
+    request: dict[str, Any],
+) -> dict[str, Any]:
+    room = valid_room(room)
+    text = raw.get("text")
+    if not isinstance(text, str):
+        raise SystemExit("Selected Technocore record has no text payload.")
+    try:
+        seq = int(raw["seq"])
+    except (KeyError, TypeError, ValueError):
+        raise SystemExit("Selected Technocore record has no valid seq.") from None
+    sender_did = message_did(raw)
+    nonce = message_nonce(raw)
+    sig = message_sig(raw)
+    signature_status = verify_signed_record_offline(room, raw)
+    transport_provenance = {
+        "room": room,
+        "generation": network_result_generation(generation),
+        "reported_generation": str(generation) if generation is not None else None,
+        "seq": seq,
+        "server_timestamp": message_timestamp(raw),
+        "sender_did": sender_did,
+        "nonce": nonce,
+        "signature": sig,
+        "signature_present": sig is not None,
+        "signature_verification": "UNSIGNED" if sig is None else signature_status,
+        "message_hash": message_hash(text),
+        "exact_message_text": text,
+    }
+    if signature_status != "VERIFIED_OFFLINE":
+        authenticity = "UNSIGNED" if sig is None else "INVALID_SIGNATURE"
+        return {
+            "schema_version": "flop-scout.normalized-verification-result/v1",
+            "authenticity": authenticity,
+            "correctness": None,
+            "reproducibility": None,
+            "transport_provenance": transport_provenance,
+            "request_linkage": {
+                "valid": False,
+                "checked": False,
+                "reason": "transport_signature_not_verified",
+            },
+            "classification": {
+                "AUTHENTICITY": authenticity,
+                "CORRECTNESS": None,
+                "REPRODUCIBILITY": None,
+            },
+            "network_writes": 0,
+            "private_key_accesses": 0,
+            "tclk_settlement_actions": 0,
+        }
+    try:
+        delivery = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Bench delivery payload is not valid JSON: {exc.msg}") from None
+    if not isinstance(delivery, dict):
+        raise SystemExit("Bench delivery payload must be a JSON object.")
+    if delivery.get("schema_version") != "flop-bench.verification-result-delivery.v1":
+        raise SystemExit("Unsupported Bench verification-result delivery schema.")
+    payload = bench_delivery_payload(delivery)
+    if payload.get("bench_did") != sender_did:
+        raise SystemExit("Transport sender DID does not match payload bench_did.")
+    matches = request_linkage_matches(payload, request)
+    if not all(matches.values()):
+        failed = ", ".join(key for key, matched in matches.items() if not matched)
+        raise SystemExit(f"Bench delivery does not match Router request: {failed}.")
+    same_operator = bool(payload.get("same_operator"))
+    independent_reputation = bool(payload.get("independent_reputation"))
+    correctness = payload.get("status")
+    reproducibility = payload.get("reproducibility")
+    return {
+        "schema_version": "flop-scout.normalized-verification-result/v1",
+        "request_id": payload.get("request_id"),
+        "routing_decision_id": payload.get("routing_decision_id"),
+        "routing_decision_hash": payload.get("routing_decision_hash"),
+        "task_hash": payload.get("task_hash"),
+        "verification_mode": payload.get("verification_mode"),
+        "bench_did": payload.get("bench_did"),
+        "authenticity": "VERIFIED_OFFLINE",
+        "correctness": correctness,
+        "reproducibility": reproducibility,
+        "operator_group": payload.get("operator_group"),
+        "same_operator": same_operator,
+        "independent_reputation": independent_reputation,
+        "transport_provenance": transport_provenance,
+        "request_linkage": {
+            "valid": True,
+            "checked": True,
+            "matches": matches,
+        },
+        "bench_delivery": delivery,
+        "bench_result": payload,
+        "classification": {
+            "AUTHENTICITY": "VERIFIED_OFFLINE",
+            "CORRECTNESS": correctness,
+            "REPRODUCIBILITY": reproducibility,
+        },
+        "network_writes": 0,
+        "private_key_accesses": 0,
+        "tclk_settlement_actions": 0,
+    }
+
+
+def fetch_network_verification_record(room: str, seq: int) -> tuple[dict[str, Any], str | None]:
+    if seq < 0:
+        raise SystemExit("--seq must be non-negative.")
+    obj, generation = fetch_room_view(room, 200, since=max(0, seq - 1), allow_missing=True)
+    for message in extract_room_messages(obj):
+        try:
+            if int(message.get("seq")) == seq:
+                return message, generation
+        except (TypeError, ValueError):
+            continue
+    obj, generation = fetch_room_view(room, 800, allow_missing=True)
+    for message in extract_room_messages(obj):
+        try:
+            if int(message.get("seq")) == seq:
+                return message, generation
+        except (TypeError, ValueError):
+            continue
+    raise SystemExit(f"No Technocore record found for {room}/{seq}.")
+
+
+def scout_ingest_network_verification_result(room: str, seq: int, request_path: Path) -> dict[str, Any]:
+    request = load_json_artifact(request_path)
+    if request.get("schema_version") != "flop-verification-request/v1":
+        raise SystemExit("Unsupported verification request schema.")
+    raw, generation = fetch_network_verification_record(room, seq)
+    return normalize_network_bench_delivery(room, generation, raw, request)
 
 
 def observer_connect(db_path: Path = OBSERVER_DB) -> sqlite3.Connection:
@@ -3848,6 +4113,21 @@ def main() -> None:
     validation_responses = validation_sub.add_parser("responses")
     validation_responses.add_argument("id")
 
+    verification_parser = sub.add_parser("verification")
+    verification_sub = verification_parser.add_subparsers(dest="verification_cmd", required=True)
+    verification_preview = verification_sub.add_parser("request-preview")
+    verification_preview.add_argument("request", type=Path)
+    verification_preview.add_argument("--output", type=Path)
+    verification_ingest = verification_sub.add_parser("ingest-result")
+    verification_ingest.add_argument("result", type=Path)
+    verification_ingest.add_argument("--request", type=Path)
+    verification_ingest.add_argument("--output", type=Path)
+    verification_network_ingest = verification_sub.add_parser("ingest-network-result")
+    verification_network_ingest.add_argument("--room", required=True)
+    verification_network_ingest.add_argument("--seq", type=int, required=True)
+    verification_network_ingest.add_argument("--request", type=Path, required=True)
+    verification_network_ingest.add_argument("--output", type=Path)
+
     profile_parser = sub.add_parser("profile")
     profile_sub = profile_parser.add_subparsers(dest="profile_cmd", required=True)
     profile_publish_parser = profile_sub.add_parser("publish")
@@ -3948,6 +4228,22 @@ def main() -> None:
             validation_watch_status()
         elif a.validation_cmd == "responses":
             validation_watch_responses(a.id)
+    elif a.cmd == "verification":
+        if a.verification_cmd == "request-preview":
+            preview = scout_verification_request_preview(a.request)
+            if a.output:
+                write_json_artifact(a.output, preview)
+            print(json.dumps(preview, indent=2, sort_keys=True))
+        elif a.verification_cmd == "ingest-result":
+            normalized = scout_normalize_bench_result(a.result, a.request)
+            if a.output:
+                write_json_artifact(a.output, normalized)
+            print(json.dumps(normalized, indent=2, sort_keys=True))
+        elif a.verification_cmd == "ingest-network-result":
+            normalized = scout_ingest_network_verification_result(a.room, a.seq, a.request)
+            if a.output:
+                write_json_artifact(a.output, normalized)
+            print(json.dumps(normalized, indent=2, sort_keys=True))
     elif a.cmd == "profile":
         if a.profile_cmd == "publish":
             profile_publish(yes=a.yes)

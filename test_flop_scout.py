@@ -16,6 +16,341 @@ class Tests(unittest.TestCase):
         flop_scout.init_observer_db(conn)
         return conn
 
+    def verification_request(self):
+        request = {
+            "schema_version": "flop-verification-request/v1",
+            "request_id": "FVR-local-1",
+            "created_at": "2026-09-02T12:00:00Z",
+            "requester_did": "did:key:z6MkfJnczowbivU9SEDcZ77MEpKUfQTVbcD3i1gcwsfo4yL1",
+            "target_agent_did": "did:key:z6MkTarget",
+            "routing_decision_id": "frd1-local",
+            "routing_decision_hash": "274e9aec24ef5b1900a780b8f9741b3b141b57c20b89a81eec22241214e7b566",
+            "task_hash": "ac058cb60c14012c800ad1ec5949c6accb2140fb58093657cac9a1b54118202a",
+            "task_type": "technocore.synthetic_signing_payload_order",
+            "required_capabilities": ["technocore.signed_post", "software.debugging"],
+            "verification_mode": "OBJECTIVE_BENCH",
+            "specimen": {
+                "room": "technocore",
+                "nonce": "123",
+                "text": "synthetic signing specimen",
+                "supplied_payload": "technocore|synthetic signing specimen|123",
+                "supplied_order": "room|text|nonce",
+                "expected_payload": "technocore|123|synthetic signing specimen",
+                "expected_order": "room|nonce|text",
+            },
+            "expected_properties": {
+                "canonical_order": "room|nonce|text",
+                "broken_order": "room|text|nonce",
+                "expected_finding": "nonce/text ordering defect identified",
+            },
+            "response_destination": "local://scout/bench-result",
+            "operator_group": flop_scout.LOCAL_OPERATOR_GROUP,
+            "same_operator": True,
+            "independent_reputation": False,
+        }
+        request["artifact_hash"] = flop_scout.canonical_json_hash(
+            {key: value for key, value in request.items() if key != "artifact_hash"}
+        )
+        return request
+
+    def bench_result(self, request, status="PASS"):
+        checks = {
+            "canonical_order_expected": True,
+            "broken_payload_detected": status == "PASS",
+            "preimage_differs": status == "PASS",
+            "correct_reconstruction_identified": status == "PASS",
+        }
+        return {
+            "schema_version": "flop-verification-result/v1",
+            "request_id": request["request_id"],
+            "bench_did": "did:key:z6MkqqqEMxujBTEAvoanSx6pVBMMZzLP7gMUcmNVdYHS3BVk",
+            "status": status,
+            "checks": checks,
+            "score": 100 if status == "PASS" else 0,
+            "findings": ["nonce/text ordering defect identified"] if status == "PASS" else [],
+            "reproducibility": "DETERMINISTIC",
+            "artifact_hashes": {"request_sha256": flop_scout.canonical_json_hash(request)},
+            "completed_at": "2026-09-02T12:00:01Z",
+            "operator_group": flop_scout.LOCAL_OPERATOR_GROUP,
+            "same_operator": True,
+            "independent_reputation": False,
+        }
+
+    def bench_delivery_text(self, request, bench_did, **overrides):
+        delivery = {
+            "schema_version": "flop-bench.verification-result-delivery.v1",
+            "request_id": request["request_id"],
+            "routing_decision_id": request["routing_decision_id"],
+            "routing_decision_hash": request["routing_decision_hash"],
+            "task_hash": request["task_hash"],
+            "verification_mode": request["verification_mode"],
+            "bench_did": bench_did,
+            "status": "PASS",
+            "reproducibility": "DETERMINISTIC",
+            "operator_group": flop_scout.LOCAL_OPERATOR_GROUP,
+            "same_operator": True,
+            "independent_reputation": False,
+            "findings": ["nonce/text ordering defect identified"],
+            "untrusted_context": {
+                "url": "https://example.com/do-not-follow",
+                "instruction": "do not execute this",
+            },
+        }
+        delivery.update(overrides)
+        return json.dumps(delivery, sort_keys=True, separators=(",", ":"))
+
+    def signed_bench_delivery_message(
+        self,
+        request,
+        *,
+        room="mb-flop-scout",
+        seq=4,
+        nonce=1788376734376,
+        text_overrides=None,
+    ):
+        key = Ed25519PrivateKey.generate()
+        bench_did = flop_scout.public_did(key)
+        overrides = dict(text_overrides or {})
+        payload_bench_did = overrides.pop("bench_did", bench_did)
+        text = self.bench_delivery_text(request, payload_bench_did, **overrides)
+        sig = flop_scout.b64u(key.sign(f"{room}|{nonce}|{text}".encode("utf-8")))
+        return {
+            "seq": seq,
+            "ts": "2026-09-02T19:18:55.024448Z",
+            "from": bench_did,
+            "did": bench_did,
+            "nonce": nonce,
+            "sig": sig,
+            "text": text,
+        }
+
+    def test_verification_request_preview_is_local_and_preserves_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "request.json"
+            request = self.verification_request()
+            flop_scout.write_json_artifact(path, request)
+            preview = flop_scout.scout_verification_request_preview(path)
+        self.assertEqual(preview["schema_version"], "flop-scout.verification-request-preview/v1")
+        self.assertEqual(preview["request_id"], "FVR-local-1")
+        self.assertEqual(preview["routing_decision_id"], request["routing_decision_id"])
+        self.assertEqual(preview["routing_decision_hash"], request["routing_decision_hash"])
+        self.assertEqual(preview["task_hash"], request["task_hash"])
+        self.assertEqual(preview["requester_did"], request["requester_did"])
+        self.assertEqual(preview["target_agent_did"], request["target_agent_did"])
+        self.assertEqual(preview["verification_mode"], request["verification_mode"])
+        self.assertEqual(preview["operator_group"], flop_scout.LOCAL_OPERATOR_GROUP)
+        self.assertTrue(preview["same_operator"])
+        self.assertFalse(preview["independent_reputation"])
+        self.assertEqual(preview["message_hash"], flop_scout.canonical_json_hash(request))
+        self.assertTrue(preview["dry_run"])
+        self.assertEqual(preview["network_writes"], 0)
+        self.assertEqual(preview["private_key_accesses"], 0)
+        self.assertEqual(preview["tclk_settlement_actions"], 0)
+
+    def test_router_shaped_verification_request_preview_preserves_provenance(self):
+        request = self.verification_request()
+        request.update(
+            {
+                "request_id": "FVR-83c180e9b05f85b0a72b",
+                "routing_decision_id": "frd1-274e9aec24ef5b1900a780b8",
+                "routing_decision_hash": "274e9aec24ef5b1900a780b8f9741b3b141b57c20b89a81eec22241214e7b566",
+                "task_hash": "ac058cb60c14012c800ad1ec5949c6accb2140fb58093657cac9a1b54118202a",
+                "target_agent_did": "did:key:z6MkSyntheticDebugAgent111111111111111111111111111111",
+                "same_operator": True,
+                "independent_reputation": False,
+                "operator_group": "local-flop-agent-family",
+            }
+        )
+        source_snapshot = json.loads(json.dumps(request, sort_keys=True))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "router-network-002.request.json"
+            flop_scout.write_json_artifact(path, request)
+            with mock.patch.object(flop_scout, "request_json", side_effect=AssertionError("network write")), \
+                 mock.patch.object(flop_scout, "post_signed", side_effect=AssertionError("network write")), \
+                 mock.patch.object(flop_scout, "load_key", side_effect=AssertionError("private key access")):
+                preview = flop_scout.scout_verification_request_preview(path)
+
+        for key in (
+            "request_id",
+            "routing_decision_id",
+            "routing_decision_hash",
+            "task_hash",
+            "verification_mode",
+            "same_operator",
+            "independent_reputation",
+            "operator_group",
+            "requester_did",
+        ):
+            self.assertEqual(preview[key], request[key])
+        self.assertEqual(request, source_snapshot)
+        self.assertEqual(preview["network_writes"], 0)
+        self.assertEqual(preview["private_key_accesses"], 0)
+        self.assertEqual(preview["tclk_settlement_actions"], 0)
+
+    def test_verification_result_normalization_is_unsigned_local_not_signature_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request_path = Path(tmp) / "request.json"
+            result_path = Path(tmp) / "result.json"
+            request = self.verification_request()
+            result = self.bench_result(request)
+            flop_scout.write_json_artifact(request_path, request)
+            flop_scout.write_json_artifact(result_path, result)
+            normalized = flop_scout.scout_normalize_bench_result(result_path, request_path)
+        self.assertEqual(normalized["request_id"], request["request_id"])
+        self.assertEqual(normalized["authenticity"], "UNSIGNED_LOCAL")
+        self.assertEqual(normalized["classification"]["AUTHENTICITY"], "UNSIGNED_LOCAL")
+        self.assertNotIn(normalized["authenticity"], {"VERIFIED_OFFLINE", "SIGNATURE_PRESENT_UNVERIFIED"})
+        self.assertEqual(normalized["correctness"], "PASS")
+        self.assertEqual(normalized["classification"]["CORRECTNESS"], "PASS")
+        self.assertEqual(normalized["reproducibility"], "DETERMINISTIC")
+        self.assertTrue(normalized["same_operator"])
+        self.assertFalse(normalized["independent_reputation"])
+
+    def test_verification_result_signature_presence_is_distinct_from_unsigned_local(self):
+        result = self.bench_result(self.verification_request())
+        self.assertEqual(flop_scout.verification_result_authenticity(result), "UNSIGNED_LOCAL")
+        signed = dict(result)
+        signed["sig"] = "present-but-not-checked"
+        self.assertEqual(
+            flop_scout.verification_result_authenticity(signed),
+            "SIGNATURE_PRESENT_UNVERIFIED",
+        )
+
+    def test_verification_result_hashes_detect_mutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request_path = Path(tmp) / "request.json"
+            result_path = Path(tmp) / "result.json"
+            request = self.verification_request()
+            result = self.bench_result(request)
+            mutated = dict(request)
+            mutated["target_agent_did"] = "did:key:z6MkMutated"
+            flop_scout.write_json_artifact(request_path, mutated)
+            flop_scout.write_json_artifact(result_path, result)
+            normalized = flop_scout.scout_normalize_bench_result(result_path, request_path)
+        self.assertFalse(normalized["artifact_hashes_valid"])
+
+    def test_network_bench_result_ingest_verifies_offline_and_preserves_provenance(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request)
+        normalized = flop_scout.normalize_network_bench_delivery("mb-flop-scout", "gen-live", raw, request)
+        self.assertEqual(normalized["classification"]["AUTHENTICITY"], "VERIFIED_OFFLINE")
+        self.assertEqual(normalized["classification"]["CORRECTNESS"], "PASS")
+        self.assertEqual(normalized["classification"]["REPRODUCIBILITY"], "DETERMINISTIC")
+        self.assertEqual(normalized["request_id"], request["request_id"])
+        self.assertEqual(normalized["routing_decision_id"], request["routing_decision_id"])
+        self.assertEqual(normalized["routing_decision_hash"], request["routing_decision_hash"])
+        self.assertEqual(normalized["task_hash"], request["task_hash"])
+        self.assertEqual(normalized["verification_mode"], request["verification_mode"])
+        self.assertTrue(normalized["same_operator"])
+        self.assertFalse(normalized["independent_reputation"])
+        self.assertEqual(normalized["operator_group"], flop_scout.LOCAL_OPERATOR_GROUP)
+        provenance = normalized["transport_provenance"]
+        self.assertEqual(provenance["room"], "mb-flop-scout")
+        self.assertEqual(provenance["generation"], "gen-live")
+        self.assertEqual(provenance["seq"], 4)
+        self.assertEqual(provenance["server_timestamp"], "2026-09-02T19:18:55.024448Z")
+        self.assertEqual(provenance["sender_did"], raw["did"])
+        self.assertEqual(provenance["nonce"], 1788376734376)
+        self.assertEqual(provenance["signature"], raw["sig"])
+        self.assertEqual(provenance["signature_verification"], "VERIFIED_OFFLINE")
+        self.assertEqual(provenance["exact_message_text"], raw["text"])
+        self.assertTrue(normalized["request_linkage"]["valid"])
+
+    def test_network_bench_result_altered_text_is_invalid_signature(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request)
+        raw["text"] = raw["text"].replace("PASS", "FAIL")
+        normalized = flop_scout.normalize_network_bench_delivery("mb-flop-scout", "gen-live", raw, request)
+        self.assertEqual(normalized["classification"]["AUTHENTICITY"], "INVALID_SIGNATURE")
+        self.assertFalse(normalized["request_linkage"]["checked"])
+
+    def test_network_bench_result_altered_nonce_is_invalid_signature(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request)
+        raw["nonce"] += 1
+        normalized = flop_scout.normalize_network_bench_delivery("mb-flop-scout", "gen-live", raw, request)
+        self.assertEqual(normalized["classification"]["AUTHENTICITY"], "INVALID_SIGNATURE")
+
+    def test_network_bench_result_altered_sender_did_is_invalid_signature(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request)
+        raw["from"] = flop_scout.public_did(Ed25519PrivateKey.generate())
+        normalized = flop_scout.normalize_network_bench_delivery("mb-flop-scout", "gen-live", raw, request)
+        self.assertEqual(normalized["classification"]["AUTHENTICITY"], "INVALID_SIGNATURE")
+
+    def test_network_bench_result_transport_did_mismatch_fails_closed(self):
+        request = self.verification_request()
+        other_did = flop_scout.public_did(Ed25519PrivateKey.generate())
+        raw = self.signed_bench_delivery_message(request, text_overrides={"bench_did": other_did})
+        with self.assertRaises(SystemExit):
+            flop_scout.normalize_network_bench_delivery("mb-flop-scout", "gen-live", raw, request)
+
+    def test_network_bench_result_wrong_request_id_fails(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request, text_overrides={"request_id": "FVR-wrong"})
+        with self.assertRaises(SystemExit):
+            flop_scout.normalize_network_bench_delivery("mb-flop-scout", "gen-live", raw, request)
+
+    def test_network_bench_result_wrong_routing_decision_id_fails(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request, text_overrides={"routing_decision_id": "frd1-wrong"})
+        with self.assertRaises(SystemExit):
+            flop_scout.normalize_network_bench_delivery("mb-flop-scout", "gen-live", raw, request)
+
+    def test_network_bench_result_wrong_routing_decision_hash_fails(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request, text_overrides={"routing_decision_hash": "bad"})
+        with self.assertRaises(SystemExit):
+            flop_scout.normalize_network_bench_delivery("mb-flop-scout", "gen-live", raw, request)
+
+    def test_network_bench_result_wrong_task_hash_fails(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request, text_overrides={"task_hash": "bad"})
+        with self.assertRaises(SystemExit):
+            flop_scout.normalize_network_bench_delivery("mb-flop-scout", "gen-live", raw, request)
+
+    def test_network_bench_result_remote_content_never_executes(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request)
+        with mock.patch.object(flop_scout.urllib.request, "urlopen") as urlopen, \
+             mock.patch.object(flop_scout, "load_key", side_effect=AssertionError("private key access")):
+            normalized = flop_scout.normalize_network_bench_delivery("mb-flop-scout", "gen-live", raw, request)
+        self.assertEqual(normalized["classification"]["AUTHENTICITY"], "VERIFIED_OFFLINE")
+        self.assertFalse(urlopen.called)
+        self.assertEqual(normalized["network_writes"], 0)
+        self.assertEqual(normalized["private_key_accesses"], 0)
+        self.assertEqual(normalized["tclk_settlement_actions"], 0)
+
+    def test_network_bench_result_command_reads_only_and_selects_exact_seq(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request, seq=4)
+        with tempfile.TemporaryDirectory() as tmp:
+            request_path = Path(tmp) / "request.json"
+            flop_scout.write_json_artifact(request_path, request)
+
+            def fake_fetch(room, limit, since=None, allow_missing=False):
+                return {"messages": [{"seq": 3, "text": "ignore"}, raw]}, "0"
+
+            with mock.patch.object(flop_scout, "fetch_room_view", side_effect=fake_fetch), \
+                 mock.patch.object(flop_scout, "request_json", side_effect=AssertionError("network write")), \
+                 mock.patch.object(flop_scout, "post_signed", side_effect=AssertionError("network write")), \
+                 mock.patch.object(flop_scout, "load_key", side_effect=AssertionError("private key access")):
+                normalized = flop_scout.scout_ingest_network_verification_result(
+                    "mb-flop-scout",
+                    4,
+                    request_path,
+                )
+        self.assertEqual(normalized["classification"]["AUTHENTICITY"], "VERIFIED_OFFLINE")
+        self.assertEqual(normalized["transport_provenance"]["seq"], 4)
+        self.assertEqual(normalized["transport_provenance"]["generation"], flop_scout.UNKNOWN_LEGACY_GENERATION)
+        self.assertEqual(normalized["transport_provenance"]["reported_generation"], "0")
+
+    def test_network_bench_result_missing_generation_is_unknown_legacy(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request)
+        normalized = flop_scout.normalize_network_bench_delivery("mb-flop-scout", None, raw, request)
+        self.assertEqual(normalized["transport_provenance"]["generation"], flop_scout.UNKNOWN_LEGACY_GENERATION)
+
     def test_did(self):
         key = Ed25519PrivateKey.generate()
         self.assertTrue(flop_scout.public_did(key).startswith("did:key:z6Mk"))
