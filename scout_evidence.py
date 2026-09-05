@@ -274,7 +274,7 @@ def raw_identity(source, room, generation, reported_generation, raw):
 def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None,
            source=None, endpoint=None, retrieved_at=None, metadata=None, legacy=False):
     source = source or ('technocore_mailbox' if room.startswith('mb-') else 'technocore_room')
-    retrieved_at = retrieved_at or now()
+    retrieved_at = retrieved_at if retrieved_at is not None else ("" if legacy else now())
     generation = str(generation) if generation is not None else None
     if generation is not None and safe_utf8(generation) is None:
         reported_generation = dumps(generation)
@@ -327,7 +327,7 @@ def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None
         (rid,source,endpoint,room,generation,reported_generation,integer(data.get('seq')),
          scalar_text(data.get('ts',data.get('timestamp',data.get('time')))),retrieved_at,
          scalar_text(nonce),sender,sig,text,text_hash,dumps(raw),status,error,int(mismatch),dumps(metadata),
-         SCHEMA,VERSION,retrieved_at,int(legacy),'PARTIAL' if legacy or endpoint is None else 'COMPLETE'))
+         SCHEMA,VERSION,now(),int(legacy),'PARTIAL' if legacy or endpoint is None else 'COMPLETE'))
     inserted = cur.rowcount == 1
     if inserted:
         bump(conn, 'records_ingested')
@@ -428,24 +428,53 @@ def feed(conn, since_id=0, since_seq=None, classification=None, collection=None,
         yield item
 
 
+# Operational reports use capture time, never parser/insertion time or unsigned
+# network timestamps. This also corrects already-migrated databases read-only.
+OBSERVED = "r.legacy_record=0 AND r.raw_completeness='COMPLETE' AND julianday(r.retrieved_at) IS NOT NULL"
+
+
+def first_observed_dids(conn, start, end, *, include_end=False):
+    upper_comparison = "<=" if include_end else "<"
+    return [dict(row) for row in conn.execute(f"""
+        SELECT r.sender_did, min(julianday(r.retrieved_at)) AS first_observation_jd,
+               strftime('%Y-%m-%dT%H:%M:%fZ',min(julianday(r.retrieved_at))) AS first_network_seen_at,
+               min(r.created_at) AS first_local_schema_insert_at
+        FROM raw_network_records r
+        WHERE {OBSERVED} AND r.sender_did LIKE 'did:key:%'
+          AND NOT EXISTS (SELECT 1 FROM raw_network_records history
+                          WHERE history.sender_did=r.sender_did AND history.legacy_record=1)
+        GROUP BY r.sender_did
+        HAVING min(julianday(r.retrieved_at))>=julianday(?)
+           AND min(julianday(r.retrieved_at)){upper_comparison}julianday(?)
+        ORDER BY r.sender_did
+        """, (start,end))]
+
+
 def metrics(conn, db_path=None):
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     if 'evidence_schema' not in tables:
         return {'status':'MIGRATION_REQUIRED', 'network_reads':0}
     count = lambda sql, params=(): conn.execute(sql,params).fetchone()[0]
-    cutoff = (datetime.now(timezone.utc)-timedelta(days=1)).isoformat()
+    current = datetime.now(timezone.utc)
+    cutoff = (current-timedelta(days=1)).isoformat()
+    upper = current.isoformat()
     result = dict(conn.execute('SELECT name,value FROM evidence_metrics'))
     result.update(raw_records=count('SELECT count(*) FROM raw_network_records'),
         parsed_events=count('SELECT count(*) FROM observed_events'),
-        events_last_hour=count("SELECT count(*) FROM observed_events WHERE parsed_at>?",((datetime.now(timezone.utc)-timedelta(hours=1)).isoformat(),)),
-        events_last_24h=count('SELECT count(*) FROM observed_events WHERE parsed_at>?',(cutoff,)),
-        new_dids_last_24h=count("SELECT count(*) FROM (SELECT sender_did FROM raw_network_records WHERE sender_did LIKE 'did:key:%' GROUP BY sender_did HAVING min(retrieved_at)>?)",(cutoff,)),
+        events_last_hour=count(f"SELECT count(*) FROM observed_events e JOIN raw_network_records r USING(raw_record_id) WHERE {OBSERVED} AND julianday(r.retrieved_at)>=julianday(?) AND julianday(r.retrieved_at)<=julianday(?)",((current-timedelta(hours=1)).isoformat(),upper)),
+        events_last_24h=count(f"SELECT count(*) FROM observed_events e JOIN raw_network_records r USING(raw_record_id) WHERE {OBSERVED} AND julianday(r.retrieved_at)>=julianday(?) AND julianday(r.retrieved_at)<=julianday(?)",(cutoff,upper)),
+        new_dids_last_24h=len(first_observed_dids(conn,cutoff,upper,include_end=True)),
         signature_verified=count("SELECT count(*) FROM raw_network_records WHERE signature_status='VERIFIED_OFFLINE'"),
         signature_failures=count("SELECT count(*) FROM raw_network_records WHERE signature_status='FAILED'"),
         did_mismatches=count('SELECT count(*) FROM raw_network_records WHERE did_mismatch=1'),
         malformed_records=count("SELECT count(*) FROM observed_events WHERE parse_status='MALFORMED'"),
         template_variants=count("SELECT count(*) FROM observed_events WHERE duplicate_kind='TEMPLATE_VARIANT'"),
         watch_collections_active=count('SELECT count(*) FROM watch_collections WHERE enabled=1'), network_reads=0)
+    result['total_persisted_records'] = result['raw_records']
+    result['records_ingested_scope'] = 'cumulative raw inserts, including migration; not soak activity'
+    result['live_records_ingested'] = count(f'SELECT count(*) FROM raw_network_records r WHERE {OBSERVED}')
+    result['live_records_ingested_scope'] = 'non-legacy COMPLETE captures, including targeted reads; not restricted to poll cycles'
+    result['activity_time_basis'] = 'retrieved_at of non-legacy COMPLETE records; windows exclude future timestamps'
     result['db_size_bytes'] = Path(db_path).stat().st_size if db_path and Path(db_path).exists() else None
     result['wal_size_bytes'] = Path(str(db_path)+'-wal').stat().st_size if db_path and Path(str(db_path)+'-wal').exists() else 0
     result['cursors'] = dict(conn.execute("SELECT key,value FROM service_state WHERE key LIKE 'cursor:%'")) if 'service_state' in tables else {}
@@ -470,12 +499,13 @@ def daily(conn, date=None):
     start = datetime.strptime(date,'%Y-%m-%d').replace(tzinfo=timezone.utc)
     end = start+timedelta(days=1)
     args = (start.isoformat(),end.isoformat())
-    result = {'date':date,'timezone':'UTC','network_reads':0}
-    rows = conn.execute('''SELECT e.*,r.retrieved_at,r.did_mismatch,r.raw_text,r.generation FROM observed_events e
-        JOIN raw_network_records r USING(raw_record_id) WHERE r.retrieved_at>=? AND r.retrieved_at<?''',args).fetchall()
+    result = {'date':date,'timezone':'UTC','network_reads':0,
+              'activity_time_basis':'retrieved_at of non-legacy COMPLETE records; legacy excluded'}
+    rows = conn.execute(f'''SELECT e.*,r.retrieved_at,r.did_mismatch,r.raw_text,r.generation FROM observed_events e
+        JOIN raw_network_records r USING(raw_record_id) WHERE {OBSERVED} AND julianday(r.retrieved_at)>=julianday(?) AND julianday(r.retrieved_at)<julianday(?)''',args).fetchall()
     result['classifications'] = {}
     result['watch_changes'] = {r[0]:0 for r in conn.execute('SELECT name FROM watch_collections')}
-    result['duplicates'] = {'exact_reposts':0,'template_variants':0,'rereads':conn.execute('SELECT count(*) FROM evidence_retrievals WHERE retrieved_at>=? AND retrieved_at<?',args).fetchone()[0]}
+    result['duplicates'] = {'exact_reposts':0,'template_variants':0,'rereads':conn.execute(f'SELECT count(*) FROM evidence_retrievals x JOIN raw_network_records r USING(raw_record_id) WHERE {OBSERVED} AND julianday(x.retrieved_at)>=julianday(?) AND julianday(x.retrieved_at)<julianday(?)',args).fetchone()[0]}
     result['malformed'] = result['signature_failures'] = result['did_mismatches'] = 0
     result['tclk'] = {'transcript_events':0,'offers':0,'malformed_frames':0,'settlement_rail_claims':0,'executed_actions':0}
     groups = {}
@@ -496,14 +526,16 @@ def daily(conn, date=None):
         result['tclk']['malformed_frames'] += bool((row['raw_text'] or '').startswith('tclk1 ') and row['parse_status']=='MALFORMED')
         result['tclk']['settlement_rail_claims'] += bool(payload.get('external_rail_claim') or cls=='EXTERNAL_RAIL_CLAIM')
     result['duplicates']['top_groups'] = sorted(groups.items(),key=lambda x:(-x[1],x[0]))[:10]
-    result['new_dids'] = [dict(r) for r in conn.execute("""SELECT sender_did,min(retrieved_at) AS first_seen FROM raw_network_records
-        WHERE sender_did LIKE 'did:key:%' GROUP BY sender_did HAVING min(retrieved_at)>=? AND min(retrieved_at)<?""",args)]
+    result['new_dids'] = first_observed_dids(conn,*args)
     for item in result['new_dids']:
-        item['first_seen_rooms'] = [r[0] for r in conn.execute('SELECT DISTINCT room FROM raw_network_records WHERE sender_did=? AND retrieved_at=?',(item['sender_did'],item['first_seen']))]
+        item['first_seen'] = item['first_network_seen_at']  # compatible output alias
+        item['first_seen_rooms'] = [r[0] for r in conn.execute(
+            f"SELECT DISTINCT r.room FROM raw_network_records r WHERE {OBSERVED} AND r.sender_did=? AND julianday(r.retrieved_at)=? ORDER BY r.room",
+            (item['sender_did'],item.pop('first_observation_jd')))]
     result['new_did_count'] = len(result['new_dids'])
     result['useful_work'] = {k:result['classifications'].get(k,0) for k in ('WORK_REQUEST','WORK_ACCEPTANCE','WORK_RESULT','VERIFICATION_RESULT')}
-    result['provenance_conflicts'] = conn.execute('''SELECT count(*) FROM (SELECT source,room,generation,seq FROM raw_network_records
-        WHERE seq IS NOT NULL GROUP BY source,room,generation,seq HAVING count(DISTINCT raw_text_sha256)>1 AND max(retrieved_at)>=? AND max(retrieved_at)<?)''',args).fetchone()[0]
+    result['provenance_conflicts'] = conn.execute(f'''SELECT count(*) FROM (SELECT source,room,generation,seq FROM raw_network_records r
+        WHERE {OBSERVED} AND seq IS NOT NULL GROUP BY source,room,generation,seq HAVING count(DISTINCT raw_text_sha256)>1 AND max(julianday(retrieved_at))>=julianday(?) AND max(julianday(retrieved_at))<julianday(?))''',args).fetchone()[0]
     result['safety'] = {k:v for k,v in conn.execute('SELECT name,value FROM evidence_metrics') if k in SAFETY_KEYS}
     result['safety_scope'] = 'cumulative observation counters since migration; daily network reads=0'
     return result

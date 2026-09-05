@@ -285,3 +285,61 @@ The server's ephemeral history prevents a guarantee of recovering messages it
 removed before Scout read them. The lossless guarantee applies to captured
 records. Formal soak acceptance additionally requires restart/replay checks,
 zero forbidden actions, successful daily report, and zero integrity errors.
+
+## Operational time windows after migration
+
+Recent-activity metrics and daily reports use **actual observation time**:
+`retrieved_at` on non-legacy, COMPLETE raw records with a valid retrieval timestamp.
+They never use `parsed_at`, `created_at`, or schema migration time. This reporting
+rule also applies to databases migrated by older versions, without any schema
+migration or raw-row rewrite. All legacy/PARTIAL records are excluded from these
+operational windows, even when their stored retrieval field contains the time of
+an older migration.
+
+The distinct timestamp meanings are:
+
+- `network_timestamp` / derived `event_timestamp`: the original network-reported
+  event time, preserved verbatim. Technocore message signatures do not cover it;
+  it is not automatically trusted for operational reporting.
+- `retrieved_at`: network capture time for COMPLETE observations. Known legacy
+  values remain preserved. New legacy imports with unknown retrieval time use an
+  empty string (unknown, required by the existing NOT NULL schema), not migration
+  time. Older immutable values are left untouched.
+- `created_at`: local raw insertion time for rows inserted by this version.
+  Older versions copied retrieval time into this field; those immutable values
+  cannot establish precise historical schema-insertion time.
+- `evidence_schema.migrated_at`: local schema migration completion timestamp.
+- `parsed_at`: local derivation time, including later repairs. Reparsing does not
+  make an old observation recent.
+
+Consequently an old network event retrieved today counts in today's operational
+report, not on its network-reported event date. The feed still exposes the original
+network timestamp for separately vetted historical/event-time analysis. Daily
+reports do not implement an event-time mode. Date comparisons use SQLite date
+arithmetic, so equivalent timezone offsets compare correctly; daily windows are
+UTC midnight-inclusive to next-midnight-exclusive. Recent metrics end at the
+current time and exclude future observations (at SQLite's millisecond precision).
+
+`new_dids_last_24h` and daily new-DID counts use the earliest qualifying capture
+across the database. DIDs already present in any legacy row are conservatively
+excluded from new-discovery reporting, including on live reappearance. Their
+historical first appearance is not guessed. Daily DID details distinguish
+`first_network_seen_at` (capture time) and `first_local_schema_insert_at` (the
+minimum recorded insertion time among qualifying rows); `first_seen` remains a
+compatibility alias for capture time. Older insertion timestamps retain the
+limitation described above.
+
+Soak/status counters have explicit scopes:
+
+- `records_ingested`: cumulative raw inserts, including migration (existing field).
+- `total_persisted_records`: current raw row count.
+- `live_records_ingested`: non-legacy COMPLETE captures with valid retrieval time,
+  including targeted reads; not a claim of ingestion inside poll cycles.
+- `soak.poll_cycles`, `soak.runtime_seconds`, `last_cycle`, and
+  `last_successful_poll`: still derive solely from poll-cycle records. An import
+  alone leaves cycles/runtime zero and cycle/success timestamps null.
+
+For an auditable soak, record the live counter baseline and delta alongside poll
+logs; targeted reads must be accounted for separately. There is no retrospective
+per-record poll-cycle attribution. No legacy evidence is deleted or normalized.
+Reports remain read-only. These changes introduce no production migration step.
