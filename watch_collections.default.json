@@ -1,0 +1,11 @@
+{
+  "faucet": {"enabled": true, "rooms": ["faucet"]},
+  "kibble": {"enabled": true, "rooms": ["kibble"]},
+  "consensus_layer": {"enabled": true, "rooms": ["consensus_layer"]},
+  "tclk": {"enabled": true, "rooms": ["tclk-offers"]},
+  "a2a_mesh_router": {"enabled": true, "rooms": ["a2a_mesh_router"]},
+  "external_work_offers": {"enabled": true, "rooms": []},
+  "registry_announcements": {"enabled": true, "rooms": []},
+  "official_protocol_announcements": {"enabled": true, "rooms": []},
+  "competitor_projects": {"enabled": true, "rooms": ["flop-evidence-scout"]}
+}

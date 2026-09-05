@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import scout_evidence as evidence_store
+from contextlib import closing, contextmanager
+from contextvars import ContextVar
+from functools import wraps
 import base64
 import getpass
 import hashlib
@@ -23,7 +27,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 BASE_URL = "https://technocore.chat"
-HOME = Path.home() / ".flop_scout"
+HOME = Path(os.environ.get("FLOP_SCOUT_STATE_DIR", str(Path.home() / ".flop_scout")))
 KEY_FILE = HOME / "identity.pem"
 META_FILE = HOME / "identity.json"
 LOG_FILE = HOME / "activity.jsonl"
@@ -74,6 +78,50 @@ class TechnocoreDuplicateRefusal(Exception):
         super().__init__("Technocore duplicate-content refusal")
         self.status = 422
         self.body = body
+
+
+_OBSERVING = ContextVar("scout_observing", default=False)
+
+
+def observation_only(function):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        token = _OBSERVING.set(True)
+        try:
+            return function(*args, **kwargs)
+        finally:
+            _OBSERVING.reset(token)
+    return wrapped
+
+
+def forbid_during_observation(action):
+    if _OBSERVING.get():
+        raise RuntimeError(f"Observation safety invariant: {action} forbidden")
+
+
+def poll_accounting(function):
+    @wraps(function)
+    def wrapped(conn, room, **kwargs):
+        with conn:
+            cycle = conn.execute("INSERT INTO evidence_poll_cycles(started_at,status,details_json) VALUES (?,'RUNNING',?)", (utc_now(), json.dumps({"room":room}))).lastrowid
+        try:
+            result = function(conn, room, **kwargs)
+        except BaseException as exc:
+            conn.rollback()
+            with conn:
+                evidence_store.bump(conn, "database_errors" if isinstance(exc, sqlite3.Error) else "poll_errors")
+                conn.execute("UPDATE evidence_poll_cycles SET finished_at=?,status='ERROR',details_json=? WHERE id=?", (utc_now(),json.dumps({"room":room,"error":str(exc)}),cycle))
+            raise
+        status = "READ_FAILED" if result["continuity"] == "READ_FAILED" else "SUCCESS"
+        with conn:
+            previous = conn.execute("SELECT status FROM evidence_poll_cycles WHERE id<? AND json_extract(details_json,'$.room')=? ORDER BY id DESC LIMIT 1",(cycle,room)).fetchone()
+            if status == "READ_FAILED":
+                evidence_store.bump(conn,"read_failures")
+            elif previous and previous[0] in {"READ_FAILED","ERROR"}:
+                evidence_store.bump(conn,"recoveries")
+            conn.execute("UPDATE evidence_poll_cycles SET finished_at=?,status=?,details_json=? WHERE id=?", (utc_now(),status,json.dumps(result),cycle))
+        return result
+    return wrapped
 
 
 def ensure_home() -> None:
@@ -246,6 +294,7 @@ def load_meta() -> dict[str, Any]:
 
 
 def load_key() -> Ed25519PrivateKey:
+    forbid_during_observation("private_key_accesses")
     if not KEY_FILE.exists():
         raise SystemExit("No identity found. Run: python flop_scout.py init")
     password = getpass.getpass("FLOP Scout identity passphrase: ").encode("utf-8")
@@ -312,6 +361,8 @@ def request_json(
     is_write: bool = False,
     allow_missing: bool = False,
 ) -> dict[str, Any]:
+    if is_write:
+        forbid_during_observation("network_writes")
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             raw = resp.read(1_000_001)
@@ -479,11 +530,15 @@ def update_room_cursor(
             )
         else:
             status = "CURRENT"
+    if last_seq is not None and cursor["generation"] == generation_value and last_seq < cursor["last_seq"]:
+        evidence_store.bump(conn, "cursor_regressions")
+        raise ValueError("Cursor regression rejected")
+    values = {f"cursor:{room}:generation": generation_value, f"cursor:{room}:continuity": status}
     if last_seq is not None:
-        set_state(conn, f"cursor:{room}:seq", str(last_seq))
-        set_state(conn, f"cursor:{room}", str(last_seq))
-    set_state(conn, f"cursor:{room}:generation", generation_value)
-    set_state(conn, f"cursor:{room}:continuity", status)
+        values.update({f"cursor:{room}:seq": str(last_seq), f"cursor:{room}": str(last_seq)})
+    with conn:
+        for key, value in values.items():
+            conn.execute("INSERT INTO service_state VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at", (key,value,utc_now()))
     return status
 
 
@@ -727,42 +782,79 @@ def normalize_network_bench_delivery(
     }
 
 
-def fetch_network_verification_record(room: str, seq: int) -> tuple[dict[str, Any], str | None]:
+@observation_only
+def fetch_network_verification_record(
+    room: str, seq: int, *, db_path: Path | None = None,
+    evidence_ref: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], str | None]:
+    room = valid_room(room)
     if seq < 0:
         raise SystemExit("--seq must be non-negative.")
-    obj, generation = fetch_room_view(room, 200, since=max(0, seq - 1), allow_missing=True)
-    for message in extract_room_messages(obj):
-        try:
-            if int(message.get("seq")) == seq:
+    # Targeted reads must enter the same raw-first pipeline as the poll worker.
+    # They do not advance the worker's cursor: this is not a contiguous catch-up.
+    with closing(observer_connect_write(db_path if db_path is not None else OBSERVER_DB)) as conn:
+        for limit, since in ((200, max(0, seq - 1)), (800, None)):
+            obj, generation = fetch_room_view(room, limit, since=since, allow_missing=True)
+            metadata = obj.get("_scout_transport", {})
+            messages = raw_room_messages(obj)
+            ingest_messages(conn, room, messages, generation=generation, source="bench-result-read",
+                source_endpoint=metadata.get("endpoint", room_read_endpoint(room, limit, since)),
+                transport_metadata=metadata)
+            for message in messages:
+                if not isinstance(message, dict) or evidence_store.integer(message.get("seq")) != seq:
+                    continue
+                raw_id = evidence_store.raw_identity(
+                    "technocore_mailbox" if room.startswith("mb-") else "technocore_room", room,
+                    None if metadata.get("generation_conflict") or generation is None else str(generation),
+                    str(generation) if metadata.get("generation_conflict") else None, message)
+                stored = conn.execute("SELECT raw_record_id,raw_text_sha256,raw_completeness,source_endpoint FROM raw_network_records WHERE raw_record_id=?", (raw_id,)).fetchone()
+                if stored is None:
+                    raise RuntimeError("Bench result raw evidence was not persisted")
+                if evidence_ref is not None:
+                    evidence_ref.update(dict(stored))
                 return message, generation
-        except (TypeError, ValueError):
-            continue
-    obj, generation = fetch_room_view(room, 800, allow_missing=True)
-    for message in extract_room_messages(obj):
-        try:
-            if int(message.get("seq")) == seq:
-                return message, generation
-        except (TypeError, ValueError):
-            continue
     raise SystemExit(f"No Technocore record found for {room}/{seq}.")
 
 
-def scout_ingest_network_verification_result(room: str, seq: int, request_path: Path) -> dict[str, Any]:
+@observation_only
+def scout_ingest_network_verification_result(
+    room: str, seq: int, request_path: Path, *, db_path: Path | None = None,
+) -> dict[str, Any]:
     request = load_json_artifact(request_path)
     if request.get("schema_version") != "flop-verification-request/v1":
         raise SystemExit("Unsupported verification request schema.")
-    raw, generation = fetch_network_verification_record(room, seq)
-    return normalize_network_bench_delivery(room, generation, raw, request)
+    evidence_ref: dict[str, Any] = {}
+    raw, generation = fetch_network_verification_record(room, seq, db_path=db_path, evidence_ref=evidence_ref)
+    normalized = normalize_network_bench_delivery(room, generation, raw, request)
+    normalized["transport_provenance"].update(evidence_ref)
+    return normalized
 
 
-def observer_connect(db_path: Path = OBSERVER_DB) -> sqlite3.Connection:
-    ensure_home()
-    conn = sqlite3.connect(db_path)
+def observer_connect_readonly(db_path: Path = OBSERVER_DB) -> sqlite3.Connection:
+    conn = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    init_observer_db(conn)
-    import_local_history(conn)
+    conn.execute("PRAGMA query_only=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
+
+def observer_connect_write(db_path: Path = OBSERVER_DB) -> sqlite3.Connection:
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path, timeout=5)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='evidence_schema'").fetchone():
+        init_observer_db(conn)
+    evidence_store.initialize(conn, verify_signed_record_offline)
+    evidence_store.sync_collections(conn, evidence_store.load_collections(HOME / "watch_collections.json"))
+    return conn
+
+
+# Compatibility name for existing explicit writers. Readers never call this.
+observer_connect = observer_connect_write
 
 
 def init_observer_db(conn: sqlite3.Connection) -> None:
@@ -1054,6 +1146,7 @@ def init_observer_db(conn: sqlite3.Connection) -> None:
             conn.execute(ddl)
     backfill_template_hashes(conn)
     conn.commit()
+    evidence_store.initialize(conn, verify_signed_record_offline)
 
 
 def column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -1124,12 +1217,11 @@ def message_did(raw: dict[str, Any]) -> str | None:
 
 def message_nonce(raw: dict[str, Any]) -> int | None:
     nonce = raw.get("nonce")
-    if nonce is None or isinstance(nonce, bool):
-        return None
-    try:
+    if type(nonce) is int and 0 <= nonce <= 9999999999999999999:
+        return nonce
+    if isinstance(nonce, str) and re.fullmatch(r"[0-9]{1,19}", nonce):
         return int(nonce)
-    except (TypeError, ValueError):
-        return None
+    return None
 
 
 def message_sig(raw: dict[str, Any]) -> str | None:
@@ -1175,7 +1267,7 @@ def verify_signed_record_offline(room: str, raw: dict[str, Any]) -> str:
         return "INVALID_SIGNATURE"
     try:
         public_key = public_key_from_did(did)
-        public_key.verify(sig_bytes, f"{valid_room(room)}|{nonce}|{text}".encode("utf-8"))
+        public_key.verify(sig_bytes, f"{valid_room(room)}|{raw['nonce']}|{text}".encode("utf-8"))
     except Exception:
         return "INVALID_SIGNATURE"
     return "VERIFIED_OFFLINE"
@@ -1465,6 +1557,9 @@ def store_tclk_capability_hints(conn: sqlite3.Connection, did: str, source: str,
         return 0
     now = utc_now()
     inserted = 0
+    raw_id = evidence_store.ingest(conn, "", {"did":did,"text":note_text,"source_hint":source},
+        verify_signed_record_offline, source="technocore_note_hint")
+    raw_hash = conn.execute("SELECT raw_text_sha256 FROM raw_network_records WHERE raw_record_id=?",(raw_id,)).fetchone()[0]
     for rail in parse_tclk_capability_hints(note_text):
         before = conn.total_changes
         conn.execute(
@@ -1477,6 +1572,8 @@ def store_tclk_capability_hints(conn: sqlite3.Connection, did: str, source: str,
         )
         if conn.total_changes > before:
             inserted += 1
+        rowid = conn.execute("SELECT rowid FROM tclk_capability_hints WHERE did=? AND rail=? AND source=?",(did,rail,source)).fetchone()[0]
+        conn.execute("INSERT OR IGNORE INTO compatibility_evidence_links VALUES (?,?,?,?)",("tclk_capability_hints",rowid,raw_id,raw_hash))
     conn.commit()
     return inserted
 
@@ -1928,6 +2025,7 @@ def print_kibble_summary(conn: sqlite3.Connection) -> None:
     print("No automatic scoring or claiming. Remote content is UNTRUSTED DATA.")
 
 
+@observation_only
 def kibble_poll(*, reconcile: bool = True, db_path: Path = OBSERVER_DB) -> dict[str, Any]:
     with observer_connect(db_path) as conn:
         poll = service_poll_room(conn, KIBBLE_ROOM, page_size=SERVICE_POLL_PAGE_SIZE, max_pages=SERVICE_POLL_MAX_PAGES_PER_ROOM)
@@ -2010,6 +2108,7 @@ def kibble_export_jobs(output: Path | None = None, db_path: Path = OBSERVER_DB) 
     return records
 
 
+@observation_only
 def ingest_messages(
     conn: sqlite3.Connection,
     room: str,
@@ -2017,6 +2116,8 @@ def ingest_messages(
     *,
     generation: str | int | None = None,
     source: str = "room-read",
+    source_endpoint: str | None = None,
+    transport_metadata: dict | None = None,
 ) -> dict[str, int]:
     now = utc_now()
     received = len(raw_messages)
@@ -2024,72 +2125,93 @@ def ingest_messages(
     signed_writers: set[str] = set()
     unsigned_writers: set[str] = set()
 
+    with conn:
+        for raw in raw_messages:
+            evidence_store.ingest(conn, room, raw, verify_signed_record_offline,
+                generation=None if (transport_metadata or {}).get("generation_conflict") else generation,
+                reported_generation=str(generation) if (transport_metadata or {}).get("generation_conflict") else None,
+                endpoint=source_endpoint, metadata=transport_metadata, retrieved_at=now)
+
     for raw in raw_messages:
-        evidence = evidence_record_from_message(
-            room,
-            str(generation) if generation is not None else None,
-            raw,
-            source=source,
-            retrieved_at=now,
-        )
-        if evidence is not None:
-            store_evidence_record(conn, evidence)
-        tclk_record = tclk_record_from_message(
-            room,
-            str(generation) if generation is not None else None,
-            raw,
-            evidence,
-            observed_at=now,
-        )
-        if tclk_record is not None:
-            store_tclk_frame(conn, tclk_record)
-        if room == KIBBLE_ROOM:
-            kibble_record = kibble_record_from_message(
+        if not isinstance(raw, dict) or not isinstance(raw.get("text"), str) or evidence_store.integer(raw.get("seq")) is None:
+            continue
+        try:
+            raw["text"].encode("utf-8")
+        except UnicodeEncodeError:
+            continue
+        if message_nonce(raw) is not None and message_nonce(raw) > 9223372036854775807:
+            continue  # Complete raw/feed evidence retained; old INTEGER cache cannot represent it.
+        try:
+            evidence = evidence_record_from_message(
                 room,
                 str(generation) if generation is not None else None,
                 raw,
+                source=source,
+                retrieved_at=now,
+            )
+            if evidence is not None:
+                store_evidence_record(conn, evidence)
+            tclk_record = tclk_record_from_message(
+                room,
+                str(generation) if generation is not None else None,
+                raw,
+                evidence,
                 observed_at=now,
             )
-            if kibble_record is not None:
-                store_kibble_event(conn, kibble_record)
-        try:
-            seq = int(raw["seq"])
-            text = str(raw.get("text", ""))
-            stored_normalized = analysis_normalize_text(text)
-            stored_template = template_normalize_text(text)
-        except (KeyError, TypeError, ValueError):
+            if tclk_record is not None:
+                store_tclk_frame(conn, tclk_record)
+            if room == KIBBLE_ROOM:
+                kibble_record = kibble_record_from_message(
+                    room,
+                    str(generation) if generation is not None else None,
+                    raw,
+                    observed_at=now,
+                )
+                if kibble_record is not None:
+                    store_kibble_event(conn, kibble_record)
+            try:
+                seq = int(raw["seq"])
+                text = str(raw.get("text", ""))
+                stored_normalized = analysis_normalize_text(text)
+                stored_template = template_normalize_text(text)
+            except (KeyError, TypeError, ValueError):
+                continue
+            sender = message_sender(raw)
+            signed = is_signed_sender(sender)
+            if signed:
+                signed_writers.add(sender)
+            else:
+                unsigned_writers.add(sender)
+            before = conn.total_changes
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO messages
+                    (room, seq, timestamp, sender, signed, text, normalized_text,
+                     normalized_hash, template_normalized_text, template_normalized_hash,
+                     discovered_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    room,
+                    seq,
+                    message_timestamp(raw),
+                    sender,
+                    1 if signed else 0,
+                    text,
+                    stored_normalized,
+                    hashlib.sha256(stored_normalized.encode("utf-8")).hexdigest(),
+                    stored_template,
+                    hashlib.sha256(stored_template.encode("utf-8")).hexdigest(),
+                    now,
+                ),
+            )
+            if conn.total_changes > before:
+                inserted += 1
+        except (ValueError, TypeError, OverflowError, RecursionError):
+            # Exact raw and primary derived evidence are already durable. A legacy
+            # compatibility parser must not trap unrelated records on this page.
+            evidence_store.bump(conn, "compatibility_parse_failures")
             continue
-        sender = message_sender(raw)
-        signed = is_signed_sender(sender)
-        if signed:
-            signed_writers.add(sender)
-        else:
-            unsigned_writers.add(sender)
-        before = conn.total_changes
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO messages
-                (room, seq, timestamp, sender, signed, text, normalized_text,
-                 normalized_hash, template_normalized_text, template_normalized_hash,
-                 discovered_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                room,
-                seq,
-                message_timestamp(raw),
-                sender,
-                1 if signed else 0,
-                text,
-                stored_normalized,
-                hashlib.sha256(stored_normalized.encode("utf-8")).hexdigest(),
-                stored_template,
-                hashlib.sha256(stored_template.encode("utf-8")).hexdigest(),
-                now,
-            ),
-        )
-        if conn.total_changes > before:
-            inserted += 1
 
     max_seq = conn.execute(
         "SELECT MAX(seq) FROM messages WHERE room = ?", (room,)
@@ -2250,6 +2372,8 @@ def migrate_legacy_local_activity_to_evidence(conn: sqlite3.Connection) -> int:
             continue
         if record["verification_status"] == "SIGNATURE_PRESENT_UNVERIFIED":
             record["verification_status"] = "LEGACY_SERVER_VERIFIED_NO_SIGNATURE"
+        evidence_store.ingest(conn, row["room"], raw, verify_signed_record_offline,
+            source="legacy_local_activity", reported_generation=UNKNOWN_LEGACY_GENERATION, legacy=True)
         store_evidence_record(conn, record)
         if conn.total_changes > before:
             inserted += 1
@@ -3277,6 +3401,7 @@ def validation_watch_rooms(conn: sqlite3.Connection) -> list[str]:
         """
     ).fetchall()
     rooms = set(SERVICE_ROOMS)
+    rooms.update(row[0] for row in conn.execute("SELECT s.room FROM watch_collection_sources s JOIN watch_collections c ON c.name=s.collection WHERE c.enabled=1"))
     rooms.update(kibble_service_rooms())
     for row in rows:
         rooms.add(row["outbound_room"])
@@ -3692,6 +3817,27 @@ def read_room(room: str, limit: int) -> None:
     )
 
 
+class ObservationRedirectBlocked(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, "Observation redirects are disabled", headers, fp)
+
+
+def room_read_endpoint(room, limit, since=None):
+    query = {"format": "json", "limit": str(limit)}
+    if since is not None:
+        query["since"] = str(max(0, since))
+    if room == KIBBLE_ROOM and since is not None and since > 0:
+        query["wait"] = "10"
+    return f"{BASE_URL}/r/{urllib.parse.quote(valid_room(room), safe='')}?{urllib.parse.urlencode(query)}"
+
+
+def raw_room_messages(obj):
+    for key in ("messages", "items", "posts", "log"):
+        if isinstance(obj.get(key), list):
+            return obj[key]
+    return raw_room_messages(obj["room"]) if isinstance(obj.get("room"), dict) else []
+
+
 def fetch_room_view(
     room: str,
     limit: int,
@@ -3713,9 +3859,10 @@ def fetch_room_view(
         headers={"Accept": "application/json", "User-Agent": USER_AGENT},
     )
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with urllib.request.build_opener(ObservationRedirectBlocked()).open(req, timeout=20) as resp:
             raw = resp.read(1_000_001)
             header_generation = resp.headers.get("X-Room-Generation")
+            transport_headers = {k: resp.headers.get(k) for k in ("X-Room-Generation", "Content-Type", "Date", "ETag")}
     except urllib.error.HTTPError as exc:
         body = exc.read(4000).decode("utf-8", errors="replace")
         if allow_missing and exc.code == 404:
@@ -3734,6 +3881,9 @@ def fetch_room_view(
     generation = obj.get("generation")
     if generation is None:
         generation = header_generation
+    obj["_scout_transport"] = {"endpoint": req.full_url, "headers": transport_headers,
+        "body_generation": obj.get("generation"), "header_generation": header_generation,
+        "generation_conflict": header_generation is not None and obj.get("generation") is not None and str(header_generation) != str(obj["generation"])}
     return obj, str(generation) if generation is not None else None
 
 
@@ -3802,29 +3952,21 @@ def highest_persisted_page_seq(
     generation: str | int | None,
     messages: list[dict[str, Any]],
 ) -> int | None:
-    seqs: list[int] = []
+    seqs = []
     for message in messages:
-        try:
-            seqs.append(int(message.get("seq")))
-        except (TypeError, ValueError):
-            continue
-    if not seqs:
-        return None
-    generation_value = str(generation) if generation is not None else UNKNOWN_LEGACY_GENERATION
-    placeholders = ",".join("?" for _ in seqs)
-    row = conn.execute(
-        f"""
-        SELECT MAX(seq)
-        FROM evidence_records
-        WHERE room = ?
-          AND generation = ?
-          AND seq IN ({placeholders})
-        """,
-        (room, generation_value, *seqs),
-    ).fetchone()
-    return row[0] if row is not None else None
+        rid = evidence_store.raw_identity(
+            "technocore_mailbox" if room.startswith("mb-") else "technocore_room",
+            room, str(generation) if generation is not None else None, None, message)
+        if not conn.execute("SELECT 1 FROM raw_network_records WHERE raw_record_id=?", (rid,)).fetchone():
+            raise RuntimeError("Cannot advance cursor: page evidence is not fully persisted")
+        seq = evidence_store.integer(message.get("seq")) if isinstance(message, dict) else None
+        if seq is not None:
+            seqs.append(seq)
+    return max(seqs) if seqs else None
 
 
+@observation_only
+@poll_accounting
 def service_poll_room(
     conn: sqlite3.Connection,
     room: str,
@@ -3848,13 +3990,15 @@ def service_poll_room(
     page_limit_hit = False
     generation_changed = False
     read_failed = False
+    last_read_error = None
     progress_stalled = False
 
     for _page_index in range(max_pages):
         page_cursor_before = cursor_after
         try:
             obj, generation = fetch_room_view(room, page_size, since=cursor_after, allow_missing=True)
-        except SystemExit:
+        except SystemExit as exc:
+            last_read_error = str(exc)
             read_failed = True
             continuity = "READ_FAILED"
             break
@@ -3866,26 +4010,57 @@ def service_poll_room(
         ):
             generation_changed = True
             cursor_after = 0
-            obj, generation = fetch_room_view(room, page_size, since=0, allow_missing=True)
-        messages = extract_room_messages(obj)
+            page_cursor_before = 0
+            try:
+                obj, generation = fetch_room_view(room, page_size, since=0, allow_missing=True)
+            except SystemExit as exc:
+                last_read_error = str(exc)
+                cursor_after = cursor_before
+                read_failed = True
+                continuity = "READ_FAILED"
+                break
+        messages = raw_room_messages(obj)
         pages_fetched += 1
         generation_value = str(generation) if generation is not None else None
-        latest_seq = response_latest_seq(obj, messages)
-        summary = ingest_messages(conn, room, messages, generation=generation, source="service-poll")
+        dict_messages = [m for m in messages if isinstance(m, dict)]
+        latest_seq = response_latest_seq(obj, dict_messages)
+        metadata = obj.get("_scout_transport", {})
+        summary = ingest_messages(conn, room, messages, generation=generation, source="service-poll",
+            source_endpoint=metadata.get("endpoint", room_read_endpoint(room, page_size, cursor_after)),
+            transport_metadata=metadata)
         total_received += summary["received"]
         total_inserted += summary["inserted"]
-        signed_new += sum(1 for msg in messages if is_signed_sender(message_sender(msg)))
+        signed_new += sum(1 for msg in dict_messages if is_signed_sender(message_sender(msg)))
+        if metadata.get("generation_conflict"):
+            last_read_error = "Conflicting body/header generations"
+            read_failed = True
+            break
+        first_retained = evidence_store.integer(obj.get("first_seq"))
+        if (first_retained is not None and cursor_after > 0 and first_retained > cursor_after + 1):
+            # Retained-ring loss cannot be repaired by inventing cursor continuity.
+            last_read_error = "Retained history gap before first_seq"
+            read_failed = True
+            break
+        if latest_seq is not None and generation is not None and str(generation) == cursor_generation and latest_seq < cursor_after:
+            last_read_error = "Server latest_seq regressed within generation"
+            read_failed = True
+            break
         persisted_seq = highest_persisted_page_seq(conn, room, generation, messages)
         if persisted_seq is not None and persisted_seq > cursor_after:
             cursor_after = persisted_seq
             update_room_cursor(conn, room, generation, cursor_after)
         elif not messages:
-            update_room_cursor(conn, room, generation, None)
+            update_room_cursor(conn, room, generation, 0 if generation_changed else None)
         returned_count = len(messages)
+        if metadata.get("generation_conflict"):
+            read_failed = True
+            continuity = "READ_FAILED"
+            break
         if returned_count < page_size:
+            backlog_remaining = latest_seq is not None and latest_seq > cursor_after
             break
         page_limit_hit = True
-        page_max_seq = max_message_seq(messages)
+        page_max_seq = max_message_seq(dict_messages)
         if persisted_seq is None or (page_max_seq is not None and page_max_seq <= page_cursor_before):
             progress_stalled = True
             break
@@ -3893,7 +4068,9 @@ def service_poll_room(
         backlog_remaining = True
 
     if read_failed:
-        pass
+        continuity = "READ_FAILED"
+    elif backlog_remaining:
+        continuity = "CATCHING_UP"
     elif generation_changed:
         continuity = "GENERATION_CHANGED"
     elif generation_value is None or generation_value == GENERATION_MISSING:
@@ -3919,6 +4096,7 @@ def service_poll_room(
         "continuity": continuity,
         "backlog_remaining": backlog_remaining,
         "page_limit_hit": page_limit_hit,
+        "last_read_error": last_read_error,
     }
 
 
@@ -4086,6 +4264,7 @@ def profile_publish(*, yes: bool) -> None:
     print("\nProfile note published.")
 
 
+@observation_only
 def observe(rooms: list[str], limit: int) -> None:
     conn = observer_connect()
     totals = {
@@ -4097,9 +4276,11 @@ def observe(rooms: list[str], limit: int) -> None:
     }
     for room in rooms:
         room = valid_room(room)
-        obj = fetch_room(room, limit)
+        obj, generation = fetch_room_view(room, limit)
         messages = extract_room_messages(obj)
-        summary = ingest_messages(conn, room, messages)
+        summary = ingest_messages(conn, room, raw_room_messages(obj), generation=generation,
+            source_endpoint=obj.get("_scout_transport", {}).get("endpoint", room_read_endpoint(room, limit)),
+            transport_metadata=obj.get("_scout_transport"))
         totals["rooms"] += 1
         totals["received"] += summary["received"]
         totals["inserted"] += summary["inserted"]
@@ -4175,14 +4356,17 @@ def inbox_status() -> None:
     print("\nNo network writes performed.")
 
 
+@observation_only
 def inbox_read(since: int | None = None) -> None:
     with observer_connect() as conn:
         if since is None:
             since = int(room_cursor(conn, MAILBOX_ROOM)["last_seq"])
         obj, generation = fetch_room_view(MAILBOX_ROOM, 200, since=since, allow_missing=True)
         messages = extract_room_messages(obj)
-        summary = ingest_messages(conn, MAILBOX_ROOM, messages, generation=generation, source="inbox-read")
-        max_seq = max_message_seq(messages)
+        summary = ingest_messages(conn, MAILBOX_ROOM, raw_room_messages(obj), generation=generation, source="inbox-read",
+            source_endpoint=obj.get("_scout_transport", {}).get("endpoint", room_read_endpoint(MAILBOX_ROOM, 200, since)),
+            transport_metadata=obj.get("_scout_transport"))
+        max_seq = highest_persisted_page_seq(conn, MAILBOX_ROOM, generation, raw_room_messages(obj))
         continuity = update_room_cursor(conn, MAILBOX_ROOM, generation, max_seq)
         refresh_opportunities(conn)
         signed_new = sum(1 for msg in messages if is_signed_sender(message_sender(msg)))
@@ -4201,6 +4385,7 @@ def inbox_read(since: int | None = None) -> None:
     print("No network writes performed.")
 
 
+@observation_only
 def service_poll() -> None:
     lines = ["FLOP Scout Service Poll\n"]
     new_high = 0
@@ -4245,77 +4430,55 @@ def service_poll() -> None:
     print("No network writes performed.")
 
 
-def service_status() -> None:
-    policy = fetch_duplicate_policy()
-    with observer_connect() as conn:
-        did = load_meta()["did"]
-        owner = get_room_owner(CANONICAL_ROOM)
-        mailbox_cursor = get_state(conn, f"cursor:{MAILBOX_ROOM}", "0")
-        last_poll = get_state(conn, "last_service_poll", "(never)")
-        known = local_history_stats(conn, did)["known_signed_posts"]
-        evidence_records = len(list(EVIDENCE_DIR.glob("*.json"))) if EVIDENCE_DIR.exists() else 0
-        watched_room_rows = [
-            (
-                room,
-                room_cursor(conn, room),
-                get_state(conn, f"cursor:{room}:continuity", room_cursor(conn, room)["continuity"]),
-            )
-            for room in validation_watch_rooms(conn)
-        ]
-        new_inbox = conn.execute(
-            """
-            SELECT COUNT(*)
-            FROM opportunities
-            WHERE room = ? AND status = 'new' AND tier IN ('HIGH', 'MEDIUM')
-            """,
-            (MAILBOX_ROOM,),
-        ).fetchone()[0]
-        tclk_frames = conn.execute("SELECT COUNT(*) FROM tclk_frames").fetchone()[0]
-        tclk_hints = conn.execute("SELECT COUNT(*) FROM tclk_capability_hints").fetchone()[0]
-        kibble_status = kibble_summary(conn)
-    print("FLOP Scout Service")
-    print(f"DID: {did}")
-    print(f"Canonical room: {CANONICAL_ROOM}")
-    print(f"Mailbox: {MAILBOX_ROOM}")
-    print(f"GitHub: {GITHUB_URL}")
-    print(f"Known signed posts: {known}")
-    print(f"Known contribution evidence: {evidence_records}")
-    print(f"Room ownership status: {'owned by us' if owner == did else ('unclaimed' if not owner else 'owned by another DID')}")
-    print(f"Mailbox cursor: {mailbox_cursor}")
-    print(f"New inbox requests: {new_inbox}")
-    print(f"Last service poll: {last_poll}")
-    print("Technocore provenance support:")
-    print("  room generation: supported")
-    print("  signed record signatures: supported")
-    print("  offline verification: supported")
-    print("TCLK discovery:")
-    print(f"  offers room: {TCLK_OFFERS_ROOM}")
-    print("  mode: observes only")
-    print("  settlement capability advertised: NO")
-    print(f"  indexed frames: {tclk_frames}")
-    print(f"  unverified capability hints: {tclk_hints}")
-    print("Kibble discovery:")
-    print(f"  mode: {kibble_status['mode']}")
-    print(f"  writes enabled: {'YES' if kibble_status['writes_enabled'] else 'NO'}")
-    print(f"  room cursor: {kibble_status['room_cursor']}")
-    print(f"  jobs observed: {kibble_status['jobs_observed']}")
-    print(f"  open jobs: {kibble_status['open_jobs']}")
-    print(f"  claimed jobs: {kibble_status['claimed_jobs']}")
-    print(f"  results observed: {kibble_status['results_observed']}")
-    print(f"  attestations observed: {kibble_status['attestations_observed']}")
-    print(f"  board reconciliation: {kibble_status['board_reconciliation']}")
-    print(f"  mismatches: {kibble_status['mismatches']}")
-    print("Watched rooms:")
-    for room, cursor, continuity in watched_room_rows:
-        print(
-            f"  {room}: generation={cursor['generation'] or '(none)'} "
-            f"last_seq={cursor['last_seq']} continuity={continuity}"
-        )
-    print("Duplicate policy:")
-    print(f"  dupe_filter_seconds: {policy['dupe_filter_seconds']}")
-    print(f"  dupe_max_copies: {policy['dupe_max_copies']}")
-    print(f"  dupe_min_length: {policy['dupe_min_length']}")
-    print("\nNo network writes performed.")
+@observation_only
+def service_status(db_path: Path = OBSERVER_DB) -> None:
+    try:
+        with observer_connect_readonly(db_path) as conn:
+            print(json.dumps(evidence_store.metrics(conn, db_path), indent=2, sort_keys=True))
+    except sqlite3.OperationalError as exc:
+        print(json.dumps({"status": "UNAVAILABLE", "reason": str(exc)}))
+
+
+def evidence_local_command(args):
+    if args.evidence_cmd in {"init", "repair"}:
+        with observer_connect_write(args.db) as conn:
+            if args.evidence_cmd == "repair":
+                evidence_store.repair(conn)
+        return
+    try:
+        with observer_connect_readonly(args.db) as conn:
+            if args.evidence_cmd == "verify-integrity":
+                result = evidence_store.integrity(conn)
+                print(json.dumps(result, indent=2))
+                if result["status"] != "PASS":
+                    raise SystemExit(1)
+            elif args.evidence_cmd == "soak-status":
+                print(json.dumps(evidence_store.metrics(conn, args.db), indent=2))
+            else:
+                target = Path(args.output).open('x', encoding='utf-8') if args.output else sys.stdout
+                try:
+                    for item in evidence_store.feed(conn, args.since_id, args.since_seq, args.classification, args.collection):
+                        target.write(json.dumps(item, ensure_ascii=True) + "\n")
+                finally:
+                    if target is not sys.stdout:
+                        target.close()
+    except sqlite3.OperationalError as exc:
+        raise SystemExit(f"Evidence unavailable (run explicit evidence init for migration): {exc}") from exc
+
+
+@observation_only
+def daily_report(args):
+    try:
+        with observer_connect_readonly(args.db) as conn:
+            result = evidence_store.daily(conn, args.date)
+        output = json.dumps(result, indent=2, sort_keys=True) + "\n"
+        if args.output:
+            with Path(args.output).open('x', encoding='utf-8') as f:
+                f.write(output)
+        else:
+            print(output, end='')
+    except (sqlite3.OperationalError, ValueError) as exc:
+        raise SystemExit(f"Daily report unavailable: {exc}") from exc
 
 
 def inbox_opportunities(limit: int, include_all: bool = False, explain: bool = False) -> None:
@@ -4776,7 +4939,8 @@ def main() -> None:
 
     service_parser = sub.add_parser("service")
     service_sub = service_parser.add_subparsers(dest="service_cmd", required=True)
-    service_sub.add_parser("status")
+    service_status_parser = service_sub.add_parser("status")
+    service_status_parser.add_argument("--db", type=Path, default=OBSERVER_DB)
 
     evidence_parser = sub.add_parser("evidence")
     evidence_sub = evidence_parser.add_subparsers(dest="evidence_cmd", required=True)
@@ -4785,6 +4949,24 @@ def main() -> None:
     evidence_export.add_argument("--yes", action="store_true")
     evidence_verify = evidence_sub.add_parser("verify-export")
     evidence_verify.add_argument("path")
+
+    for command in ("init", "repair", "verify-integrity", "soak-status", "feed", "export"):
+        child = evidence_sub.add_parser(command)
+        child.add_argument("--db", type=Path, default=OBSERVER_DB)
+        if command in {"feed", "export"}:
+            child.add_argument("--since-id", type=int, default=0)
+            child.add_argument("--since-seq", type=int)
+            child.add_argument("--classification")
+            child.add_argument("--collection")
+            child.add_argument("--output")
+            child.add_argument("--format", choices=["jsonl"], default="jsonl")
+    report_parser = sub.add_parser("report")
+    report_sub = report_parser.add_subparsers(dest="report_cmd", required=True)
+    report_daily = report_sub.add_parser("daily")
+    report_daily.add_argument("--db", type=Path, default=OBSERVER_DB)
+    report_daily.add_argument("--date")
+    report_daily.add_argument("--json", action="store_true")
+    report_daily.add_argument("--output")
 
     validation_parser = sub.add_parser("validation-watch")
     validation_sub = validation_parser.add_subparsers(dest="validation_cmd", required=True)
@@ -4902,12 +5084,16 @@ def main() -> None:
             inbox_reply(a.id, a.text, yes=a.yes)
     elif a.cmd == "service":
         if a.service_cmd == "status":
-            service_status()
+            service_status(a.db)
+    elif a.cmd == "report":
+        daily_report(a)
     elif a.cmd == "evidence":
         if a.evidence_cmd == "export-room":
             export_room_evidence(a.room, yes=a.yes)
         elif a.evidence_cmd == "verify-export":
             verify_export_file(a.path)
+        else:
+            evidence_local_command(a)
     elif a.cmd == "validation-watch":
         if a.validation_cmd == "add":
             validation_watch_add(

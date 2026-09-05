@@ -339,11 +339,83 @@ class Tests(unittest.TestCase):
                     "mb-flop-scout",
                     4,
                     request_path,
+                    db_path=Path(tmp) / "observer.sqlite",
                 )
+                with flop_scout.observer_connect_readonly(Path(tmp) / "observer.sqlite") as conn:
+                    stored = conn.execute("SELECT * FROM raw_network_records WHERE seq=4").fetchone()
+                    self.assertEqual(stored["raw_text"], raw["text"])
+                    self.assertEqual(stored["signature"], raw["sig"])
+                    self.assertEqual(stored["raw_completeness"], "COMPLETE")
+                    self.assertEqual(stored["signature_status"], "VERIFIED_OFFLINE")
+                    self.assertEqual(stored["raw_record_id"], normalized["transport_provenance"]["raw_record_id"])
+                    self.assertEqual(stored["raw_text_sha256"], normalized["transport_provenance"]["raw_text_sha256"])
+                    self.assertEqual(flop_scout.room_cursor(conn, "mb-flop-scout")["last_seq"], 0)
+                    self.assertEqual(flop_scout.evidence_store.integrity(conn)["status"], "PASS")
         self.assertEqual(normalized["classification"]["AUTHENTICITY"], "VERIFIED_OFFLINE")
         self.assertEqual(normalized["transport_provenance"]["seq"], 4)
         self.assertEqual(normalized["transport_provenance"]["generation"], flop_scout.UNKNOWN_LEGACY_GENERATION)
         self.assertEqual(normalized["transport_provenance"]["reported_generation"], "0")
+
+    def test_network_bench_raw_survives_linkage_rejection(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request, text_overrides={"task_hash": "wrong-task"})
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "observer.sqlite"
+            request_path = Path(tmp) / "request.json"
+            flop_scout.write_json_artifact(request_path, request)
+            with mock.patch.object(flop_scout, "fetch_room_view", return_value=({"messages": [raw]}, "gen-live")):
+                with self.assertRaises(SystemExit):
+                    flop_scout.scout_ingest_network_verification_result("mb-flop-scout", 4, request_path, db_path=db)
+            with flop_scout.observer_connect_readonly(db) as conn:
+                stored = conn.execute("SELECT * FROM raw_network_records").fetchone()
+                self.assertEqual(stored["raw_text"], raw["text"])
+                self.assertEqual(stored["signature_status"], "VERIFIED_OFFLINE")
+                self.assertEqual(stored["raw_completeness"], "COMPLETE")
+                self.assertEqual(flop_scout.room_cursor(conn, "mb-flop-scout")["last_seq"], 0)
+
+    def test_network_bench_fallback_preserves_pages_and_replay_is_idempotent(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request)
+        pages = [({"messages": [None, {"seq": 9, "text": None}]}, "gen-live"),
+                 ({"messages": [raw]}, "gen-live")]
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "observer.sqlite"
+            request_path = Path(tmp) / "request.json"
+            flop_scout.write_json_artifact(request_path, request)
+            with mock.patch.object(flop_scout, "fetch_room_view", side_effect=pages + pages) as fetch:
+                first = flop_scout.scout_ingest_network_verification_result("mb-flop-scout", 4, request_path, db_path=db)
+                second = flop_scout.scout_ingest_network_verification_result("mb-flop-scout", 4, request_path, db_path=db)
+            self.assertEqual(fetch.call_args_list[1], mock.call("mb-flop-scout", 800, since=None, allow_missing=True))
+            self.assertEqual(first["transport_provenance"]["raw_record_id"], second["transport_provenance"]["raw_record_id"])
+            self.assertEqual(first["classification"], {"AUTHENTICITY": "VERIFIED_OFFLINE", "CORRECTNESS": "PASS", "REPRODUCIBILITY": "DETERMINISTIC"})
+            self.assertTrue(first["same_operator"])
+            self.assertFalse(first["independent_reputation"])
+            self.assertTrue(first["request_linkage"]["valid"])
+            with flop_scout.observer_connect_readonly(db) as conn:
+                self.assertEqual(conn.execute("SELECT count(*) FROM raw_network_records").fetchone()[0], 3)
+                self.assertEqual(conn.execute("SELECT count(*) FROM observed_events").fetchone()[0], 3)
+                stored = conn.execute("SELECT * FROM raw_network_records WHERE seq=4").fetchone()
+                self.assertEqual(stored["source_endpoint"], flop_scout.room_read_endpoint("mb-flop-scout", 800))
+                self.assertEqual(flop_scout.evidence_store.integrity(conn)["status"], "PASS")
+
+    def test_network_bench_database_failure_cannot_return_unpersisted_result(self):
+        request = self.verification_request()
+        raw = self.signed_bench_delivery_message(request)
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "observer.sqlite"
+            with flop_scout.observer_connect_write(db):
+                pass
+            request_path = Path(tmp) / "request.json"
+            flop_scout.write_json_artifact(request_path, request)
+            with mock.patch.object(flop_scout, "fetch_room_view", return_value=({"messages": [raw]}, "gen-live")), \
+                 mock.patch.object(flop_scout.evidence_store, "ingest", side_effect=sqlite3.OperationalError("simulated storage failure")), \
+                 mock.patch.object(flop_scout, "normalize_network_bench_delivery") as normalize:
+                with self.assertRaises(sqlite3.OperationalError):
+                    flop_scout.scout_ingest_network_verification_result("mb-flop-scout", 4, request_path, db_path=db)
+                normalize.assert_not_called()
+            with flop_scout.observer_connect_readonly(db) as conn:
+                self.assertEqual(conn.execute("SELECT count(*) FROM raw_network_records").fetchone()[0], 0)
+                self.assertEqual(flop_scout.room_cursor(conn, "mb-flop-scout")["last_seq"], 0)
 
     def test_network_bench_result_missing_generation_is_unknown_legacy(self):
         request = self.verification_request()
@@ -1145,7 +1217,8 @@ class Tests(unittest.TestCase):
             captured["url"] = req.full_url
             return FakeResponse()
 
-        with mock.patch.object(flop_scout.urllib.request, "urlopen", side_effect=fake_urlopen):
+        with mock.patch.object(flop_scout.urllib.request, "build_opener") as opener:
+            opener.return_value.open.side_effect = fake_urlopen
             flop_scout.fetch_room_view(flop_scout.KIBBLE_ROOM, 200, since=10)
         self.assertIn("wait=10", captured["url"])
 
