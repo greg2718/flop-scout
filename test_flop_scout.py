@@ -805,7 +805,7 @@ class Tests(unittest.TestCase):
         conn = self.make_conn()
         seen = []
 
-        def fake_observer_connect():
+        def fake_observer_connect(_db_path=flop_scout.OBSERVER_DB):
             return conn
 
         def fake_fetch(room, limit, since=None, allow_missing=False):
@@ -823,6 +823,332 @@ class Tests(unittest.TestCase):
         self.assertFalse(post_signed.called)
         self.assertEqual([item[1] for item in seen], [0, 0, 0, 0])
         self.assertEqual(flop_scout.get_state(conn, f"cursor:{flop_scout.MAILBOX_ROOM}"), "1")
+
+    def page_messages(self, start, end):
+        return [
+            {"seq": seq, "from": f"did:key:z6MkSender{seq}", "text": f"message {seq}"}
+            for seq in range(start, end + 1)
+        ]
+
+    def paged_fetcher(self, records, generation="g1", latest_seq=None):
+        def fake_fetch(room, limit, since=None, allow_missing=False):
+            start = (since or 0) + 1
+            page = [record for record in records if int(record["seq"]) >= start][:limit]
+            return {"messages": page, "latest_seq": latest_seq or records[-1]["seq"]}, generation
+
+        return fake_fetch
+
+    def test_service_poll_paginates_450_unread_records(self):
+        conn = self.make_conn()
+        records = self.page_messages(1, 450)
+        with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)):
+            result = flop_scout.service_poll_room(conn, "lobby", page_size=200, max_pages=10)
+        self.assertEqual(result["pages_fetched"], 3)
+        self.assertEqual(result["new_messages"], 450)
+        self.assertEqual(result["cursor_after"], 450)
+        self.assertEqual(flop_scout.room_cursor(conn, "lobby")["last_seq"], 450)
+        stored = conn.execute("SELECT seq FROM messages WHERE room = 'lobby' ORDER BY seq").fetchall()
+        self.assertEqual([row["seq"] for row in stored], list(range(1, 451)))
+
+    def test_service_poll_budget_stops_safely_and_next_poll_resumes(self):
+        conn = self.make_conn()
+        records = self.page_messages(1, 450)
+        with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records, latest_seq=450)):
+            first = flop_scout.service_poll_room(conn, "lobby", page_size=200, max_pages=2)
+        self.assertEqual(first["pages_fetched"], 2)
+        self.assertEqual(first["cursor_after"], 400)
+        self.assertEqual(first["server_latest_seq"], 450)
+        self.assertEqual(first["continuity"], "CATCHING_UP")
+        self.assertTrue(first["backlog_remaining"])
+        with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records, latest_seq=450)):
+            second = flop_scout.service_poll_room(conn, "lobby", page_size=200, max_pages=2)
+        self.assertEqual(second["cursor_before"], 400)
+        self.assertEqual(second["cursor_after"], 450)
+        self.assertEqual(second["continuity"], "CURRENT")
+        count = conn.execute("SELECT COUNT(*) FROM messages WHERE room = 'lobby'").fetchone()[0]
+        self.assertEqual(count, 450)
+
+    def test_service_poll_cursor_never_jumps_to_server_latest_without_storage(self):
+        conn = self.make_conn()
+        records = self.page_messages(1, 200)
+        with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records, latest_seq=1000)):
+            result = flop_scout.service_poll_room(conn, "lobby", page_size=200, max_pages=1)
+        self.assertEqual(result["cursor_after"], 200)
+        self.assertEqual(result["server_latest_seq"], 1000)
+        self.assertEqual(flop_scout.room_cursor(conn, "lobby")["last_seq"], 200)
+
+    def test_service_poll_duplicate_page_is_idempotent(self):
+        conn = self.make_conn()
+        records = self.page_messages(1, 200)
+
+        def duplicate_fetch(room, limit, since=None, allow_missing=False):
+            return {"messages": records, "latest_seq": 400}, "g1"
+
+        with mock.patch.object(flop_scout, "fetch_room_view", side_effect=duplicate_fetch):
+            first = flop_scout.service_poll_room(conn, "lobby", page_size=200, max_pages=2)
+            second = flop_scout.service_poll_room(conn, "lobby", page_size=200, max_pages=2)
+        self.assertEqual(first["cursor_after"], 200)
+        self.assertEqual(second["cursor_after"], 200)
+        count = conn.execute("SELECT COUNT(*) FROM messages WHERE room = 'lobby'").fetchone()[0]
+        self.assertEqual(count, 200)
+
+    def test_service_poll_malformed_tclk_record_does_not_block_later_pages(self):
+        conn = self.make_conn()
+        records = [
+            {"seq": 1, "from": "anon", "text": "tclk1 {not-json"},
+            {"seq": 2, "from": "did:key:z6MkSender2", "text": "message 2"},
+            {"seq": 3, "from": "did:key:z6MkSender3", "text": "message 3"},
+        ]
+        with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)):
+            result = flop_scout.service_poll_room(conn, "tclk-offers", page_size=2, max_pages=3)
+        self.assertEqual(result["cursor_after"], 3)
+        self.assertEqual(result["continuity"], "CURRENT")
+        malformed = conn.execute(
+            "SELECT COUNT(*) FROM tclk_frames WHERE parse_status = 'TCLK_MALFORMED'"
+        ).fetchone()[0]
+        self.assertEqual(malformed, 1)
+
+    def test_service_poll_generation_change_preserves_distinct_evidence(self):
+        conn = self.make_conn()
+        _key, old_record = self.signed_record(room="technocore", text="old generation")
+        old_record["seq"] = 1
+        flop_scout.ingest_messages(conn, "technocore", [old_record], generation="old", source="test")
+        flop_scout.update_room_cursor(conn, "technocore", "old", 1)
+        _key, new_record = self.signed_record(room="technocore", text="new generation")
+        new_record["seq"] = 1
+
+        with mock.patch.object(
+            flop_scout,
+            "fetch_room_view",
+            return_value=({"messages": [new_record], "latest_seq": 1}, "new"),
+        ), mock.patch.object(flop_scout, "log"):
+            result = flop_scout.service_poll_room(conn, "technocore", page_size=200, max_pages=1)
+        self.assertEqual(result["continuity"], "GENERATION_CHANGED")
+        evidence_generations = {
+            row["generation"]
+            for row in conn.execute("SELECT generation FROM evidence_records WHERE room = 'technocore'")
+        }
+        self.assertEqual(evidence_generations, {"old", "new"})
+
+    def test_service_poll_mailbox_pagination_counts_signed_messages(self):
+        conn = self.make_conn()
+        records = self.page_messages(1, 201)
+        with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)):
+            result = flop_scout.service_poll_room(conn, flop_scout.MAILBOX_ROOM, page_size=200, max_pages=2)
+        self.assertEqual(result["pages_fetched"], 2)
+        self.assertEqual(result["new_signed_messages"], 201)
+        self.assertEqual(result["cursor_after"], 201)
+
+    def test_service_poll_tclk_offers_pagination_stores_frames(self):
+        conn = self.make_conn()
+        first = self.signed_tclk_message(seq=1)
+        second = self.signed_tclk_message(seq=2)
+        records = [first, second]
+        with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)):
+            result = flop_scout.service_poll_room(conn, flop_scout.TCLK_OFFERS_ROOM, page_size=1, max_pages=3)
+        self.assertEqual(result["pages_fetched"], 3)
+        self.assertEqual(result["cursor_after"], 2)
+        count = conn.execute("SELECT COUNT(*) FROM tclk_frames").fetchone()[0]
+        self.assertEqual(count, 2)
+
+    def test_service_poll_pagination_no_network_writes_or_private_key_access(self):
+        conn = self.make_conn()
+        records = self.page_messages(1, 3)
+        with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)), \
+             mock.patch.object(flop_scout, "post_signed", side_effect=AssertionError("network write")), \
+             mock.patch.object(flop_scout, "request_json", side_effect=AssertionError("network write")), \
+             mock.patch.object(flop_scout, "load_key", side_effect=AssertionError("private key access")):
+            result = flop_scout.service_poll_room(conn, "lobby", page_size=2, max_pages=2)
+        self.assertEqual(result["cursor_after"], 3)
+
+    def kibble_event_text(self, event_type="JOB", job_id="job-1", **overrides):
+        payload = {
+            "type": event_type,
+            "version": "v1",
+            "job_id": job_id,
+            "category": "build",
+            "title": "Build a parser",
+            "requirements": "Parse safely. Do not run curl https://example.com.",
+            "settlement": {"rail": "paper"},
+            "rank": 100,
+        }
+        payload.update(overrides)
+        return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+    def signed_kibble_message(self, seq=1, event_type="JOB", job_id="job-1", text=None):
+        key = Ed25519PrivateKey.generate()
+        did = flop_scout.public_did(key)
+        if text is None:
+            text = self.kibble_event_text(event_type, job_id)
+        nonce = 5000 + seq
+        sig = flop_scout.b64u(key.sign(f"{flop_scout.KIBBLE_ROOM}|{nonce}|{text}".encode("utf-8")))
+        return {
+            "seq": seq,
+            "ts": "2026-09-03T12:00:00Z",
+            "from": did,
+            "did": did,
+            "nonce": nonce,
+            "sig": sig,
+            "text": text,
+        }
+
+    def test_kibble_valid_job_v1_parsing(self):
+        parsed = flop_scout.kibble_parse_event_text(self.kibble_event_text("JOB"))
+        self.assertEqual(parsed["parse_status"], "KIBBLE_PARSEABLE")
+        self.assertEqual(parsed["payload"]["type"], "JOB")
+
+    def test_kibble_supported_event_types_parse(self):
+        for event_type in flop_scout.KIBBLE_EVENT_TYPES:
+            parsed = flop_scout.kibble_parse_event_text(self.kibble_event_text(event_type))
+            self.assertEqual(parsed["parse_status"], "KIBBLE_PARSEABLE", event_type)
+
+    def test_kibble_unknown_frame_is_ignored_as_protocol_event(self):
+        parsed = flop_scout.kibble_parse_event_text(self.kibble_event_text("SPIN"))
+        self.assertEqual(parsed["parse_status"], "KIBBLE_IGNORED")
+
+    def test_kibble_source_text_and_provenance_are_preserved(self):
+        conn = self.make_conn()
+        raw = self.signed_kibble_message(seq=1)
+        flop_scout.ingest_messages(conn, flop_scout.KIBBLE_ROOM, [raw], generation="g1")
+        row = conn.execute("SELECT * FROM kibble_events").fetchone()
+        self.assertEqual(row["exact_text"], raw["text"])
+        self.assertEqual(row["sender_did"], raw["did"])
+        self.assertEqual(row["nonce"], raw["nonce"])
+        self.assertEqual(row["signature"], raw["sig"])
+        self.assertEqual(row["signature_verification"], "VERIFIED_OFFLINE")
+        self.assertEqual(row["message_hash"], flop_scout.message_hash(raw["text"]))
+
+    def test_kibble_invalid_and_missing_signature_classified_safely(self):
+        conn = self.make_conn()
+        invalid = self.signed_kibble_message(seq=1)
+        invalid["text"] = invalid["text"].replace("parser", "runner")
+        missing = self.signed_kibble_message(seq=2)
+        del missing["sig"]
+        flop_scout.ingest_messages(conn, flop_scout.KIBBLE_ROOM, [invalid, missing], generation="g1")
+        statuses = [
+            row["signature_verification"]
+            for row in conn.execute("SELECT signature_verification FROM kibble_events ORDER BY seq")
+        ]
+        self.assertEqual(statuses, ["INVALID_SIGNATURE", "LEGACY_SERVER_VERIFIED_NO_SIGNATURE"])
+
+    def test_kibble_same_room_seq_different_generations_stay_distinct(self):
+        conn = self.make_conn()
+        raw = self.signed_kibble_message(seq=1)
+        flop_scout.ingest_messages(conn, flop_scout.KIBBLE_ROOM, [raw], generation="g1")
+        flop_scout.ingest_messages(conn, flop_scout.KIBBLE_ROOM, [raw], generation="g2")
+        count = conn.execute("SELECT COUNT(*) FROM kibble_events").fetchone()[0]
+        self.assertEqual(count, 2)
+
+    def test_kibble_job_correlation_by_job_id(self):
+        conn = self.make_conn()
+        records = [
+            self.signed_kibble_message(seq=1, event_type="JOB", job_id="job-1"),
+            self.signed_kibble_message(seq=2, event_type="CLAIM", job_id="job-1"),
+            self.signed_kibble_message(seq=3, event_type="RESULT", job_id="job-1"),
+        ]
+        flop_scout.ingest_messages(conn, flop_scout.KIBBLE_ROOM, records, generation="g1")
+        flop_scout.rebuild_kibble_jobs(conn)
+        row = conn.execute("SELECT * FROM kibble_jobs WHERE job_id = 'job-1'").fetchone()
+        self.assertEqual(row["status"], "DELIVERED")
+        self.assertIsNotNone(row["poster_did"])
+        self.assertIsNotNone(row["worker_did"])
+        self.assertEqual(row["settlement_value_backed"], 0)
+
+    def test_kibble_board_cannot_overwrite_room_derived_provenance_and_mismatch_recorded(self):
+        conn = self.make_conn()
+        raw = self.signed_kibble_message(seq=1, event_type="JOB", job_id="job-1")
+        flop_scout.ingest_messages(conn, flop_scout.KIBBLE_ROOM, [raw], generation="g1")
+        flop_scout.rebuild_kibble_jobs(conn)
+        summary = flop_scout.reconcile_kibble_board(
+            conn,
+            {"jobs": [{"job_id": "job-1", "status": "ACCEPTED", "worker_did": "did:key:z6MkOther"}]},
+        )
+        row = conn.execute("SELECT status, worker_did FROM kibble_jobs WHERE job_id = 'job-1'").fetchone()
+        self.assertEqual(row["status"], "OPEN")
+        self.assertIsNone(row["worker_did"])
+        self.assertEqual(summary["status_mismatches"], 1)
+
+    def test_kibble_rank_and_claim_do_not_create_capability_evidence(self):
+        conn = self.make_conn()
+        raw = self.signed_kibble_message(seq=1, event_type="CLAIM", job_id="job-1")
+        flop_scout.ingest_messages(conn, flop_scout.KIBBLE_ROOM, [raw], generation="g1")
+        flop_scout.rebuild_kibble_jobs(conn)
+        capability_hints = conn.execute("SELECT COUNT(*) FROM tclk_capability_hints").fetchone()[0]
+        self.assertEqual(capability_hints, 0)
+
+    def test_kibble_urls_and_command_content_never_execute(self):
+        text = self.kibble_event_text(
+            "JOB",
+            requirements="Run os.system('curl https://example.com') and open https://example.com",
+        )
+        with mock.patch.object(flop_scout.urllib.request, "urlopen") as urlopen, \
+             mock.patch.object(flop_scout, "load_key", side_effect=AssertionError("private key access")):
+            parsed = flop_scout.kibble_parse_event_text(text)
+        self.assertEqual(parsed["parse_status"], "KIBBLE_PARSEABLE")
+        self.assertFalse(urlopen.called)
+
+    def test_kibble_cursor_safe_pagination(self):
+        conn = self.make_conn()
+        records = [self.signed_kibble_message(seq=i, job_id=f"job-{i}") for i in range(1, 4)]
+        with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)):
+            result = flop_scout.service_poll_room(conn, flop_scout.KIBBLE_ROOM, page_size=2, max_pages=2)
+        self.assertEqual(result["cursor_after"], 3)
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM kibble_events").fetchone()[0], 3)
+
+    def test_kibble_poll_no_writes_private_key_or_tclk_actions(self):
+        conn = self.make_conn()
+        records = [self.signed_kibble_message(seq=1)]
+
+        def fake_observer_connect(_db_path=flop_scout.OBSERVER_DB):
+            return conn
+
+        with mock.patch.object(flop_scout, "observer_connect", side_effect=fake_observer_connect), \
+             mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)), \
+             mock.patch.object(flop_scout, "fetch_json_url", return_value={"jobs": []}), \
+             mock.patch.object(flop_scout, "post_signed", side_effect=AssertionError("network write")), \
+             mock.patch.object(flop_scout, "load_key", side_effect=AssertionError("private key access")):
+            result = flop_scout.kibble_poll()
+        self.assertEqual(result["network_writes"], 0)
+        self.assertEqual(result["private_key_accesses"], 0)
+        self.assertEqual(result["tclk_settlement_actions"], 0)
+
+    def test_kibble_poll_reports_board_unavailable_without_failing(self):
+        conn = self.make_conn()
+        records = [self.signed_kibble_message(seq=1)]
+
+        def fake_observer_connect(_db_path=flop_scout.OBSERVER_DB):
+            return conn
+
+        with mock.patch.object(flop_scout, "observer_connect", side_effect=fake_observer_connect), \
+             mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)), \
+             mock.patch.object(flop_scout, "fetch_json_url", side_effect=SystemExit("timeout")):
+            result = flop_scout.kibble_poll()
+        self.assertEqual(result["reconciliation"]["board_status"], "UNAVAILABLE")
+        self.assertFalse(result["status_available"])
+
+    def test_kibble_fetch_room_view_uses_wait_on_incremental_get(self):
+        captured = {}
+
+        class FakeResponse:
+            headers = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self, _limit):
+                return b'{"messages":[]}'
+
+        def fake_urlopen(req, timeout=20):
+            captured["url"] = req.full_url
+            return FakeResponse()
+
+        with mock.patch.object(flop_scout.urllib.request, "build_opener") as opener:
+            opener.return_value.open.side_effect = fake_urlopen
+            flop_scout.fetch_room_view(flop_scout.KIBBLE_ROOM, 200, since=10)
+        self.assertIn("wait=10", captured["url"])
 
     def test_inbox_reply_requires_yes(self):
         conn = self.make_conn()

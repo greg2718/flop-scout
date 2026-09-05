@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import scout_evidence as evidence_store
+from contextlib import contextmanager
+from contextvars import ContextVar
+from functools import wraps
 import base64
 import getpass
 import hashlib
@@ -23,7 +27,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 BASE_URL = "https://technocore.chat"
-HOME = Path.home() / ".flop_scout"
+HOME = Path(os.environ.get("FLOP_SCOUT_STATE_DIR", str(Path.home() / ".flop_scout")))
 KEY_FILE = HOME / "identity.pem"
 META_FILE = HOME / "identity.json"
 LOG_FILE = HOME / "activity.jsonl"
@@ -37,8 +41,13 @@ INTERACTION_WINDOW = 5
 CANONICAL_ROOM = "d-flop-scout"
 MAILBOX_ROOM = "mb-flop-scout"
 TCLK_OFFERS_ROOM = "tclk-offers"
+KIBBLE_ROOM = "kibble"
+KIBBLE_BOARD_URL = "https://flop-kibble.onrender.com/api/board"
+KIBBLE_STATUS_URL = "https://flop-kibble.onrender.com/api/status"
 GITHUB_URL = "https://github.com/greg2718/flop-scout"
 SERVICE_ROOMS = (MAILBOX_ROOM, TCLK_OFFERS_ROOM, "technocore", "lobby")
+SERVICE_POLL_PAGE_SIZE = 200
+SERVICE_POLL_MAX_PAGES_PER_ROOM = 10
 CONFIG_DUPLICATE_KEYS = ("dupe_filter_seconds", "dupe_max_copies", "dupe_min_length")
 UNKNOWN_LEGACY_GENERATION = "UNKNOWN_LEGACY"
 GENERATION_MISSING = "GENERATION_MISSING"
@@ -46,6 +55,7 @@ DEFAULT_EVIDENCE_ROOMS = (CANONICAL_ROOM, MAILBOX_ROOM)
 TCLK_FRAME_PREFIX = "tclk1 "
 TCLK_FRAME_TYPES = ("offer", "accept", "lock", "reveal", "refund", "cancel", "receipt")
 TCLK_OBSERVED_ONLY = "OBSERVES_TCLK_DOES_NOT_ACCEPT_SETTLEMENT"
+KIBBLE_EVENT_TYPES = ("JOB", "CLAIM", "RESULT", "DELIVER", "ATTEST", "ACCEPT", "WITNESS", "BRIEF")
 LOCAL_OPERATOR_GROUP = "flop-labs-local"
 DUPLICATE_REFUSAL_MESSAGE = """Technocore refused this message as duplicate/repeated content (HTTP 422).
 
@@ -68,6 +78,50 @@ class TechnocoreDuplicateRefusal(Exception):
         super().__init__("Technocore duplicate-content refusal")
         self.status = 422
         self.body = body
+
+
+_OBSERVING = ContextVar("scout_observing", default=False)
+
+
+def observation_only(function):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        token = _OBSERVING.set(True)
+        try:
+            return function(*args, **kwargs)
+        finally:
+            _OBSERVING.reset(token)
+    return wrapped
+
+
+def forbid_during_observation(action):
+    if _OBSERVING.get():
+        raise RuntimeError(f"Observation safety invariant: {action} forbidden")
+
+
+def poll_accounting(function):
+    @wraps(function)
+    def wrapped(conn, room, **kwargs):
+        with conn:
+            cycle = conn.execute("INSERT INTO evidence_poll_cycles(started_at,status,details_json) VALUES (?,'RUNNING',?)", (utc_now(), json.dumps({"room":room}))).lastrowid
+        try:
+            result = function(conn, room, **kwargs)
+        except BaseException as exc:
+            conn.rollback()
+            with conn:
+                evidence_store.bump(conn, "database_errors" if isinstance(exc, sqlite3.Error) else "poll_errors")
+                conn.execute("UPDATE evidence_poll_cycles SET finished_at=?,status='ERROR',details_json=? WHERE id=?", (utc_now(),json.dumps({"room":room,"error":str(exc)}),cycle))
+            raise
+        status = "READ_FAILED" if result["continuity"] == "READ_FAILED" else "SUCCESS"
+        with conn:
+            previous = conn.execute("SELECT status FROM evidence_poll_cycles WHERE id<? AND json_extract(details_json,'$.room')=? ORDER BY id DESC LIMIT 1",(cycle,room)).fetchone()
+            if status == "READ_FAILED":
+                evidence_store.bump(conn,"read_failures")
+            elif previous and previous[0] in {"READ_FAILED","ERROR"}:
+                evidence_store.bump(conn,"recoveries")
+            conn.execute("UPDATE evidence_poll_cycles SET finished_at=?,status=?,details_json=? WHERE id=?", (utc_now(),status,json.dumps(result),cycle))
+        return result
+    return wrapped
 
 
 def ensure_home() -> None:
@@ -240,6 +294,7 @@ def load_meta() -> dict[str, Any]:
 
 
 def load_key() -> Ed25519PrivateKey:
+    forbid_during_observation("private_key_accesses")
     if not KEY_FILE.exists():
         raise SystemExit("No identity found. Run: python flop_scout.py init")
     password = getpass.getpass("FLOP Scout identity passphrase: ").encode("utf-8")
@@ -306,6 +361,8 @@ def request_json(
     is_write: bool = False,
     allow_missing: bool = False,
 ) -> dict[str, Any]:
+    if is_write:
+        forbid_during_observation("network_writes")
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             raw = resp.read(1_000_001)
@@ -473,11 +530,15 @@ def update_room_cursor(
             )
         else:
             status = "CURRENT"
+    if last_seq is not None and cursor["generation"] == generation_value and last_seq < cursor["last_seq"]:
+        evidence_store.bump(conn, "cursor_regressions")
+        raise ValueError("Cursor regression rejected")
+    values = {f"cursor:{room}:generation": generation_value, f"cursor:{room}:continuity": status}
     if last_seq is not None:
-        set_state(conn, f"cursor:{room}:seq", str(last_seq))
-        set_state(conn, f"cursor:{room}", str(last_seq))
-    set_state(conn, f"cursor:{room}:generation", generation_value)
-    set_state(conn, f"cursor:{room}:continuity", status)
+        values.update({f"cursor:{room}:seq": str(last_seq), f"cursor:{room}": str(last_seq)})
+    with conn:
+        for key, value in values.items():
+            conn.execute("INSERT INTO service_state VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at", (key,value,utc_now()))
     return status
 
 
@@ -749,14 +810,31 @@ def scout_ingest_network_verification_result(room: str, seq: int, request_path: 
     return normalize_network_bench_delivery(room, generation, raw, request)
 
 
-def observer_connect(db_path: Path = OBSERVER_DB) -> sqlite3.Connection:
-    ensure_home()
-    conn = sqlite3.connect(db_path)
+def observer_connect_readonly(db_path: Path = OBSERVER_DB) -> sqlite3.Connection:
+    conn = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    init_observer_db(conn)
-    import_local_history(conn)
+    conn.execute("PRAGMA query_only=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
+
+def observer_connect_write(db_path: Path = OBSERVER_DB) -> sqlite3.Connection:
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path, timeout=5)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='evidence_schema'").fetchone():
+        init_observer_db(conn)
+    evidence_store.initialize(conn, verify_signed_record_offline)
+    evidence_store.sync_collections(conn, evidence_store.load_collections(HOME / "watch_collections.json"))
+    return conn
+
+
+# Compatibility name for existing explicit writers. Readers never call this.
+observer_connect = observer_connect_write
 
 
 def init_observer_db(conn: sqlite3.Connection) -> None:
@@ -941,6 +1019,59 @@ def init_observer_db(conn: sqlite3.Connection) -> None:
             verification_status TEXT NOT NULL DEFAULT 'UNVERIFIED_HINT',
             PRIMARY KEY (did, rail, source)
         );
+
+        CREATE TABLE IF NOT EXISTS kibble_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room TEXT NOT NULL,
+            generation TEXT NOT NULL,
+            seq INTEGER NOT NULL,
+            server_timestamp TEXT,
+            sender_did TEXT,
+            nonce INTEGER,
+            signature TEXT,
+            signature_verification TEXT NOT NULL,
+            exact_text TEXT NOT NULL,
+            message_hash TEXT NOT NULL,
+            event_type TEXT,
+            event_version TEXT,
+            job_id TEXT,
+            observed_at TEXT NOT NULL,
+            parse_status TEXT NOT NULL,
+            parse_error TEXT,
+            payload_json TEXT,
+            source_class TEXT NOT NULL DEFAULT 'SOURCE_TRANSCRIPT',
+            UNIQUE (room, generation, seq)
+        );
+
+        CREATE TABLE IF NOT EXISTS kibble_jobs (
+            source TEXT NOT NULL,
+            job_id TEXT PRIMARY KEY,
+            category TEXT,
+            title TEXT,
+            requirements TEXT,
+            poster_did TEXT,
+            worker_did TEXT,
+            status TEXT NOT NULL,
+            observed_seq INTEGER,
+            signature_verified INTEGER NOT NULL DEFAULT 0,
+            settlement_rail TEXT,
+            settlement_value_backed INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS kibble_reconciliation (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            checked_at TEXT NOT NULL,
+            matched_jobs INTEGER NOT NULL,
+            board_only_jobs INTEGER NOT NULL,
+            room_only_jobs INTEGER NOT NULL,
+            status_mismatches INTEGER NOT NULL,
+            worker_mismatches INTEGER NOT NULL,
+            result_hash_mismatches INTEGER NOT NULL,
+            attestation_count_differences INTEGER NOT NULL,
+            board_status TEXT NOT NULL,
+            details_json TEXT NOT NULL
+        );
         """
     )
     conn.execute(
@@ -954,6 +1085,9 @@ def init_observer_db(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_tclk_frames_transport ON tclk_frames(transport_did, transport_binding_status)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_kibble_events_job ON kibble_events(job_id, event_type)"
     )
     for column, ddl in {
         "template_normalized_text": "ALTER TABLE messages ADD COLUMN template_normalized_text TEXT NOT NULL DEFAULT ''",
@@ -992,6 +1126,7 @@ def init_observer_db(conn: sqlite3.Connection) -> None:
             conn.execute(ddl)
     backfill_template_hashes(conn)
     conn.commit()
+    evidence_store.initialize(conn, verify_signed_record_offline)
 
 
 def column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -1062,12 +1197,11 @@ def message_did(raw: dict[str, Any]) -> str | None:
 
 def message_nonce(raw: dict[str, Any]) -> int | None:
     nonce = raw.get("nonce")
-    if nonce is None or isinstance(nonce, bool):
-        return None
-    try:
+    if type(nonce) is int and 0 <= nonce <= 9999999999999999999:
+        return nonce
+    if isinstance(nonce, str) and re.fullmatch(r"[0-9]{1,19}", nonce):
         return int(nonce)
-    except (TypeError, ValueError):
-        return None
+    return None
 
 
 def message_sig(raw: dict[str, Any]) -> str | None:
@@ -1113,7 +1247,7 @@ def verify_signed_record_offline(room: str, raw: dict[str, Any]) -> str:
         return "INVALID_SIGNATURE"
     try:
         public_key = public_key_from_did(did)
-        public_key.verify(sig_bytes, f"{valid_room(room)}|{nonce}|{text}".encode("utf-8"))
+        public_key.verify(sig_bytes, f"{valid_room(room)}|{raw['nonce']}|{text}".encode("utf-8"))
     except Exception:
         return "INVALID_SIGNATURE"
     return "VERIFIED_OFFLINE"
@@ -1403,6 +1537,9 @@ def store_tclk_capability_hints(conn: sqlite3.Connection, did: str, source: str,
         return 0
     now = utc_now()
     inserted = 0
+    raw_id = evidence_store.ingest(conn, "", {"did":did,"text":note_text,"source_hint":source},
+        verify_signed_record_offline, source="technocore_note_hint")
+    raw_hash = conn.execute("SELECT raw_text_sha256 FROM raw_network_records WHERE raw_record_id=?",(raw_id,)).fetchone()[0]
     for rail in parse_tclk_capability_hints(note_text):
         before = conn.total_changes
         conn.execute(
@@ -1415,6 +1552,8 @@ def store_tclk_capability_hints(conn: sqlite3.Connection, did: str, source: str,
         )
         if conn.total_changes > before:
             inserted += 1
+        rowid = conn.execute("SELECT rowid FROM tclk_capability_hints WHERE did=? AND rail=? AND source=?",(did,rail,source)).fetchone()[0]
+        conn.execute("INSERT OR IGNORE INTO compatibility_evidence_links VALUES (?,?,?,?)",("tclk_capability_hints",rowid,raw_id,raw_hash))
     conn.commit()
     return inserted
 
@@ -1488,6 +1627,468 @@ def print_tclk_discovery_summary(conn: sqlite3.Connection) -> None:
     print("Scout observes TCLK only; it does not accept, lock, reveal, refund, settle, or assign TCLK-only HIGH priority.")
 
 
+def env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def kibble_config() -> dict[str, Any]:
+    return {
+        "enabled": env_bool("KIBBLE_ENABLED", False),
+        "mode": os.environ.get("KIBBLE_MODE", "shadow"),
+        "room_url": os.environ.get("KIBBLE_ROOM_URL", f"{BASE_URL}/r/{KIBBLE_ROOM}"),
+        "board_url": os.environ.get("KIBBLE_BOARD_URL", KIBBLE_BOARD_URL),
+        "status_url": os.environ.get("KIBBLE_STATUS_URL", KIBBLE_STATUS_URL),
+        "poll_seconds": int(os.environ.get("KIBBLE_POLL_SECONDS", "30")),
+        "max_concurrent_claims": int(os.environ.get("KIBBLE_MAX_CONCURRENT_CLAIMS", "0")),
+        "allow_writes": env_bool("KIBBLE_ALLOW_WRITES", False),
+    }
+
+
+def kibble_service_rooms() -> tuple[str, ...]:
+    return (KIBBLE_ROOM,) if kibble_config()["enabled"] else ()
+
+
+def kibble_parse_event_text(text: str) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return {"parse_status": "KIBBLE_MALFORMED", "parse_error": f"invalid JSON: {exc.msg}", "payload": None}
+    if not isinstance(payload, dict):
+        return {"parse_status": "KIBBLE_MALFORMED", "parse_error": "event JSON is not an object", "payload": None}
+    event_type = str(payload.get("type") or payload.get("event_type") or "").upper()
+    version = str(payload.get("version") or payload.get("v") or "")
+    schema_version = str(payload.get("schema_version") or "")
+    if event_type not in KIBBLE_EVENT_TYPES:
+        return {"parse_status": "KIBBLE_IGNORED", "parse_error": "unsupported event type", "payload": payload}
+    if version not in {"1", "v1"} and not schema_version.lower().endswith(".v1"):
+        return {"parse_status": "KIBBLE_IGNORED", "parse_error": "unsupported event version", "payload": payload}
+    return {"parse_status": "KIBBLE_PARSEABLE", "parse_error": None, "payload": payload}
+
+
+def kibble_job_id(payload: dict[str, Any]) -> str | None:
+    value = payload.get("job_id") or payload.get("id")
+    return value if isinstance(value, str) and value else None
+
+
+def kibble_record_from_message(
+    room: str,
+    generation: str | int | None,
+    raw: dict[str, Any],
+    *,
+    observed_at: str,
+) -> dict[str, Any] | None:
+    text = raw.get("text")
+    if not isinstance(text, str):
+        return None
+    parsed = kibble_parse_event_text(text)
+    if parsed is None:
+        return None
+    try:
+        seq = int(raw["seq"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    payload = parsed.get("payload") if isinstance(parsed.get("payload"), dict) else {}
+    event_type = str(payload.get("type") or payload.get("event_type") or "").upper() or None
+    version = str(payload.get("version") or payload.get("v") or "")
+    return {
+        "room": valid_room(room),
+        "generation": str(generation) if generation is not None else UNKNOWN_LEGACY_GENERATION,
+        "seq": seq,
+        "server_timestamp": message_timestamp(raw),
+        "sender_did": message_did(raw),
+        "nonce": message_nonce(raw),
+        "signature": message_sig(raw),
+        "signature_verification": verify_signed_record_offline(room, raw),
+        "exact_text": text,
+        "message_hash": message_hash(text),
+        "event_type": event_type if event_type in KIBBLE_EVENT_TYPES else None,
+        "event_version": version or ("v1" if str(payload.get("schema_version") or "").lower().endswith(".v1") else None),
+        "job_id": kibble_job_id(payload),
+        "observed_at": observed_at,
+        "parse_status": parsed["parse_status"],
+        "parse_error": parsed.get("parse_error"),
+        "payload_json": json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")) if payload else None,
+    }
+
+
+def store_kibble_event(conn: sqlite3.Connection, record: dict[str, Any]) -> None:
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO kibble_events
+            (room, generation, seq, server_timestamp, sender_did, nonce, signature,
+             signature_verification, exact_text, message_hash, event_type, event_version,
+             job_id, observed_at, parse_status, parse_error, payload_json, source_class)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SOURCE_TRANSCRIPT')
+        """,
+        (
+            record["room"],
+            record["generation"],
+            record["seq"],
+            record["server_timestamp"],
+            record["sender_did"],
+            record["nonce"],
+            record["signature"],
+            record["signature_verification"],
+            record["exact_text"],
+            record["message_hash"],
+            record["event_type"],
+            record["event_version"],
+            record["job_id"],
+            record["observed_at"],
+            record["parse_status"],
+            record["parse_error"],
+            record["payload_json"],
+        ),
+    )
+
+
+def kibble_payload(row: sqlite3.Row) -> dict[str, Any]:
+    if not row["payload_json"]:
+        return {}
+    try:
+        payload = json.loads(row["payload_json"])
+        return payload if isinstance(payload, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def kibble_event_status(event_type: str | None) -> str:
+    return {
+        "JOB": "OPEN",
+        "CLAIM": "CLAIMED",
+        "RESULT": "DELIVERED",
+        "DELIVER": "DELIVERED",
+        "ATTEST": "ATTESTED",
+        "ACCEPT": "ACCEPTED",
+    }.get(event_type or "", "UNKNOWN")
+
+
+def rebuild_kibble_jobs(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM kibble_events
+        WHERE parse_status = 'KIBBLE_PARSEABLE'
+          AND job_id IS NOT NULL
+        ORDER BY generation, seq, id
+        """
+    ).fetchall()
+    jobs: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        payload = kibble_payload(row)
+        job_id = row["job_id"]
+        job = jobs.setdefault(
+            job_id,
+            {
+                "source": "kibble",
+                "job_id": job_id,
+                "category": None,
+                "title": None,
+                "requirements": None,
+                "poster_did": None,
+                "worker_did": None,
+                "status": "UNKNOWN",
+                "observed_seq": None,
+                "signature_verified": False,
+                "settlement_rail": None,
+                "settlement_value_backed": False,
+            },
+        )
+        event_type = row["event_type"]
+        if row["signature_verification"] == "VERIFIED_OFFLINE":
+            job["signature_verified"] = True
+        if event_type == "JOB":
+            job["category"] = payload.get("category") if isinstance(payload.get("category"), str) else job["category"]
+            job["title"] = payload.get("title") if isinstance(payload.get("title"), str) else job["title"]
+            body = payload.get("requirements") or payload.get("body")
+            if isinstance(body, str):
+                job["requirements"] = body
+            job["poster_did"] = row["sender_did"]
+            settlement = payload.get("settlement") if isinstance(payload.get("settlement"), dict) else {}
+            rail = settlement.get("rail") if isinstance(settlement.get("rail"), str) else payload.get("settlement_rail")
+            job["settlement_rail"] = rail if isinstance(rail, str) else job["settlement_rail"]
+            job["settlement_value_backed"] = False
+        elif event_type == "CLAIM":
+            job["worker_did"] = row["sender_did"]
+        elif event_type in {"RESULT", "DELIVER"} and job["worker_did"] is None:
+            job["worker_did"] = row["sender_did"]
+        status = kibble_event_status(event_type)
+        if status != "UNKNOWN":
+            job["status"] = status
+        job["observed_seq"] = row["seq"]
+    now = utc_now()
+    for job in jobs.values():
+        conn.execute(
+            """
+            INSERT INTO kibble_jobs
+                (source, job_id, category, title, requirements, poster_did, worker_did,
+                 status, observed_seq, signature_verified, settlement_rail,
+                 settlement_value_backed, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id) DO UPDATE SET
+                category = excluded.category,
+                title = excluded.title,
+                requirements = excluded.requirements,
+                poster_did = excluded.poster_did,
+                worker_did = excluded.worker_did,
+                status = excluded.status,
+                observed_seq = excluded.observed_seq,
+                signature_verified = excluded.signature_verified,
+                settlement_rail = excluded.settlement_rail,
+                settlement_value_backed = excluded.settlement_value_backed,
+                updated_at = excluded.updated_at
+            """,
+            (
+                job["source"],
+                job["job_id"],
+                job["category"],
+                job["title"],
+                job["requirements"],
+                job["poster_did"],
+                job["worker_did"],
+                job["status"],
+                job["observed_seq"],
+                1 if job["signature_verified"] else 0,
+                job["settlement_rail"],
+                1 if job["settlement_value_backed"] else 0,
+                now,
+            ),
+        )
+    conn.commit()
+
+
+def fetch_json_url(url: str, *, allow_missing: bool = True) -> dict[str, Any]:
+    req = urllib.request.Request(url, method="GET", headers={"Accept": "application/json", "User-Agent": USER_AGENT})
+    return request_json(req, allow_missing=allow_missing)
+
+
+def board_jobs_from_obj(obj: dict[str, Any]) -> list[dict[str, Any]]:
+    for key in ("jobs", "items", "board"):
+        value = obj.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+    if isinstance(obj.get("data"), dict):
+        return board_jobs_from_obj(obj["data"])
+    return []
+
+
+def reconcile_kibble_board(conn: sqlite3.Connection, board_obj: dict[str, Any] | None, status_obj: dict[str, Any] | None = None) -> dict[str, Any]:
+    room_rows = {
+        row["job_id"]: row
+        for row in conn.execute("SELECT * FROM kibble_jobs").fetchall()
+    }
+    board_jobs = board_jobs_from_obj(board_obj or {})
+    board_by_id = {
+        str(job.get("job_id") or job.get("id")): job
+        for job in board_jobs
+        if job.get("job_id") or job.get("id")
+    }
+    details = {
+        "status_mismatches": [],
+        "worker_mismatches": [],
+        "room_only_jobs": sorted(set(room_rows) - set(board_by_id)),
+        "board_only_jobs": sorted(set(board_by_id) - set(room_rows)),
+        "result_hash_mismatches": [],
+        "attestation_count_differences": [],
+    }
+    matched = sorted(set(room_rows) & set(board_by_id))
+    for job_id in matched:
+        room_job = room_rows[job_id]
+        board_job = board_by_id[job_id]
+        board_status = board_job.get("status")
+        if isinstance(board_status, str) and board_status.upper() != room_job["status"]:
+            details["status_mismatches"].append(job_id)
+        board_worker = board_job.get("worker_did") or board_job.get("worker")
+        if isinstance(board_worker, str) and room_job["worker_did"] and board_worker != room_job["worker_did"]:
+            details["worker_mismatches"].append(job_id)
+        board_result_hash = board_job.get("result_hash")
+        room_result_hash = board_job.get("room_result_hash")
+        if isinstance(board_result_hash, str) and isinstance(room_result_hash, str) and board_result_hash != room_result_hash:
+            details["result_hash_mismatches"].append(job_id)
+        board_attestations = board_job.get("attestations")
+        room_attestation_count = board_job.get("room_attestation_count")
+        if isinstance(board_attestations, list) and isinstance(room_attestation_count, int) and len(board_attestations) != room_attestation_count:
+            details["attestation_count_differences"].append(job_id)
+    summary = {
+        "matched_jobs": len(matched),
+        "board_only_jobs": len(details["board_only_jobs"]),
+        "room_only_jobs": len(details["room_only_jobs"]),
+        "status_mismatches": len(details["status_mismatches"]),
+        "worker_mismatches": len(details["worker_mismatches"]),
+        "result_hash_mismatches": len(details["result_hash_mismatches"]),
+        "attestation_count_differences": len(details["attestation_count_differences"]),
+        "board_status": "OK" if board_obj is not None else "UNAVAILABLE",
+        "status_api": "OK" if status_obj else "UNAVAILABLE",
+        "details": details,
+    }
+    conn.execute(
+        """
+        INSERT INTO kibble_reconciliation
+            (checked_at, matched_jobs, board_only_jobs, room_only_jobs, status_mismatches,
+             worker_mismatches, result_hash_mismatches, attestation_count_differences,
+             board_status, details_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            utc_now(),
+            summary["matched_jobs"],
+            summary["board_only_jobs"],
+            summary["room_only_jobs"],
+            summary["status_mismatches"],
+            summary["worker_mismatches"],
+            summary["result_hash_mismatches"],
+            summary["attestation_count_differences"],
+            summary["board_status"],
+            json.dumps(details, sort_keys=True, separators=(",", ":")),
+        ),
+    )
+    conn.commit()
+    return summary
+
+
+def kibble_summary(conn: sqlite3.Connection) -> dict[str, Any]:
+    cursor = room_cursor(conn, KIBBLE_ROOM)
+    counts = {
+        row["event_type"] or "UNINTERPRETED": row["count"]
+        for row in conn.execute(
+            """
+            SELECT event_type, COUNT(*) AS count
+            FROM kibble_events
+            WHERE parse_status = 'KIBBLE_PARSEABLE'
+            GROUP BY event_type
+            """
+        )
+    }
+    reconciliation = conn.execute(
+        "SELECT * FROM kibble_reconciliation ORDER BY checked_at DESC, id DESC LIMIT 1"
+    ).fetchone()
+    return {
+        "mode": kibble_config()["mode"],
+        "writes_enabled": kibble_config()["allow_writes"],
+        "room_cursor": cursor["last_seq"],
+        "room_generation": cursor["generation"],
+        "jobs_observed": conn.execute("SELECT COUNT(*) FROM kibble_jobs").fetchone()[0],
+        "open_jobs": conn.execute("SELECT COUNT(*) FROM kibble_jobs WHERE status = 'OPEN'").fetchone()[0],
+        "claimed_jobs": conn.execute("SELECT COUNT(*) FROM kibble_jobs WHERE status = 'CLAIMED'").fetchone()[0],
+        "results_observed": counts.get("RESULT", 0) + counts.get("DELIVER", 0),
+        "attestations_observed": counts.get("ATTEST", 0),
+        "recognized_event_counts": counts,
+        "board_reconciliation": reconciliation["checked_at"] if reconciliation else "(never)",
+        "mismatches": (
+            reconciliation["status_mismatches"]
+            + reconciliation["worker_mismatches"]
+            + reconciliation["result_hash_mismatches"]
+            + reconciliation["attestation_count_differences"]
+            if reconciliation
+            else 0
+        ),
+    }
+
+
+def print_kibble_summary(conn: sqlite3.Connection) -> None:
+    summary = kibble_summary(conn)
+    print("Kibble discovery")
+    print("----------------")
+    print(f"mode: {summary['mode']}")
+    print(f"writes enabled: {'YES' if summary['writes_enabled'] else 'NO'}")
+    print(f"room cursor: {summary['room_cursor']}")
+    print(f"jobs observed: {summary['jobs_observed']}")
+    print(f"open jobs: {summary['open_jobs']}")
+    print(f"claimed jobs: {summary['claimed_jobs']}")
+    print(f"results observed: {summary['results_observed']}")
+    print(f"attestations observed: {summary['attestations_observed']}")
+    print(f"board reconciliation: {summary['board_reconciliation']}")
+    print(f"mismatches: {summary['mismatches']}")
+    print("No automatic scoring or claiming. Remote content is UNTRUSTED DATA.")
+
+
+@observation_only
+def kibble_poll(*, reconcile: bool = True, db_path: Path = OBSERVER_DB) -> dict[str, Any]:
+    with observer_connect(db_path) as conn:
+        poll = service_poll_room(conn, KIBBLE_ROOM, page_size=SERVICE_POLL_PAGE_SIZE, max_pages=SERVICE_POLL_MAX_PAGES_PER_ROOM)
+        rebuild_kibble_jobs(conn)
+        board_obj = None
+        status_obj = None
+        status_available = False
+        if reconcile:
+            try:
+                board_obj = fetch_json_url(kibble_config()["board_url"], allow_missing=True)
+            except SystemExit:
+                board_obj = None
+            try:
+                status_obj = fetch_json_url(kibble_config()["status_url"], allow_missing=True)
+                status_available = bool(status_obj)
+            except SystemExit:
+                status_obj = None
+            reconciliation = reconcile_kibble_board(conn, board_obj, status_obj)
+        else:
+            reconciliation = {}
+        summary = kibble_summary(conn)
+    recognized = summary["recognized_event_counts"]
+    result = {
+        "room_generation": poll["generation"],
+        "highest_seq": poll["cursor_after"],
+        "records_fetched": poll["records_fetched"],
+        "recognized_event_counts": recognized,
+        "jobs_reconstructed": summary["jobs_observed"],
+        "open_jobs": summary["open_jobs"],
+        "board_jobs": len(board_jobs_from_obj(board_obj or {})),
+        "reconciliation_mismatches": sum(
+            reconciliation.get(key, 0)
+            for key in (
+                "status_mismatches",
+                "worker_mismatches",
+                "result_hash_mismatches",
+                "attestation_count_differences",
+            )
+        ) if reconciliation else 0,
+        "status_available": status_available,
+        "poll": poll,
+        "reconciliation": reconciliation,
+        "network_writes": 0,
+        "private_key_accesses": 0,
+        "tclk_settlement_actions": 0,
+    }
+    print(json.dumps(result, indent=2, sort_keys=True))
+    print("\nNo Kibble writes performed. No jobs claimed. No results or attestations posted.")
+    return result
+
+
+def kibble_export_jobs(output: Path | None = None, db_path: Path = OBSERVER_DB) -> list[dict[str, Any]]:
+    with observer_connect(db_path) as conn:
+        rows = conn.execute("SELECT * FROM kibble_jobs ORDER BY job_id").fetchall()
+    records = [
+        {
+            "source": row["source"],
+            "job_id": row["job_id"],
+            "category": row["category"],
+            "title": row["title"],
+            "requirements": row["requirements"],
+            "poster_did": row["poster_did"],
+            "worker_did": row["worker_did"],
+            "status": row["status"].lower(),
+            "observed_seq": row["observed_seq"],
+            "signature_verified": bool(row["signature_verified"]),
+            "settlement": {
+                "rail": row["settlement_rail"] or "paper",
+                "value_backed": False,
+            },
+        }
+        for row in rows
+    ]
+    text = json.dumps(records, indent=2, sort_keys=True)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(text + "\n", encoding="utf-8")
+    print(text)
+    print("\nNo network writes performed.")
+    return records
+
+
+@observation_only
 def ingest_messages(
     conn: sqlite3.Connection,
     room: str,
@@ -1495,6 +2096,8 @@ def ingest_messages(
     *,
     generation: str | int | None = None,
     source: str = "room-read",
+    source_endpoint: str | None = None,
+    transport_metadata: dict | None = None,
 ) -> dict[str, int]:
     now = utc_now()
     received = len(raw_messages)
@@ -1502,63 +2105,93 @@ def ingest_messages(
     signed_writers: set[str] = set()
     unsigned_writers: set[str] = set()
 
+    with conn:
+        for raw in raw_messages:
+            evidence_store.ingest(conn, room, raw, verify_signed_record_offline,
+                generation=None if (transport_metadata or {}).get("generation_conflict") else generation,
+                reported_generation=str(generation) if (transport_metadata or {}).get("generation_conflict") else None,
+                endpoint=source_endpoint, metadata=transport_metadata, retrieved_at=now)
+
     for raw in raw_messages:
-        evidence = evidence_record_from_message(
-            room,
-            str(generation) if generation is not None else None,
-            raw,
-            source=source,
-            retrieved_at=now,
-        )
-        if evidence is not None:
-            store_evidence_record(conn, evidence)
-        tclk_record = tclk_record_from_message(
-            room,
-            str(generation) if generation is not None else None,
-            raw,
-            evidence,
-            observed_at=now,
-        )
-        if tclk_record is not None:
-            store_tclk_frame(conn, tclk_record)
-        try:
-            seq = int(raw["seq"])
-            text = str(raw.get("text", ""))
-            stored_normalized = analysis_normalize_text(text)
-            stored_template = template_normalize_text(text)
-        except (KeyError, TypeError, ValueError):
+        if not isinstance(raw, dict) or not isinstance(raw.get("text"), str) or evidence_store.integer(raw.get("seq")) is None:
             continue
-        sender = message_sender(raw)
-        signed = is_signed_sender(sender)
-        if signed:
-            signed_writers.add(sender)
-        else:
-            unsigned_writers.add(sender)
-        before = conn.total_changes
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO messages
-                (room, seq, timestamp, sender, signed, text, normalized_text,
-                 normalized_hash, template_normalized_text, template_normalized_hash,
-                 discovered_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
+        try:
+            raw["text"].encode("utf-8")
+        except UnicodeEncodeError:
+            continue
+        if message_nonce(raw) is not None and message_nonce(raw) > 9223372036854775807:
+            continue  # Complete raw/feed evidence retained; old INTEGER cache cannot represent it.
+        try:
+            evidence = evidence_record_from_message(
                 room,
-                seq,
-                message_timestamp(raw),
-                sender,
-                1 if signed else 0,
-                text,
-                stored_normalized,
-                hashlib.sha256(stored_normalized.encode("utf-8")).hexdigest(),
-                stored_template,
-                hashlib.sha256(stored_template.encode("utf-8")).hexdigest(),
-                now,
-            ),
-        )
-        if conn.total_changes > before:
-            inserted += 1
+                str(generation) if generation is not None else None,
+                raw,
+                source=source,
+                retrieved_at=now,
+            )
+            if evidence is not None:
+                store_evidence_record(conn, evidence)
+            tclk_record = tclk_record_from_message(
+                room,
+                str(generation) if generation is not None else None,
+                raw,
+                evidence,
+                observed_at=now,
+            )
+            if tclk_record is not None:
+                store_tclk_frame(conn, tclk_record)
+            if room == KIBBLE_ROOM:
+                kibble_record = kibble_record_from_message(
+                    room,
+                    str(generation) if generation is not None else None,
+                    raw,
+                    observed_at=now,
+                )
+                if kibble_record is not None:
+                    store_kibble_event(conn, kibble_record)
+            try:
+                seq = int(raw["seq"])
+                text = str(raw.get("text", ""))
+                stored_normalized = analysis_normalize_text(text)
+                stored_template = template_normalize_text(text)
+            except (KeyError, TypeError, ValueError):
+                continue
+            sender = message_sender(raw)
+            signed = is_signed_sender(sender)
+            if signed:
+                signed_writers.add(sender)
+            else:
+                unsigned_writers.add(sender)
+            before = conn.total_changes
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO messages
+                    (room, seq, timestamp, sender, signed, text, normalized_text,
+                     normalized_hash, template_normalized_text, template_normalized_hash,
+                     discovered_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    room,
+                    seq,
+                    message_timestamp(raw),
+                    sender,
+                    1 if signed else 0,
+                    text,
+                    stored_normalized,
+                    hashlib.sha256(stored_normalized.encode("utf-8")).hexdigest(),
+                    stored_template,
+                    hashlib.sha256(stored_template.encode("utf-8")).hexdigest(),
+                    now,
+                ),
+            )
+            if conn.total_changes > before:
+                inserted += 1
+        except (ValueError, TypeError, OverflowError, RecursionError):
+            # Exact raw and primary derived evidence are already durable. A legacy
+            # compatibility parser must not trap unrelated records on this page.
+            evidence_store.bump(conn, "compatibility_parse_failures")
+            continue
 
     max_seq = conn.execute(
         "SELECT MAX(seq) FROM messages WHERE room = ?", (room,)
@@ -1719,6 +2352,8 @@ def migrate_legacy_local_activity_to_evidence(conn: sqlite3.Connection) -> int:
             continue
         if record["verification_status"] == "SIGNATURE_PRESENT_UNVERIFIED":
             record["verification_status"] = "LEGACY_SERVER_VERIFIED_NO_SIGNATURE"
+        evidence_store.ingest(conn, row["room"], raw, verify_signed_record_offline,
+            source="legacy_local_activity", reported_generation=UNKNOWN_LEGACY_GENERATION, legacy=True)
         store_evidence_record(conn, record)
         if conn.total_changes > before:
             inserted += 1
@@ -2746,6 +3381,8 @@ def validation_watch_rooms(conn: sqlite3.Connection) -> list[str]:
         """
     ).fetchall()
     rooms = set(SERVICE_ROOMS)
+    rooms.update(row[0] for row in conn.execute("SELECT s.room FROM watch_collection_sources s JOIN watch_collections c ON c.name=s.collection WHERE c.enabled=1"))
+    rooms.update(kibble_service_rooms())
     for row in rows:
         rooms.add(row["outbound_room"])
         rooms.add(row["preferred_response_room"])
@@ -3160,6 +3797,27 @@ def read_room(room: str, limit: int) -> None:
     )
 
 
+class ObservationRedirectBlocked(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, "Observation redirects are disabled", headers, fp)
+
+
+def room_read_endpoint(room, limit, since=None):
+    query = {"format": "json", "limit": str(limit)}
+    if since is not None:
+        query["since"] = str(max(0, since))
+    if room == KIBBLE_ROOM and since is not None and since > 0:
+        query["wait"] = "10"
+    return f"{BASE_URL}/r/{urllib.parse.quote(valid_room(room), safe='')}?{urllib.parse.urlencode(query)}"
+
+
+def raw_room_messages(obj):
+    for key in ("messages", "items", "posts", "log"):
+        if isinstance(obj.get(key), list):
+            return obj[key]
+    return raw_room_messages(obj["room"]) if isinstance(obj.get("room"), dict) else []
+
+
 def fetch_room_view(
     room: str,
     limit: int,
@@ -3173,15 +3831,18 @@ def fetch_room_view(
     query = {"format": "json", "limit": str(limit)}
     if since is not None:
         query["since"] = str(max(0, since))
+    if room == KIBBLE_ROOM and since is not None and since > 0:
+        query["wait"] = "10"
     req = urllib.request.Request(
         f"{BASE_URL}/r/{urllib.parse.quote(room, safe='')}?{urllib.parse.urlencode(query)}",
         method="GET",
         headers={"Accept": "application/json", "User-Agent": USER_AGENT},
     )
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with urllib.request.build_opener(ObservationRedirectBlocked()).open(req, timeout=20) as resp:
             raw = resp.read(1_000_001)
             header_generation = resp.headers.get("X-Room-Generation")
+            transport_headers = {k: resp.headers.get(k) for k in ("X-Room-Generation", "Content-Type", "Date", "ETag")}
     except urllib.error.HTTPError as exc:
         body = exc.read(4000).decode("utf-8", errors="replace")
         if allow_missing and exc.code == 404:
@@ -3200,6 +3861,9 @@ def fetch_room_view(
     generation = obj.get("generation")
     if generation is None:
         generation = header_generation
+    obj["_scout_transport"] = {"endpoint": req.full_url, "headers": transport_headers,
+        "body_generation": obj.get("generation"), "header_generation": header_generation,
+        "generation_conflict": header_generation is not None and obj.get("generation") is not None and str(header_generation) != str(obj["generation"])}
     return obj, str(generation) if generation is not None else None
 
 
@@ -3232,6 +3896,187 @@ def room_summary_from_messages(messages: list[dict[str, Any]]) -> dict[str, Any]
         "last_seq": max(seqs) if seqs else None,
         "idle_age": idle_age,
         "message_count": len(messages),
+    }
+
+
+def response_latest_seq(obj: dict[str, Any], messages: list[dict[str, Any]]) -> int | None:
+    candidates = [
+        obj.get("last_seq"),
+        obj.get("latest_seq"),
+        obj.get("max_seq"),
+        obj.get("seq"),
+    ]
+    room_obj = obj.get("room")
+    if isinstance(room_obj, dict):
+        candidates.extend(
+            [
+                room_obj.get("last_seq"),
+                room_obj.get("latest_seq"),
+                room_obj.get("max_seq"),
+                room_obj.get("seq"),
+            ]
+        )
+    for candidate in candidates:
+        if candidate is None or isinstance(candidate, bool):
+            continue
+        try:
+            return int(candidate)
+        except (TypeError, ValueError):
+            continue
+    return max_message_seq(messages)
+
+
+def highest_persisted_page_seq(
+    conn: sqlite3.Connection,
+    room: str,
+    generation: str | int | None,
+    messages: list[dict[str, Any]],
+) -> int | None:
+    seqs = []
+    for message in messages:
+        rid = evidence_store.raw_identity(
+            "technocore_mailbox" if room.startswith("mb-") else "technocore_room",
+            room, str(generation) if generation is not None else None, None, message)
+        if not conn.execute("SELECT 1 FROM raw_network_records WHERE raw_record_id=?", (rid,)).fetchone():
+            raise RuntimeError("Cannot advance cursor: page evidence is not fully persisted")
+        seq = evidence_store.integer(message.get("seq")) if isinstance(message, dict) else None
+        if seq is not None:
+            seqs.append(seq)
+    return max(seqs) if seqs else None
+
+
+@observation_only
+@poll_accounting
+def service_poll_room(
+    conn: sqlite3.Connection,
+    room: str,
+    *,
+    page_size: int = SERVICE_POLL_PAGE_SIZE,
+    max_pages: int = SERVICE_POLL_MAX_PAGES_PER_ROOM,
+) -> dict[str, Any]:
+    room = valid_room(room)
+    cursor = room_cursor(conn, room)
+    cursor_before = int(cursor["last_seq"])
+    cursor_after = cursor_before
+    cursor_generation = cursor["generation"]
+    generation_value = cursor_generation
+    continuity = cursor["continuity"]
+    total_received = 0
+    total_inserted = 0
+    signed_new = 0
+    pages_fetched = 0
+    latest_seq = None
+    backlog_remaining = False
+    page_limit_hit = False
+    generation_changed = False
+    read_failed = False
+    last_read_error = None
+    progress_stalled = False
+
+    for _page_index in range(max_pages):
+        page_cursor_before = cursor_after
+        try:
+            obj, generation = fetch_room_view(room, page_size, since=cursor_after, allow_missing=True)
+        except SystemExit as exc:
+            last_read_error = str(exc)
+            read_failed = True
+            continuity = "READ_FAILED"
+            break
+        if (
+            pages_fetched == 0
+            and generation is not None
+            and cursor_generation not in {None, UNKNOWN_LEGACY_GENERATION, GENERATION_MISSING}
+            and cursor_generation != str(generation)
+        ):
+            generation_changed = True
+            cursor_after = 0
+            page_cursor_before = 0
+            try:
+                obj, generation = fetch_room_view(room, page_size, since=0, allow_missing=True)
+            except SystemExit as exc:
+                last_read_error = str(exc)
+                cursor_after = cursor_before
+                read_failed = True
+                continuity = "READ_FAILED"
+                break
+        messages = raw_room_messages(obj)
+        pages_fetched += 1
+        generation_value = str(generation) if generation is not None else None
+        dict_messages = [m for m in messages if isinstance(m, dict)]
+        latest_seq = response_latest_seq(obj, dict_messages)
+        metadata = obj.get("_scout_transport", {})
+        summary = ingest_messages(conn, room, messages, generation=generation, source="service-poll",
+            source_endpoint=metadata.get("endpoint", room_read_endpoint(room, page_size, cursor_after)),
+            transport_metadata=metadata)
+        total_received += summary["received"]
+        total_inserted += summary["inserted"]
+        signed_new += sum(1 for msg in dict_messages if is_signed_sender(message_sender(msg)))
+        if metadata.get("generation_conflict"):
+            last_read_error = "Conflicting body/header generations"
+            read_failed = True
+            break
+        first_retained = evidence_store.integer(obj.get("first_seq"))
+        if (first_retained is not None and cursor_after > 0 and first_retained > cursor_after + 1):
+            # Retained-ring loss cannot be repaired by inventing cursor continuity.
+            last_read_error = "Retained history gap before first_seq"
+            read_failed = True
+            break
+        if latest_seq is not None and generation is not None and str(generation) == cursor_generation and latest_seq < cursor_after:
+            last_read_error = "Server latest_seq regressed within generation"
+            read_failed = True
+            break
+        persisted_seq = highest_persisted_page_seq(conn, room, generation, messages)
+        if persisted_seq is not None and persisted_seq > cursor_after:
+            cursor_after = persisted_seq
+            update_room_cursor(conn, room, generation, cursor_after)
+        elif not messages:
+            update_room_cursor(conn, room, generation, 0 if generation_changed else None)
+        returned_count = len(messages)
+        if metadata.get("generation_conflict"):
+            read_failed = True
+            continuity = "READ_FAILED"
+            break
+        if returned_count < page_size:
+            backlog_remaining = latest_seq is not None and latest_seq > cursor_after
+            break
+        page_limit_hit = True
+        page_max_seq = max_message_seq(dict_messages)
+        if persisted_seq is None or (page_max_seq is not None and page_max_seq <= page_cursor_before):
+            progress_stalled = True
+            break
+    else:
+        backlog_remaining = True
+
+    if read_failed:
+        continuity = "READ_FAILED"
+    elif backlog_remaining:
+        continuity = "CATCHING_UP"
+    elif generation_changed:
+        continuity = "GENERATION_CHANGED"
+    elif generation_value is None or generation_value == GENERATION_MISSING:
+        continuity = "UNKNOWN_LEGACY"
+    elif backlog_remaining or page_limit_hit and pages_fetched >= max_pages:
+        continuity = "CATCHING_UP"
+        backlog_remaining = True
+    elif progress_stalled:
+        continuity = "READ_FAILED"
+    else:
+        continuity = "CURRENT"
+    set_state(conn, f"cursor:{room}:continuity", continuity)
+    return {
+        "room": room,
+        "records_fetched": total_received,
+        "new_messages": total_inserted,
+        "new_signed_messages": signed_new,
+        "pages_fetched": pages_fetched,
+        "generation": generation_value if generation_value is not None else GENERATION_MISSING,
+        "cursor_before": cursor_before,
+        "cursor_after": cursor_after,
+        "server_latest_seq": latest_seq,
+        "continuity": continuity,
+        "backlog_remaining": backlog_remaining,
+        "page_limit_hit": page_limit_hit,
+        "last_read_error": last_read_error,
     }
 
 
@@ -3399,6 +4244,7 @@ def profile_publish(*, yes: bool) -> None:
     print("\nProfile note published.")
 
 
+@observation_only
 def observe(rooms: list[str], limit: int) -> None:
     conn = observer_connect()
     totals = {
@@ -3410,9 +4256,11 @@ def observe(rooms: list[str], limit: int) -> None:
     }
     for room in rooms:
         room = valid_room(room)
-        obj = fetch_room(room, limit)
+        obj, generation = fetch_room_view(room, limit)
         messages = extract_room_messages(obj)
-        summary = ingest_messages(conn, room, messages)
+        summary = ingest_messages(conn, room, raw_room_messages(obj), generation=generation,
+            source_endpoint=obj.get("_scout_transport", {}).get("endpoint", room_read_endpoint(room, limit)),
+            transport_metadata=obj.get("_scout_transport"))
         totals["rooms"] += 1
         totals["received"] += summary["received"]
         totals["inserted"] += summary["inserted"]
@@ -3488,14 +4336,17 @@ def inbox_status() -> None:
     print("\nNo network writes performed.")
 
 
+@observation_only
 def inbox_read(since: int | None = None) -> None:
     with observer_connect() as conn:
         if since is None:
             since = int(room_cursor(conn, MAILBOX_ROOM)["last_seq"])
         obj, generation = fetch_room_view(MAILBOX_ROOM, 200, since=since, allow_missing=True)
         messages = extract_room_messages(obj)
-        summary = ingest_messages(conn, MAILBOX_ROOM, messages, generation=generation, source="inbox-read")
-        max_seq = max_message_seq(messages)
+        summary = ingest_messages(conn, MAILBOX_ROOM, raw_room_messages(obj), generation=generation, source="inbox-read",
+            source_endpoint=obj.get("_scout_transport", {}).get("endpoint", room_read_endpoint(MAILBOX_ROOM, 200, since)),
+            transport_metadata=obj.get("_scout_transport"))
+        max_seq = highest_persisted_page_seq(conn, MAILBOX_ROOM, generation, raw_room_messages(obj))
         continuity = update_room_cursor(conn, MAILBOX_ROOM, generation, max_seq)
         refresh_opportunities(conn)
         signed_new = sum(1 for msg in messages if is_signed_sender(message_sender(msg)))
@@ -3514,6 +4365,7 @@ def inbox_read(since: int | None = None) -> None:
     print("No network writes performed.")
 
 
+@observation_only
 def service_poll() -> None:
     lines = ["FLOP Scout Service Poll\n"]
     new_high = 0
@@ -3521,37 +4373,24 @@ def service_poll() -> None:
     tclk_summary_conn: sqlite3.Connection | None = None
     with observer_connect() as conn:
         for room in validation_watch_rooms(conn):
-            cursor = room_cursor(conn, room)
-            since = int(cursor["last_seq"])
-            obj, generation = fetch_room_view(room, 200, since=since, allow_missing=True)
-            if (
-                generation is not None
-                and cursor["generation"] not in {None, UNKNOWN_LEGACY_GENERATION, GENERATION_MISSING}
-                and cursor["generation"] != str(generation)
-            ):
-                lines.append(f"{room}:")
-                lines.append(
-                    f"  ROOM_GENERATION_CHANGED: {cursor['generation']} -> {generation}"
-                )
-                obj, generation = fetch_room_view(room, 200, since=0, allow_missing=True)
-            messages = extract_room_messages(obj)
-            summary = ingest_messages(conn, room, messages, generation=generation, source="service-poll")
-            max_seq = max_message_seq(messages)
-            continuity = update_room_cursor(conn, room, generation, max_seq)
-            signed_new = sum(1 for msg in messages if is_signed_sender(message_sender(msg)))
-            if not (
-                generation is not None
-                and cursor["generation"] not in {None, UNKNOWN_LEGACY_GENERATION, GENERATION_MISSING}
-                and cursor["generation"] != str(generation)
-            ):
-                lines.append(f"{room}:")
+            result = service_poll_room(conn, room)
+            lines.append(f"{room}:")
             if room == MAILBOX_ROOM:
-                lines.append(f"  new signed messages: {signed_new}")
+                lines.append(f"  new signed messages: {result['new_signed_messages']}")
             else:
-                lines.append(f"  new messages: {summary['inserted']}")
-            lines.append(f"  generation: {generation if generation is not None else GENERATION_MISSING}")
-            lines.append(f"  last_seq: {max_seq if max_seq is not None else since}")
-            lines.append(f"  continuity: {continuity}")
+                lines.append(f"  new messages: {result['new_messages']}")
+            lines.append(f"  pages fetched: {result['pages_fetched']}")
+            lines.append(f"  generation: {result['generation']}")
+            lines.append(f"  cursor before: {result['cursor_before']}")
+            lines.append(f"  cursor after: {result['cursor_after']}")
+            lines.append(
+                f"  server/latest seq: {result['server_latest_seq'] if result['server_latest_seq'] is not None else '(unknown)'}"
+            )
+            lines.append(f"  continuity: {result['continuity']}")
+            if result["backlog_remaining"]:
+                lines.append("  backlog_remaining: true")
+            if result["page_limit_hit"]:
+                lines.append("  page_limit_hit: true")
             lines.append("")
         refresh_opportunities(conn)
         new_high = conn.execute(
@@ -3571,65 +4410,55 @@ def service_poll() -> None:
     print("No network writes performed.")
 
 
-def service_status() -> None:
-    policy = fetch_duplicate_policy()
-    with observer_connect() as conn:
-        did = load_meta()["did"]
-        owner = get_room_owner(CANONICAL_ROOM)
-        mailbox_cursor = get_state(conn, f"cursor:{MAILBOX_ROOM}", "0")
-        last_poll = get_state(conn, "last_service_poll", "(never)")
-        known = local_history_stats(conn, did)["known_signed_posts"]
-        evidence_records = len(list(EVIDENCE_DIR.glob("*.json"))) if EVIDENCE_DIR.exists() else 0
-        watched_room_rows = [
-            (
-                room,
-                room_cursor(conn, room),
-                get_state(conn, f"cursor:{room}:continuity", room_cursor(conn, room)["continuity"]),
-            )
-            for room in validation_watch_rooms(conn)
-        ]
-        new_inbox = conn.execute(
-            """
-            SELECT COUNT(*)
-            FROM opportunities
-            WHERE room = ? AND status = 'new' AND tier IN ('HIGH', 'MEDIUM')
-            """,
-            (MAILBOX_ROOM,),
-        ).fetchone()[0]
-        tclk_frames = conn.execute("SELECT COUNT(*) FROM tclk_frames").fetchone()[0]
-        tclk_hints = conn.execute("SELECT COUNT(*) FROM tclk_capability_hints").fetchone()[0]
-    print("FLOP Scout Service")
-    print(f"DID: {did}")
-    print(f"Canonical room: {CANONICAL_ROOM}")
-    print(f"Mailbox: {MAILBOX_ROOM}")
-    print(f"GitHub: {GITHUB_URL}")
-    print(f"Known signed posts: {known}")
-    print(f"Known contribution evidence: {evidence_records}")
-    print(f"Room ownership status: {'owned by us' if owner == did else ('unclaimed' if not owner else 'owned by another DID')}")
-    print(f"Mailbox cursor: {mailbox_cursor}")
-    print(f"New inbox requests: {new_inbox}")
-    print(f"Last service poll: {last_poll}")
-    print("Technocore provenance support:")
-    print("  room generation: supported")
-    print("  signed record signatures: supported")
-    print("  offline verification: supported")
-    print("TCLK discovery:")
-    print(f"  offers room: {TCLK_OFFERS_ROOM}")
-    print("  mode: observes only")
-    print("  settlement capability advertised: NO")
-    print(f"  indexed frames: {tclk_frames}")
-    print(f"  unverified capability hints: {tclk_hints}")
-    print("Watched rooms:")
-    for room, cursor, continuity in watched_room_rows:
-        print(
-            f"  {room}: generation={cursor['generation'] or '(none)'} "
-            f"last_seq={cursor['last_seq']} continuity={continuity}"
-        )
-    print("Duplicate policy:")
-    print(f"  dupe_filter_seconds: {policy['dupe_filter_seconds']}")
-    print(f"  dupe_max_copies: {policy['dupe_max_copies']}")
-    print(f"  dupe_min_length: {policy['dupe_min_length']}")
-    print("\nNo network writes performed.")
+@observation_only
+def service_status(db_path: Path = OBSERVER_DB) -> None:
+    try:
+        with observer_connect_readonly(db_path) as conn:
+            print(json.dumps(evidence_store.metrics(conn, db_path), indent=2, sort_keys=True))
+    except sqlite3.OperationalError as exc:
+        print(json.dumps({"status": "UNAVAILABLE", "reason": str(exc)}))
+
+
+def evidence_local_command(args):
+    if args.evidence_cmd in {"init", "repair"}:
+        with observer_connect_write(args.db) as conn:
+            if args.evidence_cmd == "repair":
+                evidence_store.repair(conn)
+        return
+    try:
+        with observer_connect_readonly(args.db) as conn:
+            if args.evidence_cmd == "verify-integrity":
+                result = evidence_store.integrity(conn)
+                print(json.dumps(result, indent=2))
+                if result["status"] != "PASS":
+                    raise SystemExit(1)
+            elif args.evidence_cmd == "soak-status":
+                print(json.dumps(evidence_store.metrics(conn, args.db), indent=2))
+            else:
+                target = Path(args.output).open('x', encoding='utf-8') if args.output else sys.stdout
+                try:
+                    for item in evidence_store.feed(conn, args.since_id, args.since_seq, args.classification, args.collection):
+                        target.write(json.dumps(item, ensure_ascii=True) + "\n")
+                finally:
+                    if target is not sys.stdout:
+                        target.close()
+    except sqlite3.OperationalError as exc:
+        raise SystemExit(f"Evidence unavailable (run explicit evidence init for migration): {exc}") from exc
+
+
+@observation_only
+def daily_report(args):
+    try:
+        with observer_connect_readonly(args.db) as conn:
+            result = evidence_store.daily(conn, args.date)
+        output = json.dumps(result, indent=2, sort_keys=True) + "\n"
+        if args.output:
+            with Path(args.output).open('x', encoding='utf-8') as f:
+                f.write(output)
+        else:
+            print(output, end='')
+    except (sqlite3.OperationalError, ValueError) as exc:
+        raise SystemExit(f"Daily report unavailable: {exc}") from exc
 
 
 def inbox_opportunities(limit: int, include_all: bool = False, explain: bool = False) -> None:
@@ -4090,7 +4919,8 @@ def main() -> None:
 
     service_parser = sub.add_parser("service")
     service_sub = service_parser.add_subparsers(dest="service_cmd", required=True)
-    service_sub.add_parser("status")
+    service_status_parser = service_sub.add_parser("status")
+    service_status_parser.add_argument("--db", type=Path, default=OBSERVER_DB)
 
     evidence_parser = sub.add_parser("evidence")
     evidence_sub = evidence_parser.add_subparsers(dest="evidence_cmd", required=True)
@@ -4099,6 +4929,24 @@ def main() -> None:
     evidence_export.add_argument("--yes", action="store_true")
     evidence_verify = evidence_sub.add_parser("verify-export")
     evidence_verify.add_argument("path")
+
+    for command in ("init", "repair", "verify-integrity", "soak-status", "feed", "export"):
+        child = evidence_sub.add_parser(command)
+        child.add_argument("--db", type=Path, default=OBSERVER_DB)
+        if command in {"feed", "export"}:
+            child.add_argument("--since-id", type=int, default=0)
+            child.add_argument("--since-seq", type=int)
+            child.add_argument("--classification")
+            child.add_argument("--collection")
+            child.add_argument("--output")
+            child.add_argument("--format", choices=["jsonl"], default="jsonl")
+    report_parser = sub.add_parser("report")
+    report_sub = report_parser.add_subparsers(dest="report_cmd", required=True)
+    report_daily = report_sub.add_parser("daily")
+    report_daily.add_argument("--db", type=Path, default=OBSERVER_DB)
+    report_daily.add_argument("--date")
+    report_daily.add_argument("--json", action="store_true")
+    report_daily.add_argument("--output")
 
     validation_parser = sub.add_parser("validation-watch")
     validation_sub = validation_parser.add_subparsers(dest="validation_cmd", required=True)
@@ -4127,6 +4975,14 @@ def main() -> None:
     verification_network_ingest.add_argument("--seq", type=int, required=True)
     verification_network_ingest.add_argument("--request", type=Path, required=True)
     verification_network_ingest.add_argument("--output", type=Path)
+
+    kibble_parser = sub.add_parser("kibble")
+    kibble_sub = kibble_parser.add_subparsers(dest="kibble_cmd", required=True)
+    kibble_poll_parser = kibble_sub.add_parser("poll")
+    kibble_poll_parser.add_argument("--db", type=Path, default=OBSERVER_DB)
+    kibble_export = kibble_sub.add_parser("export-jobs")
+    kibble_export.add_argument("--output", type=Path)
+    kibble_export.add_argument("--db", type=Path, default=OBSERVER_DB)
 
     profile_parser = sub.add_parser("profile")
     profile_sub = profile_parser.add_subparsers(dest="profile_cmd", required=True)
@@ -4208,12 +5064,16 @@ def main() -> None:
             inbox_reply(a.id, a.text, yes=a.yes)
     elif a.cmd == "service":
         if a.service_cmd == "status":
-            service_status()
+            service_status(a.db)
+    elif a.cmd == "report":
+        daily_report(a)
     elif a.cmd == "evidence":
         if a.evidence_cmd == "export-room":
             export_room_evidence(a.room, yes=a.yes)
         elif a.evidence_cmd == "verify-export":
             verify_export_file(a.path)
+        else:
+            evidence_local_command(a)
     elif a.cmd == "validation-watch":
         if a.validation_cmd == "add":
             validation_watch_add(
@@ -4244,6 +5104,11 @@ def main() -> None:
             if a.output:
                 write_json_artifact(a.output, normalized)
             print(json.dumps(normalized, indent=2, sort_keys=True))
+    elif a.cmd == "kibble":
+        if a.kibble_cmd == "poll":
+            kibble_poll(db_path=a.db)
+        elif a.kibble_cmd == "export-jobs":
+            kibble_export_jobs(a.output, db_path=a.db)
     elif a.cmd == "profile":
         if a.profile_cmd == "publish":
             profile_publish(yes=a.yes)

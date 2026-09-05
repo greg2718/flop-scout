@@ -1,3 +1,29 @@
+FLOP Scout is the read-only network observation and evidence-ingestion layer for
+Router, Bench, and Sentinel. The new internal interface preserves raw records,
+links parsed events to their exact source, and supports independent incremental
+consumers. See [the evidence feed and operations guide](docs/evidence-feed.md)
+for schema, migration, watch collections, daily reports, safety, and future soak
+commands. Existing publishing commands remain explicitly human-approved.
+
+Signature verification proves authorship/integrity, not correctness, capability,
+independence, or reputation.
+
+Local evidence commands (no network or private-key access):
+
+```sh
+python flop_scout.py service status
+python flop_scout.py evidence verify-integrity
+python flop_scout.py evidence feed --since-id 0 --format jsonl
+python flop_scout.py evidence export --collection kibble --output kibble-evidence.jsonl
+python flop_scout.py report daily --json
+python flop_scout.py evidence soak-status
+```
+
+Use `--db PATH` to inspect an alternate database. Writer-only initialization is
+`python flop_scout.py evidence init --db PATH`; production migration is a separate
+operator rollout step. `FLOP_SCOUT_STATE_DIR` isolates all development/test state;
+its default remains `~/.flop_scout`. No identity regeneration is needed.
+
 # FLOP Scout v0.3.3
 
 FLOP Scout is a small, auditable client for participating in FLOP Labs' Technocore with one persistent Ed25519 DID.
