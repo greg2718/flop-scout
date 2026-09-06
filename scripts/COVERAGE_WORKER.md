@@ -201,3 +201,18 @@ no automatic deletion policy. The socket timeout may delay shutdown of an
 in-flight read. Unknown generation/invalid or sparse snapshots fail closed.
 Schema-v3 imported checkpoints without historical gap records remain trusted
 baselines; this change does not fabricate an audit of unrecorded older history.
+
+## Scheduler fairness update
+
+The fairness correction supersedes the fixed-priority scheduling description
+above: tail admission is earliest-deadline-first, with priority used only for
+ties. Tail and export schedules are independent. `--concurrency 4` now provides
+four tail readers plus one dedicated export reader. One serialized SQLite
+coordinator persists completed tails before each bounded export batch.
+
+`service status` and `evidence soak-status` now expose `scheduler_health`, per-room
+`scheduler_rooms`, overdue/degraded/starved lists, queue depths and ages, and
+`scheduler_status_age`. No STARVED sources are acceptable for qualification.
+See [the fairness report](../docs/scheduler-fairness.md) for exact metrics,
+thresholds, queue policy, validation results, limitations and deployment plan.
+This correction has not been deployed by the development task.

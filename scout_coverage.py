@@ -227,6 +227,9 @@ def apply_export_steps(conn, snapshot, ingest_batch, *, seed=0, after_batch=None
         if batch:
             persist_batch(batch,position)
             yield position
+    # Tails may advance this source between export batches. Re-read its state
+    # before finalization so an old snapshot cannot overwrite newer high waters.
+    current = state(conn,s['room'],s['generation'],seed)
     # All export records/links are now durable. Gapped exports may be useful raw
     # evidence but cannot prove a retention boundary or complete coverage.
     old = current['coverage_cursor']
@@ -327,6 +330,8 @@ def metrics(conn):
         out[label]={r['room']:r[column] for r in health}
     out['per_room_last_poll_age']={r['room']:(datetime.now(timezone.utc)-datetime.fromisoformat(r['last_poll_at'])).total_seconds() if r['last_poll_at'] else None for r in health}
     out['per_room_health']=health
+    import scout_worker
+    out.update(scout_worker.scheduler_metrics(conn))
     return out
 
 

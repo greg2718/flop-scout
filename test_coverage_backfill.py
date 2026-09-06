@@ -320,7 +320,7 @@ def test_deterministic_priority_schedule(db):
     coordinator.health('faucet',100,high=100)
     assert coordinator.due['lobby']==101 and coordinator.due['faucet']==102
     now[0]=101
-    assert coordinator.candidates()==['lobby','tclk-offers']
+    assert coordinator.candidates()==['tclk-offers','lobby']
     coordinator.health('lobby',101,high=150)
     assert ev.metrics(db)['per_room_effective_rate']['lobby']==50
 
@@ -426,10 +426,11 @@ def test_worker_resumes_snapshot_without_network(db,tmp_path):
     with pytest.raises(RuntimeError):
         scout.persist_export(db,snapshot,after_batch=lambda _:(_ for _ in ()).throw(RuntimeError('crash')))
     stop=threading.Event()
-    coordinator=worker.Coordinator(db,worker.configuration(['technocore']),reader=lambda *_:(_ for _ in ()).throw(AssertionError('must resume local snapshot')),stop=stop)
+    coordinator=worker.Coordinator(db,worker.configuration(['technocore']),reader=lambda room,kind,*_: (tail(messages(450,500),100),'g1') if kind=='tail' else (_ for _ in ()).throw(AssertionError('must resume local snapshot')),stop=stop)
     with ThreadPoolExecutor(max_workers=1) as pool:
-        coordinator.schedule(pool)
-        f=next(iter(coordinator.inflight));f.result(timeout=3);coordinator.persist(f)
+        coordinator.schedule(pool,pool)
+        for f in list(coordinator.inflight):
+            f.result(timeout=3);coordinator.persist(f)
         while coordinator.exports:coordinator.persist_export_batch()
     assert scout.room_cursor(db,'technocore')['last_seq']==500
     assert check(db)['raw_records']==500
@@ -441,7 +442,7 @@ def test_worker_interleaves_tail_persistence_between_export_batches(db,tmp_path)
     coordinator=worker.Coordinator(db,worker.configuration(['technocore','lobby']))
     export_future=Future();export_future.set_result(snapshot)
     coordinator.inflight[export_future]=('technocore','export',coordinator.clock(),'g1')
-    coordinator.active_rooms.add('technocore');coordinator.persist(export_future)
+    coordinator.persist(export_future)
     coordinator.persist_export_batch()
     assert db.execute('SELECT processed_records FROM evidence_export_snapshots').fetchone()[0]==200
     tail_future=Future();tail_future.set_result(({'messages':messages(1,1),'last_seq':1},'g1'))
@@ -552,7 +553,7 @@ def test_worker_refreshes_tail_after_export_generation_rejection(db):
         return ({'messages':messages(1,1),'last_seq':1},'new')
     coordinator=worker.Coordinator(db,worker.configuration(['technocore']),reader=read,clock=lambda:now[0])
     bad=Future();bad.set_exception(ValueError('Export generation mismatch'))
-    coordinator.inflight[bad]=('technocore','export',100,'g1');coordinator.active_rooms.add('technocore')
+    coordinator.inflight[bad]=('technocore','export',100,'g1')
     coordinator.persist(bad)
     now[0]=coordinator.due['technocore']
     with ThreadPoolExecutor(max_workers=1) as pool:
