@@ -230,7 +230,16 @@ def source_gaps(conn):
 
 
 def initialize(conn, verify):
-    """Version-gated, transactional migration; never called by readers."""
+    """Version migration plus physical reconciliation; never called by readers."""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE name='evidence_schema'").fetchone():
+        import scout_schema
+        try:
+            declared = conn.execute('SELECT max(version) FROM evidence_schema').fetchone()[0]
+        except sqlite3.Error as exc:
+            raise scout_schema.SchemaDrift('SCHEMA_DRIFT: invalid version metadata') from exc
+        if declared is not None and declared >= 3:
+            scout_schema.reconcile(conn)
+            return
     conn.execute('PRAGMA foreign_keys=ON')
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='evidence_schema'").fetchone():
         if conn.execute('SELECT 1 FROM evidence_schema WHERE version=1').fetchone():

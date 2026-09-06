@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS evidence_room_health(
 '''
 
 
-def initialize(conn):
+def install_schema(conn):
     if conn.execute('SELECT 1 FROM evidence_schema WHERE version=3').fetchone():
         return
     with conn:
@@ -74,6 +74,15 @@ def initialize(conn):
         conn.execute("CREATE TRIGGER IF NOT EXISTS snapshot_no_delete BEFORE DELETE ON evidence_export_snapshots BEGIN SELECT RAISE(ABORT,'snapshot provenance protected'); END")
         conn.execute("CREATE TRIGGER IF NOT EXISTS snapshot_no_replace BEFORE INSERT ON evidence_export_snapshots WHEN EXISTS(SELECT 1 FROM evidence_export_snapshots WHERE snapshot_id=NEW.snapshot_id) BEGIN SELECT RAISE(IGNORE); END")
         conn.execute('INSERT INTO evidence_schema VALUES (3,?)', (ev.now(),))
+
+
+def initialize(conn):
+    import scout_schema
+    if conn.execute('SELECT 1 FROM evidence_schema WHERE version=3').fetchone():
+        scout_schema.reconcile(conn)
+    else:
+        install_schema(conn)
+        scout_schema.reconcile(conn)
 
 
 def source(room):

@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import scout_evidence as evidence_store
 import scout_coverage as coverage_store
-from contextlib import closing, contextmanager
+from contextlib import closing, contextmanager, redirect_stdout
 from contextvars import ContextVar
 from functools import wraps
 import base64
@@ -4494,6 +4494,25 @@ def service_status(db_path: Path = OBSERVER_DB) -> None:
 
 
 def evidence_local_command(args):
+    if args.evidence_cmd in {"schema-status", "reconcile-schema"}:
+        import scout_schema
+        if args.evidence_cmd == "schema-status":
+            with observer_connect_readonly(args.db) as conn:
+                result = scout_schema.status(conn)
+        else:
+            with redirect_stdout(sys.stderr), poll_lock(args.db.parent) as acquired:
+                if not acquired:
+                    raise SystemExit("SCHEMA_DRIFT: stop Scout before reconciliation")
+                conn = sqlite3.connect(args.db.resolve().as_uri()+"?mode=rw", uri=True, timeout=5)
+                try:
+                    conn.execute("PRAGMA foreign_keys=ON")
+                    result = scout_schema.reconcile(conn)
+                finally:
+                    conn.close()
+        print(json.dumps(result, indent=2))
+        if result['status'] != 'PASS':
+            raise SystemExit(1)
+        return
     if args.evidence_cmd in {"init", "repair"}:
         with observer_connect_write(args.db) as conn:
             if args.evidence_cmd == "repair":
@@ -4957,7 +4976,8 @@ def self_test() -> None:
 
 
 def main() -> None:
-    ensure_home()
+    if not (len(sys.argv) > 2 and sys.argv[1:3] == ["evidence", "schema-status"]):
+        ensure_home()
     p = argparse.ArgumentParser(description="FLOP Scout v0.3.3 - Service Presence")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -5019,7 +5039,7 @@ def main() -> None:
     evidence_verify = evidence_sub.add_parser("verify-export")
     evidence_verify.add_argument("path")
 
-    for command in ("init", "repair", "verify-integrity", "soak-status", "feed", "export", "provenance"):
+    for command in ("schema-status", "reconcile-schema", "init", "repair", "verify-integrity", "soak-status", "feed", "export", "provenance"):
         child = evidence_sub.add_parser(command)
         child.add_argument("--db", type=Path, default=OBSERVER_DB)
         if command in {"feed", "export"}:
