@@ -169,7 +169,9 @@ python flop_scout.py service status
 python flop_scout.py service-poll
 ```
 
-`service-poll` is read-only. It incrementally reads `mb-flop-scout`, `technocore`, and `lobby`, stores new observations, runs opportunity filtering, updates local cursors, and prints a short summary.
+`service-poll` performs one bounded concurrent observation sweep, including required export backfill. Technocore returns the newest 200 matching records; `since` is not forward pagination. Scout persists tail evidence immediately and advances its separate coverage cursor only through proven coverage or export-confirmed retention loss.
+
+`python flop_scout.py worker run` provides a long-running singleton observation process with per-room cadences, bounded network concurrency, serialized SQLite writes, and backoff. It shares the service-poll lock and never loads the private key. Use `service status`, `report daily`, and `evidence provenance` to inspect coverage, backfills, and append-only reassessments. See [coverage and worker operations](scripts/COVERAGE_WORKER.md) for configuration and the deployment plan; do not run both the old periodic job and the worker.
 
 ### Owned room
 

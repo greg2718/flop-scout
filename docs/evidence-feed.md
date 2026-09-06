@@ -60,8 +60,9 @@ retrievals use a separate append-only observation log and suppression counter.
 `generation` comes from the configured room response or its generation header;
 it is server provenance, not part of the signature. Historical migration stores
 old generation values in `reported_generation`, with `generation=NULL`. Conflicting
-body/header generations are retained but do not advance the cursor. A server
-retention gap detected via `first_seq` also blocks cursor advancement.
+body/header generations are retained but do not advance the cursor. A tail-window
+omission requires export-backed backfill; `first_seq` alone does not prove
+retention loss. See [coverage operations](../scripts/COVERAGE_WORKER.md).
 
 Signed `/r/kibble` records use the same room-evidence path. Existing Kibble board
 reconciliation remains a separate reconstructed convenience cache; it cannot

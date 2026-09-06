@@ -1,0 +1,7 @@
+{
+  "lobby": {"poll_interval_seconds": 1, "priority": 0, "export_backfill_enabled": true},
+  "faucet": {"poll_interval_seconds": 2, "priority": 1, "export_backfill_enabled": true},
+  "technocore": {"poll_interval_seconds": 20, "priority": 2, "export_backfill_enabled": true},
+  "kibble": {"poll_interval_seconds": 20, "priority": 2, "export_backfill_enabled": true},
+  "tclk-offers": {"poll_interval_seconds": 30, "priority": 3, "export_backfill_enabled": true}
+}

@@ -236,6 +236,8 @@ def initialize(conn, verify):
         if conn.execute('SELECT 1 FROM evidence_schema WHERE version=1').fetchone():
             if not conn.execute('SELECT 1 FROM evidence_schema WHERE version=2').fetchone():
                 initialize_gaps(conn)
+            import scout_coverage
+            scout_coverage.initialize(conn)
             return
     # execute each statement without executescript's implicit pre-commit.
     with conn:
@@ -277,6 +279,8 @@ def initialize(conn, verify):
                 conn.execute('INSERT OR IGNORE INTO compatibility_evidence_links VALUES (?,?,?,?)',('tclk_capability_hints',cache_id,rid,hash_value))
         conn.execute('INSERT INTO evidence_schema VALUES (1,?)', (now(),))
     initialize_gaps(conn)
+    import scout_coverage
+    scout_coverage.initialize(conn)
 
 
 CLASSES = {x: x for x in ('IDENTITY_PRESENCE','PROMOTIONAL_CLAIM','WORK_REQUEST',
@@ -493,8 +497,10 @@ def integrity(conn):
         if gap['status'] == 'RECOVERED':
             raw = conn.execute('SELECT * FROM raw_network_records WHERE raw_record_id=?',(gap['first_recovered_raw_record_id'],)).fetchone()
             result['source_gap_errors'] += not (raw and raw['raw_text_sha256']==gap['first_recovered_raw_hash'] and raw['source']==gap['source'] and raw['room']==gap['room'] and raw['generation']==gap['generation'] and raw['seq'] is not None and raw['seq']>=gap['first_available_seq'] and raw['raw_completeness']=='COMPLETE' and gap['recovery_at'])
+    import scout_coverage
+    result['coverage_integrity_errors'] = scout_coverage.integrity(conn)
     result['foreign_key_errors'] = len(conn.execute('PRAGMA foreign_key_check').fetchall())
-    result['status'] = 'FAIL' if any(result[k] for k in ('source_gap_errors','orphaned_events','hash_mismatches','missing_events','unlinked_compatibility_records','foreign_key_errors','raw_identity_mismatches')) else 'PASS'
+    result['status'] = 'FAIL' if any(result[k] for k in ('coverage_integrity_errors','source_gap_errors','orphaned_events','hash_mismatches','missing_events','unlinked_compatibility_records','foreign_key_errors','raw_identity_mismatches')) else 'PASS'
     return result
 
 
@@ -601,6 +607,9 @@ def metrics(conn, db_path=None):
     if skip_file and skip_file.exists():
         with skip_file.open() as stream:
             result['poll_lock_contention_skips'] = sum(1 for line in stream if line.strip()=='SKIP')
+    import scout_coverage
+    result.update(scout_coverage.metrics(conn))
+    result['historical_gap_metrics_scope'] = 'original classifications; use confirmed_retention_losses and reassessments for current provenance'
     result['safety_scope'] = 'local observation code counters; not a host-wide audit'
     return result
 
@@ -617,11 +626,14 @@ def daily(conn, date=None):
     gaps = source_gaps(conn)
     today = lambda value: value is not None and start <= datetime.fromisoformat(value) < end
     result['upstream_retention_gaps'] = {
-        'title':'UPSTREAM RETENTION GAPS',
+        'title':'HISTORICAL GAP CLAIMS',
+        'scope':'Original v2 classifications, not confirmed loss; see coverage_provenance and reassessments',
         'detected_today':sum(today(g['detected_at']) for g in gaps),
         'recovered_today':sum(today(g['recovery_at']) for g in gaps),
         'unresolved':sum(g['status']=='UNRESOLVED' for g in gaps),
         'sources':[g for g in gaps if today(g['detected_at']) or today(g['recovery_at']) or g['status']=='UNRESOLVED']}
+    import scout_coverage
+    result['coverage_provenance'] = scout_coverage.daily(conn,*args)
     result['classifications'] = {}
     result['watch_changes'] = {r[0]:0 for r in conn.execute('SELECT name FROM watch_collections')}
     result['duplicates'] = {'exact_reposts':0,'template_variants':0,'rereads':conn.execute(f'SELECT count(*) FROM evidence_retrievals x JOIN raw_network_records r USING(raw_record_id) WHERE {OBSERVED} AND julianday(x.retrieved_at)>=julianday(?) AND julianday(x.retrieved_at)<julianday(?)',args).fetchone()[0]}

@@ -905,40 +905,40 @@ class Tests(unittest.TestCase):
     def paged_fetcher(self, records, generation="g1", latest_seq=None):
         def fake_fetch(room, limit, since=None, allow_missing=False):
             start = (since or 0) + 1
-            page = [record for record in records if int(record["seq"]) >= start][:limit]
-            return {"messages": page, "latest_seq": latest_seq or records[-1]["seq"]}, generation
+            page = [record for record in records if int(record["seq"]) >= start][-min(limit,200):]
+            return {"messages": page, "first_seq": page[0]["seq"] if page else None, "last_seq": latest_seq or (page[-1]["seq"] if page else (since or 0))}, generation
 
         return fake_fetch
 
-    def test_service_poll_paginates_450_unread_records(self):
+    def test_service_poll_keeps_latest_200_and_requires_export(self):
         conn = self.make_conn()
         records = self.page_messages(1, 450)
         with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)):
             result = flop_scout.service_poll_room(conn, "lobby", page_size=200, max_pages=10)
-        self.assertEqual(result["pages_fetched"], 3)
-        self.assertEqual(result["new_messages"], 450)
-        self.assertEqual(result["cursor_after"], 450)
-        self.assertEqual(flop_scout.room_cursor(conn, "lobby")["last_seq"], 450)
+        self.assertEqual(result["pages_fetched"], 1)
+        self.assertEqual(result["new_messages"], 200)
+        self.assertEqual(result["cursor_after"], 0)
+        self.assertEqual(flop_scout.room_cursor(conn, "lobby")["last_seq"], 0)
         stored = conn.execute("SELECT seq FROM messages WHERE room = 'lobby' ORDER BY seq").fetchall()
-        self.assertEqual([row["seq"] for row in stored], list(range(1, 451)))
+        self.assertEqual([row["seq"] for row in stored], list(range(251, 451)))
 
-    def test_service_poll_budget_stops_safely_and_next_poll_resumes(self):
+    def test_repeated_tail_reads_cannot_backfill_older_records(self):
         conn = self.make_conn()
         records = self.page_messages(1, 450)
         with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records, latest_seq=450)):
             first = flop_scout.service_poll_room(conn, "lobby", page_size=200, max_pages=2)
-        self.assertEqual(first["pages_fetched"], 2)
-        self.assertEqual(first["cursor_after"], 400)
+        self.assertEqual(first["pages_fetched"], 1)
+        self.assertEqual(first["cursor_after"], 0)
         self.assertEqual(first["server_latest_seq"], 450)
-        self.assertEqual(first["continuity"], "CATCHING_UP")
+        self.assertEqual(first["continuity"], "BACKFILL_REQUIRED")
         self.assertTrue(first["backlog_remaining"])
         with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records, latest_seq=450)):
             second = flop_scout.service_poll_room(conn, "lobby", page_size=200, max_pages=2)
-        self.assertEqual(second["cursor_before"], 400)
-        self.assertEqual(second["cursor_after"], 450)
-        self.assertEqual(second["continuity"], "CURRENT")
+        self.assertEqual(second["cursor_before"], 0)
+        self.assertEqual(second["cursor_after"], 0)
+        self.assertEqual(second["continuity"], "BACKFILL_REQUIRED")
         count = conn.execute("SELECT COUNT(*) FROM messages WHERE room = 'lobby'").fetchone()[0]
-        self.assertEqual(count, 450)
+        self.assertEqual(count, 200)
 
     def test_service_poll_cursor_never_jumps_to_server_latest_without_storage(self):
         conn = self.make_conn()
@@ -964,7 +964,7 @@ class Tests(unittest.TestCase):
         count = conn.execute("SELECT COUNT(*) FROM messages WHERE room = 'lobby'").fetchone()[0]
         self.assertEqual(count, 200)
 
-    def test_service_poll_malformed_tclk_record_does_not_block_later_pages(self):
+    def test_service_poll_malformed_tclk_record_does_not_block_tail(self):
         conn = self.make_conn()
         records = [
             {"seq": 1, "from": "anon", "text": "tclk1 {not-json"},
@@ -972,7 +972,7 @@ class Tests(unittest.TestCase):
             {"seq": 3, "from": "did:key:z6MkSender3", "text": "message 3"},
         ]
         with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)):
-            result = flop_scout.service_poll_room(conn, "tclk-offers", page_size=2, max_pages=3)
+            result = flop_scout.service_poll_room(conn, "tclk-offers", page_size=200, max_pages=3)
         self.assertEqual(result["cursor_after"], 3)
         self.assertEqual(result["continuity"], "CURRENT")
         malformed = conn.execute(
@@ -1002,35 +1002,35 @@ class Tests(unittest.TestCase):
         }
         self.assertEqual(evidence_generations, {"old", "new"})
 
-    def test_service_poll_mailbox_pagination_counts_signed_messages(self):
+    def test_service_poll_mailbox_tail_counts_signed_messages(self):
         conn = self.make_conn()
         records = self.page_messages(1, 201)
         with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)):
             result = flop_scout.service_poll_room(conn, flop_scout.MAILBOX_ROOM, page_size=200, max_pages=2)
-        self.assertEqual(result["pages_fetched"], 2)
-        self.assertEqual(result["new_signed_messages"], 201)
-        self.assertEqual(result["cursor_after"], 201)
+        self.assertEqual(result["pages_fetched"], 1)
+        self.assertEqual(result["new_signed_messages"], 200)
+        self.assertEqual(result["cursor_after"], 0)
 
-    def test_service_poll_tclk_offers_pagination_stores_frames(self):
+    def test_service_poll_tclk_tail_stores_frames(self):
         conn = self.make_conn()
         first = self.signed_tclk_message(seq=1)
         second = self.signed_tclk_message(seq=2)
         records = [first, second]
         with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)):
-            result = flop_scout.service_poll_room(conn, flop_scout.TCLK_OFFERS_ROOM, page_size=1, max_pages=3)
-        self.assertEqual(result["pages_fetched"], 3)
+            result = flop_scout.service_poll_room(conn, flop_scout.TCLK_OFFERS_ROOM, page_size=200, max_pages=3)
+        self.assertEqual(result["pages_fetched"], 1)
         self.assertEqual(result["cursor_after"], 2)
         count = conn.execute("SELECT COUNT(*) FROM tclk_frames").fetchone()[0]
         self.assertEqual(count, 2)
 
-    def test_service_poll_pagination_no_network_writes_or_private_key_access(self):
+    def test_service_poll_tail_no_network_writes_or_private_key_access(self):
         conn = self.make_conn()
         records = self.page_messages(1, 3)
         with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)), \
              mock.patch.object(flop_scout, "post_signed", side_effect=AssertionError("network write")), \
              mock.patch.object(flop_scout, "request_json", side_effect=AssertionError("network write")), \
              mock.patch.object(flop_scout, "load_key", side_effect=AssertionError("private key access")):
-            result = flop_scout.service_poll_room(conn, "lobby", page_size=2, max_pages=2)
+            result = flop_scout.service_poll_room(conn, "lobby", page_size=200, max_pages=2)
         self.assertEqual(result["cursor_after"], 3)
 
     def kibble_event_text(self, event_type="JOB", job_id="job-1", **overrides):
@@ -1159,11 +1159,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(parsed["parse_status"], "KIBBLE_PARSEABLE")
         self.assertFalse(urlopen.called)
 
-    def test_kibble_cursor_safe_pagination(self):
+    def test_kibble_tail_coverage(self):
         conn = self.make_conn()
         records = [self.signed_kibble_message(seq=i, job_id=f"job-{i}") for i in range(1, 4)]
         with mock.patch.object(flop_scout, "fetch_room_view", side_effect=self.paged_fetcher(records)):
-            result = flop_scout.service_poll_room(conn, flop_scout.KIBBLE_ROOM, page_size=2, max_pages=2)
+            result = flop_scout.service_poll_room(conn, flop_scout.KIBBLE_ROOM, page_size=200, max_pages=2)
         self.assertEqual(result["cursor_after"], 3)
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM kibble_events").fetchone()[0], 3)
 
@@ -1845,7 +1845,8 @@ class Tests(unittest.TestCase):
 
         cursor = flop_scout.room_cursor(conn, flop_scout.TCLK_OFFERS_ROOM)
         self.assertEqual(cursor["generation"], "gen-a")
-        self.assertEqual(cursor["last_seq"], 4)
+        self.assertEqual(cursor["last_seq"], 0)
+        self.assertEqual(conn.execute("SELECT observed_high_water FROM source_coverage_state WHERE room=?",(flop_scout.TCLK_OFFERS_ROOM,)).fetchone()[0],4)
 
     def test_valid_tclk_offer_parses_job_and_rails(self):
         conn = self.make_conn()

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.flop-scout.worker</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/greg/Dev/flop_scout_v02/.venv/bin/python</string>
+    <string>/Users/greg/Dev/flop_scout_v02/flop_scout.py</string>
+    <string>worker</string><string>run</string>
+    <string>--concurrency</string><string>4</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/greg/Dev/flop_scout_v02</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>FLOP_SCOUT_STATE_DIR</key><string>/Users/greg/.flop_scout</string></dict>
+  <key>KeepAlive</key><true/>
+  <key>RunAtLoad</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>ExitTimeOut</key><integer>150</integer>
+  <key>StandardOutPath</key><string>/Users/greg/.flop_scout/logs/worker.log</string>
+  <key>StandardErrorPath</key><string>/Users/greg/.flop_scout/logs/worker-error.log</string>
+</dict>
+</plist>

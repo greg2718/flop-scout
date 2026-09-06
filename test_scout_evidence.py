@@ -174,20 +174,20 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(result['cursor_after'],3)
         self.assertEqual(ev.integrity(self.conn)['raw_records'],4)
 
-    def test_450_pagination_and_budget(self):
+    def test_tail_windows_cannot_forward_paginate_450_records(self):
         rows=[{'seq':i,'text':f'message {i}'} for i in range(1,451)]
         calls=[]
         def fetch(room,limit,since,allow_missing):
             calls.append(since)
-            return {'messages':[r for r in rows if r['seq']>since][:limit],'latest_seq':450},'g1'
+            return {'messages':[r for r in rows if r['seq']>since][-limit:],'latest_seq':450},'g1'
         with patch.object(scout,'fetch_room_view',side_effect=fetch):
             first=scout.service_poll_room(self.conn,'lobby',max_pages=2)
-            self.assertEqual(first['continuity'],'CATCHING_UP')
+            self.assertEqual(first['continuity'],'BACKFILL_REQUIRED')
             self.assertTrue(first['backlog_remaining'])
             last=scout.service_poll_room(self.conn,'lobby')
-        self.assertEqual(calls,[0,200,400])
-        self.assertEqual(last['cursor_after'],450)
-        self.assertEqual(ev.integrity(self.conn)['raw_records'],450)
+        self.assertEqual(calls,[0,0])
+        self.assertEqual(last['cursor_after'],0)
+        self.assertEqual(ev.integrity(self.conn)['raw_records'],200)
 
     def test_cursor_regression_rejected(self):
         scout.update_room_cursor(self.conn,'lobby','g1',5)
@@ -366,7 +366,7 @@ class EvidenceTests(unittest.TestCase):
         with patch.object(scout,'log'),patch.object(scout,'fetch_room_view',return_value=(page,'new')):
             result=scout.service_poll_room(self.conn,'lobby',max_pages=1)
         self.assertEqual(result['cursor_after'],200)
-        self.assertEqual(result['continuity'],'CATCHING_UP')
+        self.assertEqual(result['continuity'],'BACKFILL_REQUIRED')
         self.assertEqual(scout.room_cursor(self.conn,'lobby')['generation'],'new')
 
 
@@ -379,14 +379,14 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(ev.integrity(self.conn)['raw_records'],1)
 
 
-    def test_ring_gap_retained_but_not_silently_skipped(self):
+    def test_tail_gap_retained_and_backfill_required(self):
         scout.update_room_cursor(self.conn,'lobby','g1',5)
         page={'messages':[self.raw(seq=20)],'first_seq':20}
         with patch.object(scout,'fetch_room_view',return_value=(page,'g1')):
             result=scout.service_poll_room(self.conn,'lobby')
-        self.assertEqual(result['continuity'],'RETENTION_GAP_RECOVERED')
-        self.assertEqual(result['cursor_after'],20)
-        self.assertEqual(result['known_retention_gaps'],1)
+        self.assertEqual(result['continuity'],'BACKFILL_REQUIRED')
+        self.assertEqual(result['cursor_after'],5)
+        self.assertEqual(result['known_retention_gaps'],0)
         self.assertEqual(ev.integrity(self.conn)['raw_records'],1)
 
 

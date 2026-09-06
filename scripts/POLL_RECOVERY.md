@@ -51,91 +51,12 @@ existing scheduled job must point to the installed wrapper. Schema version 2 is
 added transactionally on the next authorized writer connection; version-1 raw
 migration is not repeated. Read-only commands never migrate the database.
 
-## Upstream retention provenance
+## Coverage correction supersedes the v2 retention model
 
-Protocol comparison (2026-09-06):
+The former claim that room-read `first_seq` is the retained lower boundary was
+incorrect. It is the first record of a capped newest-record window. Schema v3
+uses a separate coverage cursor, export-backed backfill, confirmed loss records,
+and append-only reassessments. See [COVERAGE_WORKER.md](COVERAGE_WORKER.md).
 
-- https://github.com/flop-labs/technocore-chat
-- https://technocore.chat/llms.txt
-- https://technocore.chat/auth.md
-- https://technocore.chat/patterns.md
-
-The room ring exposes its retained lower boundary as `first_seq`. Previously,
-Scout saved available records then repeatedly rejected this boundary and kept
-its old cursor. Detection now requires explicit valid `first_seq` metadata past
-the nonzero durable resume point plus one, an identified generation, and no
-conflicting body/header generation. A retained boundary without an identified
-generation fails safely with the cursor unchanged while retaining available raw
-evidence. Sequence holes in messages never trigger a
-gap. The existing generation-change/reset path remains separate. No missing
-message counts or identities are inferred, and no discovered URLs are fetched.
-
-`evidence_source_gaps` holds a SHA-256 deterministic ID over source, room,
-generation, old durable position, authoritative first available position and
-`UPSTREAM_RETENTION_GAP`. It also holds the endpoint, server latest position,
-detection/creation timestamps, reason, metadata, recovery state/time and the
-first recovered raw ID/hash. Original fields are immutable; only one transition
-from UNRESOLVED to RECOVERED is permitted. Foreign keys bind recovery to actual
-raw evidence. Repeated detection keeps the original row and timestamps; a new
-boundary or generation can identify a materially different gap.
-
-The ordered commit boundaries are:
-
-1. Commit the gap before attempting page ingestion.
-2. Commit the complete raw page through existing deterministic raw identities.
-3. Commit normal derived events and watch memberships; finish compatibility
-   indexing. A parser exception retains raw evidence and leaves the cursor old.
-4. Verify every page member has an exact raw record and matching derived link.
-5. Commit recovery references for unresolved gaps at that resume point.
-6. Commit the cursor to the highest available sequence actually persisted.
-
-A crash leaves the old cursor with safely replayable evidence, or an advanced
-cursor whose evidence is durable. Recovery status means available evidence was
-persisted; it may precede cursor movement if the process crashes between steps
-5 and 6. A retry reuses raw identities, repairs missing derivations and resumes.
-Signature failures and malformed records remain evidence, never invented parsed
-messages. Numeric server/latest metadata alone never advances a cursor.
-
-The recovery cycle reports `RETENTION_GAP_RECOVERED` or
-`CATCHING_UP_AFTER_GAP`. Subsequent normal cycles can report `CURRENT` while
-`known_retention_gaps` remains visible. Failed reads/storage/recovery still count
-as failures; successful gap recovery does not increment `read_failures`.
-
-## Reports and integrity
-
-Status and soak-status expose `retention_gaps_detected`,
-`retention_gaps_recovered`, `unresolved_retention_gaps`,
-`retention_gaps_during_soak`, `poll_lock_contention_skips`, source/room/generation
-counts, and separate typed `flop-scout-source-gap/v1` provenance records. Existing
-soak bookkeeping starts at the first recorded poll cycle; there is no distinct
-formal-soak marker, so the output explicitly states that metric's scope.
-
-Daily JSON includes `upstream_retention_gaps` with the title UPSTREAM RETENTION
-GAPS, detected/recovered today (UTC), unresolved count and relevant source rows,
-including prior durable and first available positions. It never computes a
-missing-message count from sequence subtraction. No fake `observed_events` or
-`raw_network_records` are inserted for missing history; the signed-message feed
-and its foreign keys remain intact.
-
-`evidence verify-integrity` additionally checks deterministic gap identities and
-recovery reference existence/hash/source/room/generation/position/completeness.
-Older databases without recorded gaps remain readable and are not required to
-invent historical gap records.
-
-## Reproducible temporary validation
-
-Use an interpreter with cryptography and pytest, and a temporary state directory:
-
-```sh
-export FLOP_SCOUT_STATE_DIR="$(mktemp -d /tmp/scout-validation.XXXXXX)"
-python -m pytest -q
-python flop_scout.py self-test
-python -m py_compile flop_scout.py scout_evidence.py
-git diff --check
-```
-
-`test_poll_recovery.py` exercises the production cursor 4507918, retained page
-4991500–4991699, catch-up to 4991710, and CURRENT with one known gap. Subprocess
-tests kill/crash lock holders, verify losing workers do no DB/network work, and
-immediately reacquire without deleting files. Separate process crashes after gap
-insert, raw insert and recovery commit verify safe replay and integrity.
+The lock architecture and legacy migration instructions above remain applicable.
+The new long-running worker and manual service-poll share that same kernel lock.

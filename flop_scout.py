@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import scout_evidence as evidence_store
+import scout_coverage as coverage_store
 from contextlib import closing, contextmanager
 from contextvars import ContextVar
 from functools import wraps
@@ -72,6 +73,13 @@ genuinely new worth saying."""
 
 B58 = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 ED25519_MULTICODEC = b"\xed\x01"
+
+
+class ObservationReadError(SystemExit):
+    def __init__(self, message, status=None, retry_after=None):
+        super().__init__(message)
+        self.status = status
+        self.retry_after = retry_after
 
 
 class TechnocoreDuplicateRefusal(Exception):
@@ -374,7 +382,7 @@ def request_json(
             return {}
         if is_write and exc.code == 422:
             raise TechnocoreDuplicateRefusal(body) from None
-        raise SystemExit(f"Technocore HTTP {exc.code}: {body}") from None
+        raise ObservationReadError(f"Technocore HTTP {exc.code}: {body}",exc.code,exc.headers.get("Retry-After")) from None
     except Exception as exc:
         if is_write:
             raise SystemExit(
@@ -414,7 +422,7 @@ def request_text(
                 "Technocore write outcome is uncertain. Do NOT retry immediately. "
                 "Read the relevant room or note first and verify state."
             ) from None
-        raise SystemExit(f"Technocore HTTP {exc.code}: {body}") from None
+        raise ObservationReadError(f"Technocore HTTP {exc.code}: {body}",exc.code,exc.headers.get("Retry-After")) from None
     except Exception as exc:
         if is_write:
             raise SystemExit(
@@ -499,6 +507,9 @@ def room_cursor(conn: sqlite3.Connection, room: str) -> dict[str, Any]:
         seq_value = int(seq)
     except ValueError:
         seq_value = 0
+    if coverage_store.tables_present(conn) and generation:
+        covered = conn.execute('SELECT coverage_cursor FROM source_coverage_state WHERE room=? AND generation=?',(room,generation)).fetchone()
+        if covered: seq_value = covered[0]
     return {
         "room": room,
         "generation": generation or None,
@@ -537,7 +548,12 @@ def update_room_cursor(
         raise ValueError("Cursor regression rejected")
     values = {f"cursor:{room}:generation": generation_value, f"cursor:{room}:continuity": status}
     if last_seq is not None:
-        values.update({f"cursor:{room}:seq": str(last_seq), f"cursor:{room}": str(last_seq)})
+        legacy_position = last_seq
+        if cursor['generation']==generation_value and coverage_store.tables_present(conn):
+            # Preserve the historical high-water alias during v2 reassessment;
+            # room_cursor() reads the separate v3 coverage checkpoint.
+            legacy_position = max(last_seq,int(get_state(conn,f'cursor:{room}:seq','0')))
+        values.update({f"cursor:{room}:seq": str(legacy_position), f"cursor:{room}": str(legacy_position)})
     with conn:
         for key, value in values.items():
             conn.execute("INSERT INTO service_state VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at", (key,value,utc_now()))
@@ -2120,8 +2136,9 @@ def ingest_messages(
     source: str = "room-read",
     source_endpoint: str | None = None,
     transport_metadata: dict | None = None,
+    retrieved_at: str | None = None,
 ) -> dict[str, int]:
-    now = utc_now()
+    now = retrieved_at or utc_now()
     received = len(raw_messages)
     inserted = 0
     signed_writers: set[str] = set()
@@ -3574,7 +3591,7 @@ def fetch_room_export(room: str) -> tuple[bytes, str | None]:
             generation = resp.headers.get("X-Room-Generation")
     except urllib.error.HTTPError as exc:
         body = exc.read(4000).decode("utf-8", errors="replace")
-        raise SystemExit(f"Technocore HTTP {exc.code}: {body}") from None
+        raise ObservationReadError(f"Technocore HTTP {exc.code}: {body}",exc.code,exc.headers.get("Retry-After")) from None
     except Exception as exc:
         raise SystemExit(f"Technocore request failed: {exc}") from exc
     return raw, str(generation) if generation is not None else None
@@ -3877,7 +3894,7 @@ def fetch_room_view(
         body = exc.read(4000).decode("utf-8", errors="replace")
         if allow_missing and exc.code == 404:
             return {}, None
-        raise SystemExit(f"Technocore HTTP {exc.code}: {body}") from None
+        raise ObservationReadError(f"Technocore HTTP {exc.code}: {body}",exc.code,exc.headers.get("Retry-After")) from None
     except Exception as exc:
         raise SystemExit(f"Technocore request failed: {exc}") from exc
     if len(raw) > 1_000_000:
@@ -3977,155 +3994,123 @@ def highest_persisted_page_seq(
 
 @observation_only
 @poll_accounting
-def service_poll_room(
-    conn: sqlite3.Connection,
-    room: str,
-    *,
-    page_size: int = SERVICE_POLL_PAGE_SIZE,
-    max_pages: int = SERVICE_POLL_MAX_PAGES_PER_ROOM,
-) -> dict[str, Any]:
+def service_poll_room(conn, room, *, page_size=SERVICE_POLL_PAGE_SIZE,
+                      max_pages=SERVICE_POLL_MAX_PAGES_PER_ROOM, response=None):
+    """Observe ONE tail window. since is a filter, never forward pagination."""
     room = valid_room(room)
-    cursor = room_cursor(conn, room)
-    cursor_before = int(cursor["last_seq"])
-    cursor_after = cursor_before
-    cursor_generation = cursor["generation"]
-    generation_value = cursor_generation
-    continuity = cursor["continuity"]
-    total_received = 0
-    total_inserted = 0
-    signed_new = 0
-    pages_fetched = 0
-    latest_seq = None
-    backlog_remaining = False
-    page_limit_hit = False
-    generation_changed = False
-    read_failed = False
-    last_read_error = None
-    progress_stalled = False
-    gaps_recovered = 0
+    cursor = room_cursor(conn,room)
+    seed = cursor['last_seq']
+    try:
+        obj,generation = response if response is not None else fetch_room_view(room,min(page_size,200),since=seed,allow_missing=True)
+    except SystemExit as exc:
+        return {'room':room,'continuity':'READ_FAILED','last_read_error':str(exc),
+            'cursor_before':seed,'cursor_after':seed,'records_fetched':0,'new_messages':0,
+            'new_signed_messages':0,'pages_fetched':0,'generation':cursor['generation'],
+            'server_latest_seq':None,'backlog_remaining':True,'page_limit_hit':False,'known_retention_gaps':0}
+    generation_changed = generation is not None and cursor['generation'] not in (None,UNKNOWN_LEGACY_GENERATION,GENERATION_MISSING,str(generation))
+    if generation_changed: seed = 0
+    records = raw_room_messages(obj)
+    metadata = obj.get('_scout_transport',{})
+    endpoint = metadata.get('endpoint',room_read_endpoint(room,min(page_size,200),seed))
+    summary = ingest_messages(conn,room,records,generation=generation,source='service-poll',
+        source_endpoint=endpoint,transport_metadata=metadata)
+    dictionaries = [r for r in records if isinstance(r,dict)]
+    server = response_latest_seq(obj,dictionaries)
+    ambiguous = generation is None or metadata.get('generation_conflict',False)
+    high = None if metadata.get('generation_conflict') else highest_persisted_page_seq(conn,room,generation,records)
+    old = coverage_store.state(conn,room,generation,seed)
+    if generation_changed:
+        with conn:
+            conn.execute('UPDATE source_coverage_state SET origin_unknown=1 WHERE room=? AND generation=?',(room,str(generation)))
+    regressed = not generation_changed and server is not None and server<old['coverage_cursor']
+    state = coverage_store.save_tail(conn,room,generation,seed,high,server,ambiguous=ambiguous or regressed)
+    if not ambiguous and not regressed:
+        update_room_cursor(conn,room,generation,state['coverage_cursor'])
+    continuity = 'READ_FAILED' if metadata.get('generation_conflict') or regressed else state['coverage_status']
+    if generation_changed and continuity=='CURRENT': continuity='GENERATION_CHANGED'
+    set_state(conn,f'cursor:{room}:continuity',continuity)
+    return {'room':room,'records_fetched':len(records),'new_messages':summary['inserted'],
+        'new_signed_messages':sum(is_signed_sender(message_sender(r)) for r in dictionaries),
+        'pages_fetched':1,'generation':generation,'cursor_before':old['coverage_cursor'],
+        'cursor_after':state['coverage_cursor'],'coverage_cursor':state['coverage_cursor'],
+        'observed_high_water':state['observed_high_water'],'server_tail_high_water':server,
+        'server_latest_seq':server,'continuity':continuity,'backlog_remaining':bool(state['backfill_required']),
+        'page_limit_hit':len(records)>=min(page_size,200),'last_read_error':'Ambiguous or regressed generation/position' if ambiguous or regressed else None,
+        'known_retention_gaps':conn.execute('SELECT count(*) FROM evidence_source_gaps WHERE room=?',(room,)).fetchone()[0]}
 
-    for _page_index in range(max_pages):
-        page_cursor_before = cursor_after
-        try:
-            obj, generation = fetch_room_view(room, page_size, since=cursor_after, allow_missing=True)
-        except SystemExit as exc:
-            last_read_error = str(exc)
-            read_failed = True
-            continuity = "READ_FAILED"
-            break
-        if (
-            pages_fetched == 0
-            and generation is not None
-            and cursor_generation not in {None, UNKNOWN_LEGACY_GENERATION, GENERATION_MISSING}
-            and cursor_generation != str(generation)
-        ):
-            generation_changed = True
-            cursor_after = 0
-            page_cursor_before = 0
-            try:
-                obj, generation = fetch_room_view(room, page_size, since=0, allow_missing=True)
-            except SystemExit as exc:
-                last_read_error = str(exc)
-                cursor_after = cursor_before
-                read_failed = True
-                continuity = "READ_FAILED"
-                break
-        messages = raw_room_messages(obj)
-        pages_fetched += 1
-        generation_value = str(generation) if generation is not None else None
-        dict_messages = [m for m in messages if isinstance(m, dict)]
-        latest_seq = response_latest_seq(obj, dict_messages)
-        metadata = obj.get("_scout_transport", {})
-        first_retained = evidence_store.integer(obj.get("first_seq"))
-        gap_id = None
-        if (not metadata.get("generation_conflict") and generation is not None
-                and cursor_after > 0 and first_retained is not None
-                and first_retained > cursor_after + 1):
-            gap_id = evidence_store.record_gap(conn, room, generation, cursor_after,
-                first_retained, latest_seq,
-                metadata.get("endpoint", room_read_endpoint(room, page_size, cursor_after)),
-                {"first_seq": first_retained, "latest_seq": latest_seq, "transport": metadata})
-        summary = ingest_messages(conn, room, messages, generation=generation, source="service-poll",
-            source_endpoint=metadata.get("endpoint", room_read_endpoint(room, page_size, cursor_after)),
-            transport_metadata=metadata)
-        total_received += summary["received"]
-        total_inserted += summary["inserted"]
-        signed_new += sum(1 for msg in dict_messages if is_signed_sender(message_sender(msg)))
-        if metadata.get("generation_conflict"):
-            last_read_error = "Conflicting body/header generations"
-            read_failed = True
-            break
-        if (generation is None and cursor_after > 0 and first_retained is not None
-                and first_retained > cursor_after + 1):
-            last_read_error = "Retention recovery requires an authoritative generation"
-            read_failed = True
-            break
-        if latest_seq is not None and generation is not None and str(generation) == cursor_generation and latest_seq < cursor_after:
-            last_read_error = "Server latest_seq regressed within generation"
-            read_failed = True
-            break
-        persisted_seq = highest_persisted_page_seq(conn, room, generation, messages)
-        if gap_id and (persisted_seq is None or persisted_seq < first_retained):
-            last_read_error = "Retention recovery has no proven available position"
-            read_failed = True
-            break
-        if persisted_seq is not None and persisted_seq > cursor_after:
-            gaps_recovered += evidence_store.recover_gaps(conn, room, generation, cursor_after, messages)
-            cursor_after = persisted_seq
-            update_room_cursor(conn, room, generation, cursor_after)
-        elif not messages:
-            update_room_cursor(conn, room, generation, 0 if generation_changed else None)
-        returned_count = len(messages)
-        if metadata.get("generation_conflict"):
-            read_failed = True
-            continuity = "READ_FAILED"
-            break
-        if returned_count < page_size:
-            backlog_remaining = latest_seq is not None and latest_seq > cursor_after
-            break
-        page_limit_hit = True
-        page_max_seq = max_message_seq(dict_messages)
-        if persisted_seq is None or (page_max_seq is not None and page_max_seq <= page_cursor_before):
-            progress_stalled = True
-            break
-    else:
-        backlog_remaining = True
 
-    if read_failed:
-        continuity = "READ_FAILED"
-    elif backlog_remaining:
-        continuity = "CATCHING_UP"
-    elif generation_changed:
-        continuity = "GENERATION_CHANGED"
-    elif generation_value is None or generation_value == GENERATION_MISSING:
-        continuity = "UNKNOWN_LEGACY"
-    elif backlog_remaining or page_limit_hit and pages_fetched >= max_pages:
-        continuity = "CATCHING_UP"
-        backlog_remaining = True
-    elif progress_stalled:
-        continuity = "READ_FAILED"
-    else:
-        continuity = "CURRENT"
-    if gaps_recovered and continuity in {"CURRENT", "CATCHING_UP"}:
-        continuity = "CATCHING_UP_AFTER_GAP" if backlog_remaining else "RETENTION_GAP_RECOVERED"
-    set_state(conn, f"cursor:{room}:continuity", continuity)
-    return {
-        "room": room,
-        "records_fetched": total_received,
-        "new_messages": total_inserted,
-        "new_signed_messages": signed_new,
-        "pages_fetched": pages_fetched,
-        "generation": generation_value if generation_value is not None else GENERATION_MISSING,
-        "cursor_before": cursor_before,
-        "cursor_after": cursor_after,
-        "server_latest_seq": latest_seq,
-        "continuity": continuity,
-        "backlog_remaining": backlog_remaining,
-        "page_limit_hit": page_limit_hit,
-        "last_read_error": last_read_error,
-        "retention_gaps_recovered": gaps_recovered,
-        "known_retention_gaps": conn.execute("SELECT count(*) FROM evidence_source_gaps WHERE room=?", (room,)).fetchone()[0],
-    }
+@observation_only
+def fetch_room_export(room, generation, *, stop_event=None):
+    """Only fixed configured GET endpoint; stream to a local bounded spool."""
+    import tempfile
+    room = valid_room(room)
+    endpoint = f'{BASE_URL}/r/{room}/export'
+    directory = HOME/'evidence'/'export-snapshots'
+    directory.mkdir(parents=True,exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix='download-',suffix='.jsonl',dir=directory)
+    path = Path(name)
+    try:
+        request = urllib.request.Request(endpoint,method='GET',headers={'Accept':'application/x-ndjson','User-Agent':USER_AGENT})
+        with os.fdopen(fd,'wb') as output:
+            with urllib.request.build_opener(ObservationRedirectBlocked()).open(request,timeout=20) as response:
+                if response.status != 200: raise ValueError('Export must be a complete HTTP 200 response')
+                headers = dict(response.headers)
+                total = 0
+                deadline = time.monotonic()+120
+                while True:
+                    if time.monotonic()>deadline or (stop_event and stop_event.is_set()): raise TimeoutError('Export interrupted/deadline exceeded')
+                    chunk = response.read1(65536)
+                    if not chunk: break
+                    total += len(chunk)
+                    if total>coverage_store.MAX_EXPORT_BYTES: raise ValueError('Export exceeds size limit')
+                    output.write(chunk)
+            output.flush(); os.fsync(output.fileno())
+        meta = {'headers':headers,'complete':True,'retrieved_at':utc_now()}
+        snapshot = coverage_store.inspect_export(path,room,generation,endpoint,endpoint,meta)
+        dest = directory/(snapshot['snapshot_id']+'.jsonl')
+        os.replace(path,dest)
+        directory_fd = os.open(directory,os.O_RDONLY)
+        try: os.fsync(directory_fd)
+        finally: os.close(directory_fd)
+        snapshot['path'] = str(dest)
+        return snapshot
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+
+
+def persist_export_steps(conn, snapshot, *, after_batch=None):
+    room,generation = snapshot['room'],snapshot['generation']
+    checked = coverage_store.inspect_export(snapshot['path'],room,generation,snapshot['source_endpoint'],
+        f'{BASE_URL}/r/{valid_room(room)}/export',json.loads(snapshot['metadata_json']))
+    if checked['sha256'] != snapshot['sha256']: raise ValueError('Export changed after validation')
+    def ingest_batch(records, s):
+        observation_only(ingest_messages)(conn,room,records,generation=generation,source='export-backfill',
+            source_endpoint=s['source_endpoint'],transport_metadata={**json.loads(s['metadata_json']),'snapshot_id':s['snapshot_id']},retrieved_at=s['retrieved_at'])
+    yield from coverage_store.apply_export_steps(conn,checked,ingest_batch,seed=room_cursor(conn,room)['last_seq'],after_batch=after_batch)
+
+
+def persist_export(conn, snapshot, *, after_batch=None):
+    result = None
+    for step in persist_export_steps(conn,snapshot,after_batch=after_batch):
+        if isinstance(step,dict): result = step
+    return result
+
+
+@observation_only
+def backfill_room(conn, room, snapshot=None):
+    cursor = room_cursor(conn,room)
+    try:
+        snapshot = snapshot or fetch_room_export(room,cursor['generation'])
+        if snapshot['room']!=room or snapshot['generation']!=str(cursor['generation']):
+            raise ValueError('Backfill room/generation differs from expected coverage')
+        result = persist_export(conn,snapshot)
+        update_room_cursor(conn,room,cursor['generation'],result['coverage_cursor'])
+        set_state(conn,f'cursor:{room}:continuity',result['coverage_status'])
+        return result
+    except Exception as exc:
+        coverage_store.failed(conn,room,cursor['generation'],exc)
+        raise
 
 
 def format_age(seconds: float) -> str:
@@ -4391,11 +4376,10 @@ def inbox_read(since: int | None = None) -> None:
             since = int(room_cursor(conn, MAILBOX_ROOM)["last_seq"])
         obj, generation = fetch_room_view(MAILBOX_ROOM, 200, since=since, allow_missing=True)
         messages = extract_room_messages(obj)
-        summary = ingest_messages(conn, MAILBOX_ROOM, raw_room_messages(obj), generation=generation, source="inbox-read",
-            source_endpoint=obj.get("_scout_transport", {}).get("endpoint", room_read_endpoint(MAILBOX_ROOM, 200, since)),
-            transport_metadata=obj.get("_scout_transport"))
-        max_seq = highest_persisted_page_seq(conn, MAILBOX_ROOM, generation, raw_room_messages(obj))
-        continuity = update_room_cursor(conn, MAILBOX_ROOM, generation, max_seq)
+        result = service_poll_room(conn,MAILBOX_ROOM,response=(obj,generation))
+        summary = {'received':result['records_fetched'],'inserted':result['new_messages']}
+        max_seq = result['coverage_cursor']
+        continuity = result['continuity']
         refresh_opportunities(conn)
         signed_new = sum(1 for msg in messages if is_signed_sender(message_sender(msg)))
         unsigned_new = len(messages) - signed_new
@@ -4455,8 +4439,14 @@ def _service_poll_unlocked() -> None:
     validation_rows: list[sqlite3.Row] = []
     tclk_summary_conn: sqlite3.Connection | None = None
     with observer_connect() as conn:
-        for room in validation_watch_rooms(conn):
-            result = service_poll_room(conn, room)
+        import scout_worker
+        settings = scout_worker.configuration(validation_watch_rooms(conn),HOME/'polling.json',
+            evidence_store.load_collections(HOME/'watch_collections.json'))
+        scout_worker.Coordinator(conn,settings).run(once=True)
+        for room in settings:
+            row = conn.execute("SELECT details_json FROM evidence_poll_cycles WHERE json_extract(details_json,'$.room')=? ORDER BY id DESC LIMIT 1",(room,)).fetchone()
+            if not row: continue
+            result = json.loads(row[0])
             lines.append(f"{room}:")
             if room == MAILBOX_ROOM:
                 lines.append(f"  new signed messages: {result['new_signed_messages']}")
@@ -4516,6 +4506,9 @@ def evidence_local_command(args):
                 print(json.dumps(result, indent=2))
                 if result["status"] != "PASS":
                     raise SystemExit(1)
+            elif args.evidence_cmd == 'provenance':
+                for item in coverage_store.provenance(conn):
+                    print(json.dumps(item))
             elif args.evidence_cmd == "soak-status":
                 print(json.dumps(evidence_store.metrics(conn, args.db), indent=2))
             else:
@@ -5001,6 +4994,18 @@ def main() -> None:
     inbox_reply_parser.add_argument("text")
     inbox_reply_parser.add_argument("--yes", action="store_true")
 
+    worker_parser = sub.add_parser('worker')
+    worker_sub = worker_parser.add_subparsers(dest='worker_cmd',required=True)
+    worker_run = worker_sub.add_parser('run')
+    worker_run.add_argument('--concurrency',type=int,default=4)
+    worker_run.add_argument('--config',type=Path)
+    reassess_parser = sub.add_parser('reassess-gaps')
+    reassess_parser.add_argument('room')
+    reassess_parser.add_argument('--export-file',type=Path,required=True)
+    reassess_parser.add_argument('--metadata-file',type=Path,required=True)
+    reassess_parser.add_argument('--generation',required=True)
+    reassess_parser.add_argument('--db',type=Path,default=OBSERVER_DB)
+    reassess_parser.add_argument('--apply',action='store_true')
     service_parser = sub.add_parser("service")
     service_sub = service_parser.add_subparsers(dest="service_cmd", required=True)
     service_status_parser = service_sub.add_parser("status")
@@ -5014,7 +5019,7 @@ def main() -> None:
     evidence_verify = evidence_sub.add_parser("verify-export")
     evidence_verify.add_argument("path")
 
-    for command in ("init", "repair", "verify-integrity", "soak-status", "feed", "export"):
+    for command in ("init", "repair", "verify-integrity", "soak-status", "feed", "export", "provenance"):
         child = evidence_sub.add_parser(command)
         child.add_argument("--db", type=Path, default=OBSERVER_DB)
         if command in {"feed", "export"}:
@@ -5146,6 +5151,34 @@ def main() -> None:
             inbox_opportunities(a.limit, include_all=a.all, explain=a.explain)
         elif a.inbox_cmd == "reply":
             inbox_reply(a.id, a.text, yes=a.yes)
+    elif a.cmd == 'worker':
+        import scout_worker
+        scout_worker.run(a.config,a.concurrency)
+    elif a.cmd == 'reassess-gaps':
+        endpoint = f'{BASE_URL}/r/{valid_room(a.room)}/export'
+        metadata = json.loads(a.metadata_file.read_text())
+        if 'headers' not in metadata: raise SystemExit('Metadata requires captured HTTP headers')
+        metadata['complete'] = metadata.get('complete',False)
+        if metadata.get('endpoint',metadata.get('url')) != endpoint:
+            raise SystemExit('Metadata must identify the exact configured export endpoint')
+        snapshot = coverage_store.inspect_export(a.export_file,a.room,a.generation,endpoint,endpoint,metadata)
+        if a.apply:
+            with poll_lock(a.db.parent) as acquired:
+                if acquired:
+                    import shutil
+                    directory=a.db.parent/'evidence'/'export-snapshots'
+                    directory.mkdir(parents=True,exist_ok=True)
+                    destination=directory/(snapshot['snapshot_id']+'.jsonl')
+                    if a.export_file.resolve()!=destination.resolve(): shutil.copyfile(a.export_file,destination)
+                    with destination.open('rb') as saved: os.fsync(saved.fileno())
+                    directory_fd=os.open(directory,os.O_RDONLY)
+                    try: os.fsync(directory_fd)
+                    finally: os.close(directory_fd)
+                    snapshot['path']=str(destination)
+                    with observer_connect_write(a.db) as conn:
+                        persist_export(conn,snapshot)
+        else:
+            print(json.dumps({'mode':'DRY_RUN','validated_snapshot':snapshot,'note':'Use --apply for local backfill and append-only reassessment'},indent=2))
     elif a.cmd == "service":
         if a.service_cmd == "status":
             service_status(a.db)
