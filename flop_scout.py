@@ -7,6 +7,7 @@ from contextlib import closing, contextmanager
 from contextvars import ContextVar
 from functools import wraps
 import base64
+import fcntl
 import getpass
 import hashlib
 import json
@@ -110,6 +111,7 @@ def poll_accounting(function):
             conn.rollback()
             with conn:
                 evidence_store.bump(conn, "database_errors" if isinstance(exc, sqlite3.Error) else "poll_errors")
+                evidence_store.bump(conn, "read_failures")
                 conn.execute("UPDATE evidence_poll_cycles SET finished_at=?,status='ERROR',details_json=? WHERE id=?", (utc_now(),json.dumps({"room":room,"error":str(exc)}),cycle))
             raise
         status = "READ_FAILED" if result["continuity"] == "READ_FAILED" else "SUCCESS"
@@ -2125,12 +2127,20 @@ def ingest_messages(
     signed_writers: set[str] = set()
     unsigned_writers: set[str] = set()
 
+    raw_ids = []
     with conn:
         for raw in raw_messages:
-            evidence_store.ingest(conn, room, raw, verify_signed_record_offline,
+            raw_ids.append(evidence_store.ingest(conn, room, raw, verify_signed_record_offline,
                 generation=None if (transport_metadata or {}).get("generation_conflict") else generation,
                 reported_generation=str(generation) if (transport_metadata or {}).get("generation_conflict") else None,
-                endpoint=source_endpoint, metadata=transport_metadata, retrieved_at=now)
+                endpoint=source_endpoint, metadata=transport_metadata, retrieved_at=now, derive_events=False))
+
+    # Preserve the complete raw page even if a derived parser fails. Re-reading
+    # repairs missing events by deterministic raw identity before cursor movement.
+    with conn:
+        for rid in raw_ids:
+            evidence_store.derive(conn, conn.execute(
+                "SELECT * FROM raw_network_records WHERE raw_record_id=?", (rid,)).fetchone())
 
     for raw in raw_messages:
         if not isinstance(raw, dict) or not isinstance(raw.get("text"), str) or evidence_store.integer(raw.get("seq")) is None:
@@ -3957,7 +3967,7 @@ def highest_persisted_page_seq(
         rid = evidence_store.raw_identity(
             "technocore_mailbox" if room.startswith("mb-") else "technocore_room",
             room, str(generation) if generation is not None else None, None, message)
-        if not conn.execute("SELECT 1 FROM raw_network_records WHERE raw_record_id=?", (rid,)).fetchone():
+        if not conn.execute("SELECT 1 FROM raw_network_records JOIN observed_events USING(raw_record_id,raw_text_sha256) WHERE raw_record_id=?", (rid,)).fetchone():
             raise RuntimeError("Cannot advance cursor: page evidence is not fully persisted")
         seq = evidence_store.integer(message.get("seq")) if isinstance(message, dict) else None
         if seq is not None:
@@ -3992,6 +4002,7 @@ def service_poll_room(
     read_failed = False
     last_read_error = None
     progress_stalled = False
+    gaps_recovered = 0
 
     for _page_index in range(max_pages):
         page_cursor_before = cursor_after
@@ -4025,6 +4036,15 @@ def service_poll_room(
         dict_messages = [m for m in messages if isinstance(m, dict)]
         latest_seq = response_latest_seq(obj, dict_messages)
         metadata = obj.get("_scout_transport", {})
+        first_retained = evidence_store.integer(obj.get("first_seq"))
+        gap_id = None
+        if (not metadata.get("generation_conflict") and generation is not None
+                and cursor_after > 0 and first_retained is not None
+                and first_retained > cursor_after + 1):
+            gap_id = evidence_store.record_gap(conn, room, generation, cursor_after,
+                first_retained, latest_seq,
+                metadata.get("endpoint", room_read_endpoint(room, page_size, cursor_after)),
+                {"first_seq": first_retained, "latest_seq": latest_seq, "transport": metadata})
         summary = ingest_messages(conn, room, messages, generation=generation, source="service-poll",
             source_endpoint=metadata.get("endpoint", room_read_endpoint(room, page_size, cursor_after)),
             transport_metadata=metadata)
@@ -4035,10 +4055,9 @@ def service_poll_room(
             last_read_error = "Conflicting body/header generations"
             read_failed = True
             break
-        first_retained = evidence_store.integer(obj.get("first_seq"))
-        if (first_retained is not None and cursor_after > 0 and first_retained > cursor_after + 1):
-            # Retained-ring loss cannot be repaired by inventing cursor continuity.
-            last_read_error = "Retained history gap before first_seq"
+        if (generation is None and cursor_after > 0 and first_retained is not None
+                and first_retained > cursor_after + 1):
+            last_read_error = "Retention recovery requires an authoritative generation"
             read_failed = True
             break
         if latest_seq is not None and generation is not None and str(generation) == cursor_generation and latest_seq < cursor_after:
@@ -4046,7 +4065,12 @@ def service_poll_room(
             read_failed = True
             break
         persisted_seq = highest_persisted_page_seq(conn, room, generation, messages)
+        if gap_id and (persisted_seq is None or persisted_seq < first_retained):
+            last_read_error = "Retention recovery has no proven available position"
+            read_failed = True
+            break
         if persisted_seq is not None and persisted_seq > cursor_after:
+            gaps_recovered += evidence_store.recover_gaps(conn, room, generation, cursor_after, messages)
             cursor_after = persisted_seq
             update_room_cursor(conn, room, generation, cursor_after)
         elif not messages:
@@ -4082,6 +4106,8 @@ def service_poll_room(
         continuity = "READ_FAILED"
     else:
         continuity = "CURRENT"
+    if gaps_recovered and continuity in {"CURRENT", "CATCHING_UP"}:
+        continuity = "CATCHING_UP_AFTER_GAP" if backlog_remaining else "RETENTION_GAP_RECOVERED"
     set_state(conn, f"cursor:{room}:continuity", continuity)
     return {
         "room": room,
@@ -4097,6 +4123,8 @@ def service_poll_room(
         "backlog_remaining": backlog_remaining,
         "page_limit_hit": page_limit_hit,
         "last_read_error": last_read_error,
+        "retention_gaps_recovered": gaps_recovered,
+        "known_retention_gaps": conn.execute("SELECT count(*) FROM evidence_source_gaps WHERE room=?", (room,)).fetchone()[0],
     }
 
 
@@ -4385,8 +4413,43 @@ def inbox_read(since: int | None = None) -> None:
     print("No network writes performed.")
 
 
+@contextmanager
+def poll_lock(state_dir=None):
+    """The persistent inode must never be unlinked; only the kernel owns the lock."""
+    run = Path(state_dir if state_dir is not None else HOME) / "run"
+    run.mkdir(parents=True, exist_ok=True)
+    with (run / "service-poll.flock").open("a") as lock:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            # A losing process must never open the database. Atomic append is
+            # separate operational telemetry, read by status without mutation.
+            try:
+                fd = os.open(run / "poll-lock-contention.log", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+                try:
+                    os.write(fd, b"SKIP\n")
+                finally:
+                    os.close(fd)
+            except OSError as exc:
+                print(f"Poll lock contention telemetry unavailable: {exc}", file=sys.stderr)
+            print("SKIP active poll lock held", flush=True)
+            yield False
+            return
+        try:
+            print("POLL_LOCK_ACQUIRED", flush=True)
+            yield True
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
 @observation_only
 def service_poll() -> None:
+    with poll_lock() as acquired:
+        if acquired:
+            _service_poll_unlocked()
+
+
+def _service_poll_unlocked() -> None:
     lines = ["FLOP Scout Service Poll\n"]
     new_high = 0
     validation_rows: list[sqlite3.Row] = []
@@ -4407,6 +4470,7 @@ def service_poll() -> None:
                 f"  server/latest seq: {result['server_latest_seq'] if result['server_latest_seq'] is not None else '(unknown)'}"
             )
             lines.append(f"  continuity: {result['continuity']}")
+            lines.append(f"  known_retention_gaps: {result['known_retention_gaps']}")
             if result["backlog_remaining"]:
                 lines.append("  backlog_remaining: true")
             if result["page_limit_hit"]:

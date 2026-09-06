@@ -144,11 +144,98 @@ CREATE INDEX IF NOT EXISTS retrieval_time ON evidence_retrievals(retrieved_at);
 '''
 
 
+GAP_DDL = """
+CREATE TABLE IF NOT EXISTS evidence_source_gaps(
+ gap_id TEXT PRIMARY KEY, source TEXT NOT NULL, source_endpoint TEXT NOT NULL,
+ room TEXT NOT NULL, generation TEXT NOT NULL, last_durable_seq INTEGER NOT NULL,
+ first_available_seq INTEGER NOT NULL, server_latest_seq INTEGER,
+ detected_at TEXT NOT NULL, gap_type TEXT NOT NULL CHECK(gap_type='UPSTREAM_RETENTION_GAP'),
+ reason TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('UNRESOLVED','RECOVERED')),
+ recovery_at TEXT, first_recovered_raw_record_id TEXT, first_recovered_raw_hash TEXT,
+ metadata_json TEXT NOT NULL, created_at TEXT NOT NULL,
+ FOREIGN KEY(first_recovered_raw_record_id,first_recovered_raw_hash)
+ REFERENCES raw_network_records(raw_record_id,raw_text_sha256));
+CREATE TRIGGER IF NOT EXISTS gap_no_replace BEFORE INSERT ON evidence_source_gaps
+ WHEN EXISTS(SELECT 1 FROM evidence_source_gaps WHERE gap_id=NEW.gap_id)
+ BEGIN SELECT RAISE(IGNORE); END;
+CREATE TRIGGER IF NOT EXISTS gap_no_delete BEFORE DELETE ON evidence_source_gaps
+ BEGIN SELECT RAISE(ABORT,'source gap is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS gap_protect BEFORE UPDATE ON evidence_source_gaps
+ WHEN OLD.status='RECOVERED' OR NEW.status!='RECOVERED'
+ OR NEW.recovery_at IS NULL OR NEW.first_recovered_raw_record_id IS NULL
+ OR NEW.first_recovered_raw_hash IS NULL
+ OR OLD.gap_id IS NOT NEW.gap_id OR OLD.source IS NOT NEW.source
+ OR OLD.source_endpoint IS NOT NEW.source_endpoint OR OLD.room IS NOT NEW.room
+ OR OLD.generation IS NOT NEW.generation OR OLD.last_durable_seq IS NOT NEW.last_durable_seq
+ OR OLD.first_available_seq IS NOT NEW.first_available_seq
+ OR OLD.server_latest_seq IS NOT NEW.server_latest_seq OR OLD.detected_at IS NOT NEW.detected_at
+ OR OLD.gap_type IS NOT NEW.gap_type OR OLD.reason IS NOT NEW.reason
+ OR OLD.metadata_json IS NOT NEW.metadata_json OR OLD.created_at IS NOT NEW.created_at
+ BEGIN SELECT RAISE(ABORT,'only one source gap recovery transition is allowed'); END;
+"""
+
+
+def initialize_gaps(conn):
+    with conn:
+        statement = ''
+        for line in GAP_DDL.splitlines(True):
+            statement += line
+            if sqlite3.complete_statement(statement):
+                conn.execute(statement)
+                statement = ''
+        conn.execute('INSERT OR IGNORE INTO evidence_schema VALUES (2,?)', (now(),))
+
+
+def gap_identity(source, room, generation, last, first):
+    return digest(dumps([source, room, generation, last, first, 'UPSTREAM_RETENTION_GAP']))
+
+
+def record_gap(conn, room, generation, last, first, latest, endpoint, metadata):
+    source = 'technocore_mailbox' if room.startswith('mb-') else 'technocore_room'
+    gid = gap_identity(source, room, str(generation), last, first)
+    stamp = now()
+    with conn:
+        conn.execute("""INSERT OR IGNORE INTO evidence_source_gaps VALUES
+            (?,?,?,?,?,?,?,?,?,'UPSTREAM_RETENTION_GAP',?,'UNRESOLVED',NULL,NULL,NULL,?,?)""",
+            (gid,source,endpoint,room,str(generation),last,first,latest,stamp,
+             'Authoritative first_seq exceeds durable resume point',dumps(metadata),stamp))
+    return gid
+
+
+def recover_gaps(conn, room, generation, last, messages):
+    # All page raw records and derived links must already be durable.
+    source = 'technocore_mailbox' if room.startswith('mb-') else 'technocore_room'
+    recovered = 0
+    with conn:
+        for gap in conn.execute("SELECT * FROM evidence_source_gaps WHERE room=? AND generation=? AND last_durable_seq=? AND status='UNRESOLVED'",
+                                (room,str(generation),last)).fetchall():
+            candidates = [m for m in messages if isinstance(m,dict) and integer(m.get('seq')) is not None and integer(m['seq']) >= gap['first_available_seq']]
+            if not candidates:
+                raise RuntimeError('Retention recovery has no proven available position')
+            first = min(candidates,key=lambda m: integer(m['seq']))
+            rid = raw_identity(source,room,str(generation),None,first)
+            raw = conn.execute('SELECT raw_text_sha256 FROM raw_network_records JOIN observed_events USING(raw_record_id,raw_text_sha256) WHERE raw_record_id=?',(rid,)).fetchone()
+            if raw is None:
+                raise RuntimeError('Retention recovery evidence/linkage missing')
+            conn.execute("UPDATE evidence_source_gaps SET status='RECOVERED',recovery_at=?,first_recovered_raw_record_id=?,first_recovered_raw_hash=? WHERE gap_id=?",
+                         (now(),rid,raw[0],gap['gap_id']))
+            recovered += 1
+    return recovered
+
+
+def source_gaps(conn):
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='evidence_source_gaps'").fetchone():
+        return []
+    return [dict(row, schema='flop-scout-source-gap/v1') for row in conn.execute('SELECT * FROM evidence_source_gaps ORDER BY detected_at,gap_id')]
+
+
 def initialize(conn, verify):
     """Version-gated, transactional migration; never called by readers."""
     conn.execute('PRAGMA foreign_keys=ON')
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='evidence_schema'").fetchone():
         if conn.execute('SELECT 1 FROM evidence_schema WHERE version=1').fetchone():
+            if not conn.execute('SELECT 1 FROM evidence_schema WHERE version=2').fetchone():
+                initialize_gaps(conn)
             return
     # execute each statement without executescript's implicit pre-commit.
     with conn:
@@ -189,6 +276,7 @@ def initialize(conn, verify):
                 hash_value = conn.execute('SELECT raw_text_sha256 FROM raw_network_records WHERE raw_record_id=?',(rid,)).fetchone()[0]
                 conn.execute('INSERT OR IGNORE INTO compatibility_evidence_links VALUES (?,?,?,?)',('tclk_capability_hints',cache_id,rid,hash_value))
         conn.execute('INSERT INTO evidence_schema VALUES (1,?)', (now(),))
+    initialize_gaps(conn)
 
 
 CLASSES = {x: x for x in ('IDENTITY_PRESENCE','PROMOTIONAL_CLAIM','WORK_REQUEST',
@@ -272,7 +360,7 @@ def raw_identity(source, room, generation, reported_generation, raw):
 
 
 def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None,
-           source=None, endpoint=None, retrieved_at=None, metadata=None, legacy=False):
+           source=None, endpoint=None, retrieved_at=None, metadata=None, legacy=False, derive_events=True):
     source = source or ('technocore_mailbox' if room.startswith('mb-') else 'technocore_room')
     retrieved_at = retrieved_at if retrieved_at is not None else ("" if legacy else now())
     generation = str(generation) if generation is not None else None
@@ -336,7 +424,8 @@ def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None
         conn.execute('INSERT INTO evidence_retrievals(raw_record_id,retrieved_at,source_endpoint,transport_metadata_json) VALUES (?,?,?,?)', (rid,retrieved_at,endpoint,dumps(metadata)))
     # Always repair missing derived rows, including recovery after raw-only persistence.
     stored = conn.execute('SELECT * FROM raw_network_records WHERE raw_record_id=?',(rid,)).fetchone()
-    derive(conn, stored)
+    if derive_events:
+        derive(conn, stored)
     conn.execute('''INSERT OR IGNORE INTO raw_record_watch_membership
         SELECT ?,s.collection FROM watch_collection_sources s JOIN watch_collections c
         ON c.name=s.collection WHERE s.room=? AND c.enabled=1''',(rid,room))
@@ -398,8 +487,14 @@ def integrity(conn):
     for table in (*COMPAT_TEXT, 'tclk_capability_hints'):
         if table in tables:
             result['unlinked_compatibility_records'] += conn.execute(f"SELECT count(*) FROM {table} c LEFT JOIN compatibility_evidence_links l ON l.cache_table=? AND l.cache_rowid=c.rowid WHERE l.raw_record_id IS NULL",(table,)).fetchone()[0]
+    result['source_gap_errors'] = 0
+    for gap in source_gaps(conn):
+        result['source_gap_errors'] += gap['gap_id'] != gap_identity(gap['source'],gap['room'],gap['generation'],gap['last_durable_seq'],gap['first_available_seq'])
+        if gap['status'] == 'RECOVERED':
+            raw = conn.execute('SELECT * FROM raw_network_records WHERE raw_record_id=?',(gap['first_recovered_raw_record_id'],)).fetchone()
+            result['source_gap_errors'] += not (raw and raw['raw_text_sha256']==gap['first_recovered_raw_hash'] and raw['source']==gap['source'] and raw['room']==gap['room'] and raw['generation']==gap['generation'] and raw['seq'] is not None and raw['seq']>=gap['first_available_seq'] and raw['raw_completeness']=='COMPLETE' and gap['recovery_at'])
     result['foreign_key_errors'] = len(conn.execute('PRAGMA foreign_key_check').fetchall())
-    result['status'] = 'FAIL' if any(result[k] for k in ('orphaned_events','hash_mismatches','missing_events','unlinked_compatibility_records','foreign_key_errors','raw_identity_mismatches')) else 'PASS'
+    result['status'] = 'FAIL' if any(result[k] for k in ('source_gap_errors','orphaned_events','hash_mismatches','missing_events','unlinked_compatibility_records','foreign_key_errors','raw_identity_mismatches')) else 'PASS'
     return result
 
 
@@ -482,7 +577,7 @@ def metrics(conn, db_path=None):
     result['last_cycle'] = dict(cycles) if cycles else None
     for key, condition in (('last_successful_poll',"status='SUCCESS'"),('last_read_failure',"status='READ_FAILED'")):
         result[key] = count('SELECT max(finished_at) FROM evidence_poll_cycles WHERE '+condition)
-    result['backlog_remaining'] = any(v == 'CATCHING_UP' for v in result['cursors'].values())
+    result['backlog_remaining'] = any(v in {'CATCHING_UP','CATCHING_UP_AFTER_GAP'} for v in result['cursors'].values())
     result['soak'] = {'start_timestamp':count('SELECT min(started_at) FROM evidence_poll_cycles'),
         'poll_cycles':count('SELECT count(*) FROM evidence_poll_cycles'),
         'successful_cycles':count("SELECT count(*) FROM evidence_poll_cycles WHERE status='SUCCESS'"),
@@ -490,6 +585,22 @@ def metrics(conn, db_path=None):
         'incomplete_cycles':count("SELECT count(*) FROM evidence_poll_cycles WHERE status='RUNNING'")}
     start = result['soak']['start_timestamp']
     result['soak']['runtime_seconds'] = (datetime.now(timezone.utc)-datetime.fromisoformat(start)).total_seconds() if start else 0
+    gaps = source_gaps(conn)
+    result['retention_gaps_detected'] = len(gaps)
+    result['retention_gaps_recovered'] = sum(g['status']=='RECOVERED' for g in gaps)
+    result['unresolved_retention_gaps'] = sum(g['status']=='UNRESOLVED' for g in gaps)
+    result['retention_gaps_during_soak'] = sum(datetime.fromisoformat(g['detected_at']) >= datetime.fromisoformat(start) for g in gaps) if start else 0
+    result['retention_gaps_during_soak_scope'] = 'since first recorded poll cycle; no formal soak marker exists'
+    result['source_gaps'] = gaps
+    result['known_retention_gaps_by_source'] = {}
+    for g in gaps:
+        key = g['source'] + '/' + g['room'] + '/' + g['generation']
+        result['known_retention_gaps_by_source'][key] = result['known_retention_gaps_by_source'].get(key,0)+1
+    skip_file = Path(db_path).parent/'run'/'poll-lock-contention.log' if db_path else None
+    result['poll_lock_contention_skips'] = 0
+    if skip_file and skip_file.exists():
+        with skip_file.open() as stream:
+            result['poll_lock_contention_skips'] = sum(1 for line in stream if line.strip()=='SKIP')
     result['safety_scope'] = 'local observation code counters; not a host-wide audit'
     return result
 
@@ -503,6 +614,14 @@ def daily(conn, date=None):
               'activity_time_basis':'retrieved_at of non-legacy COMPLETE records; legacy excluded'}
     rows = conn.execute(f'''SELECT e.*,r.retrieved_at,r.did_mismatch,r.raw_text,r.generation FROM observed_events e
         JOIN raw_network_records r USING(raw_record_id) WHERE {OBSERVED} AND julianday(r.retrieved_at)>=julianday(?) AND julianday(r.retrieved_at)<julianday(?)''',args).fetchall()
+    gaps = source_gaps(conn)
+    today = lambda value: value is not None and start <= datetime.fromisoformat(value) < end
+    result['upstream_retention_gaps'] = {
+        'title':'UPSTREAM RETENTION GAPS',
+        'detected_today':sum(today(g['detected_at']) for g in gaps),
+        'recovered_today':sum(today(g['recovery_at']) for g in gaps),
+        'unresolved':sum(g['status']=='UNRESOLVED' for g in gaps),
+        'sources':[g for g in gaps if today(g['detected_at']) or today(g['recovery_at']) or g['status']=='UNRESOLVED']}
     result['classifications'] = {}
     result['watch_changes'] = {r[0]:0 for r in conn.execute('SELECT name FROM watch_collections')}
     result['duplicates'] = {'exact_reposts':0,'template_variants':0,'rereads':conn.execute(f'SELECT count(*) FROM evidence_retrievals x JOIN raw_network_records r USING(raw_record_id) WHERE {OBSERVED} AND julianday(x.retrieved_at)>=julianday(?) AND julianday(x.retrieved_at)<julianday(?)',args).fetchone()[0]}

@@ -384,8 +384,9 @@ class EvidenceTests(unittest.TestCase):
         page={'messages':[self.raw(seq=20)],'first_seq':20}
         with patch.object(scout,'fetch_room_view',return_value=(page,'g1')):
             result=scout.service_poll_room(self.conn,'lobby')
-        self.assertEqual(result['continuity'],'READ_FAILED')
-        self.assertEqual(result['cursor_after'],5)
+        self.assertEqual(result['continuity'],'RETENTION_GAP_RECOVERED')
+        self.assertEqual(result['cursor_after'],20)
+        self.assertEqual(result['known_retention_gaps'],1)
         self.assertEqual(ev.integrity(self.conn)['raw_records'],1)
 
 
