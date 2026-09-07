@@ -267,8 +267,36 @@ class Coordinator:
 
 def scheduler_metrics(conn, now=None):
     row=conn.execute("SELECT value FROM evidence_settings WHERE name='worker_scheduler_v1'").fetchone()
-    if not row: return {'scheduler_health':'UNKNOWN'}
-    data=json.loads(row[0]); now=time.time() if now is None else now
+    data=json.loads(row[0]) if row else None
+    detail={}
+    database=conn.execute('PRAGMA database_list').fetchone()[2]
+    if database:
+        path=Path(database).parent/'run'/'worker-diagnostics.json'
+        try:
+            if path.stat().st_size<=1024*1024:
+                detail=json.loads(path.read_text())
+                if detail.get('scheduler_snapshot'):data=detail['scheduler_snapshot']
+        except (OSError,ValueError):pass
+    if data is None:return {'scheduler_health':'UNKNOWN'}
+    return scheduler_status(data,detail,now)
+
+
+def read_diagnostics(state_dir,now=None):
+    path=Path(state_dir)/'run'/'worker-diagnostics.json'
+    try:
+        if path.stat().st_size>1024*1024:raise ValueError('Diagnostics file oversized')
+        detail=json.loads(path.read_text())
+        if not isinstance(detail,dict):raise ValueError('Invalid diagnostics object')
+        data=detail.get('scheduler_snapshot')
+        if not data:return dict(detail,scheduler_health='UNKNOWN')
+        return scheduler_status(data,detail,now)
+    except (OSError,ValueError,TypeError,KeyError) as exc:
+        return dict(scheduler_health='UNKNOWN',diagnostics_status='UNAVAILABLE',reason=str(exc))
+
+
+def scheduler_status(data,detail=None,now=None):
+    detail=dict(detail or {})
+    now=time.time() if now is None else now
     age=lambda stamp:max(0,now-datetime.fromisoformat(stamp).timestamp())
     rooms={}
     for room,info in data['rooms'].items():
@@ -282,7 +310,7 @@ def scheduler_metrics(conn, now=None):
         rooms[room]=info
     starved=[r for r,v in rooms.items() if v['health']=='STARVED']
     degraded=[r for r,v in rooms.items() if v['health']=='DEGRADED']
-    return dict(scheduler_health='STARVED' if starved else 'DEGRADED' if degraded else 'HEALTHY',
+    result=dict(scheduler_health='STARVED' if starved else 'DEGRADED' if degraded else 'HEALTHY',
                 scheduler_rooms=rooms,rooms_overdue=[r for r,v in rooms.items() if v['overdue_seconds']>0],
                 rooms_degraded=degraded,rooms_starved=starved,
                 max_poll_age_seconds=max((v['current_poll_age'] for v in rooms.values()),default=0),
@@ -292,6 +320,18 @@ def scheduler_metrics(conn, now=None):
                 oldest_pending_backfill_age=max((age(t) for t in data['pending_backfills'].values()),default=0),
                 scheduler_status_age=age(data['updated_at']),tail_inflight=data['tail_inflight'],
                 export_inflight=data['export_inflight'])
+    if detail:
+        detail.pop('scheduler_snapshot',None)
+        detail['diagnostic_status_age']=max(0,now-detail['updated_at'])
+        detail['scheduler_tick_age']+=detail['diagnostic_status_age']
+        detail['event_loop_lag_ms']=max(detail['event_loop_lag_ms'],max(0,detail['scheduler_tick_age']-0.25)*1000)
+        detail['event_loop_max_lag_ms']=max(detail['event_loop_lag_ms'],detail['event_loop_max_lag_ms'])
+        if detail['scheduler_tick_age']>2:detail['event_loop_health']='STALLED'
+        result.update(detail)
+        result.update(detail.get('queues',{}))
+        result['sqlite']=dict(queue_depth=result.get('sqlite_queue',0),max_wait=result.get('sqlite_max_queue_wait_ms',0),
+                              max_write_duration=result.get('sqlite_max_write_duration_ms',0))
+    return result
 
 
 def run(config=None, concurrency=4):
@@ -301,9 +341,7 @@ def run(config=None, concurrency=4):
     try:
         with scout.poll_lock() as acquired:
             if not acquired: return
-            with scout.observer_connect() as conn:
-                settings=configuration(scout.validation_watch_rooms(conn),config or scout.HOME/'polling.json',
-                    evidence.load_collections(scout.HOME/'watch_collections.json'))
-                Coordinator(conn,settings,concurrency=concurrency,stop=stop).run()
+            from scout_runtime import Runtime
+            Runtime(scout.OBSERVER_DB,config=config,concurrency=concurrency,stop=stop).run()
     finally:
         for sig,handler in previous.items(): signal.signal(sig,handler)

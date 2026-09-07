@@ -216,3 +216,18 @@ coordinator persists completed tails before each bounded export batch.
 See [the fairness report](../docs/scheduler-fairness.md) for exact metrics,
 thresholds, queue policy, validation results, limitations and deployment plan.
 This correction has not been deployed by the development task.
+
+## Global-stall correction
+
+The persistent `worker run` path now uses an independent scheduler and exactly
+one dedicated SQLite-owner thread. Four tail readers and one export reader remain
+unchanged. Reader-side preparation and adaptive 1..200-record persistence turns
+replace synchronous whole-page work on the scheduler. Existing durability and
+physical schema remain unchanged.
+
+`worker diagnostics --state-dir /Users/greg/.flop_scout` reads lightweight
+watchdog status without opening SQLite. It exposes loop lag, active operations,
+writer timing/queue waits, slow operations and failure classes. See
+[the global-stall report](../docs/global-stall-correction.md) for execution mapping,
+model results, real integrity tests, non-preemptible-I/O limits and the unexecuted
+deployment/qualification plan. No production qualification PASS is implied.

@@ -1,5 +1,6 @@
 """Local evidence store. No network, identity files, or execution of remote content."""
 from __future__ import annotations
+import scout_diagnostics as diagnostics
 
 import hashlib
 import json
@@ -229,6 +230,7 @@ def source_gaps(conn):
     return [dict(row, schema='flop-scout-source-gap/v1') for row in conn.execute('SELECT * FROM evidence_source_gaps ORDER BY detected_at,gap_id')]
 
 
+@diagnostics.timed('schema_verification')
 def initialize(conn, verify):
     """Version migration plus physical reconciliation; never called by readers."""
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='evidence_schema'").fetchone():
@@ -372,6 +374,7 @@ def raw_identity(source, room, generation, reported_generation, raw):
     return digest(json.dumps([source,room,generation,reported_generation,raw], sort_keys=True, ensure_ascii=True, separators=(',', ':'), allow_nan=False))
 
 
+@diagnostics.timed('raw_evidence')
 def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None,
            source=None, endpoint=None, retrieved_at=None, metadata=None, legacy=False, derive_events=True):
     source = source or ('technocore_mailbox' if room.startswith('mb-') else 'technocore_room')
@@ -445,6 +448,7 @@ def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None
     return rid
 
 
+@diagnostics.timed('event_derivation')
 def derive(conn, row):
     if conn.execute('SELECT 1 FROM observed_events WHERE raw_record_id=?',(row['raw_record_id'],)).fetchone():
         return

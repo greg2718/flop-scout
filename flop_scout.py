@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import scout_diagnostics as diagnostics
 
 import argparse
 import scout_evidence as evidence_store
@@ -857,9 +858,9 @@ def observer_connect_readonly(db_path: Path = OBSERVER_DB) -> sqlite3.Connection
     return conn
 
 
-def observer_connect_write(db_path: Path = OBSERVER_DB) -> sqlite3.Connection:
+def observer_connect_write(db_path: Path = OBSERVER_DB, *, connection_factory=sqlite3.Connection) -> sqlite3.Connection:
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path, timeout=5)
+    conn = sqlite3.connect(db_path, timeout=5, factory=connection_factory)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA journal_mode=WAL")
@@ -1256,7 +1257,15 @@ def canonical_payload_hash(room: str, nonce: int, text: str) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+_VERIFICATION_CACHE = ContextVar('prepared_verifications', default=None)
+
+
+@diagnostics.timed('signature_verify')
 def verify_signed_record_offline(room: str, raw: dict[str, Any]) -> str:
+    cached = _VERIFICATION_CACHE.get()
+    if cached is not None:
+        key = evidence_store.dumps([room,raw])
+        if key in cached:return cached[key]
     text = raw.get("text")
     if not isinstance(text, str):
         return "PROVENANCE_INCOMPLETE"
@@ -1347,6 +1356,7 @@ def evidence_record_from_message(
     return record
 
 
+@diagnostics.timed('compatibility_insert')
 def store_evidence_record(conn: sqlite3.Connection, record: dict[str, Any]) -> None:
     conn.execute(
         """
@@ -1518,6 +1528,7 @@ def tclk_record_from_message(
     }
 
 
+@diagnostics.timed('compatibility_insert')
 def store_tclk_frame(conn: sqlite3.Connection, record: dict[str, Any]) -> None:
     conn.execute(
         """
@@ -1752,6 +1763,7 @@ def kibble_record_from_message(
     }
 
 
+@diagnostics.timed('compatibility_insert')
 def store_kibble_event(conn: sqlite3.Connection, record: dict[str, Any]) -> None:
     conn.execute(
         """
@@ -2127,6 +2139,7 @@ def kibble_export_jobs(output: Path | None = None, db_path: Path = OBSERVER_DB) 
 
 
 @observation_only
+@diagnostics.timed('evidence_batch')
 def ingest_messages(
     conn: sqlite3.Connection,
     room: str,
@@ -3995,7 +4008,7 @@ def highest_persisted_page_seq(
 @observation_only
 @poll_accounting
 def service_poll_room(conn, room, *, page_size=SERVICE_POLL_PAGE_SIZE,
-                      max_pages=SERVICE_POLL_MAX_PAGES_PER_ROOM, response=None):
+                      max_pages=SERVICE_POLL_MAX_PAGES_PER_ROOM, response=None, pre_ingested_summary=None):
     """Observe ONE tail window. since is a filter, never forward pagination."""
     room = valid_room(room)
     cursor = room_cursor(conn,room)
@@ -4012,7 +4025,7 @@ def service_poll_room(conn, room, *, page_size=SERVICE_POLL_PAGE_SIZE,
     records = raw_room_messages(obj)
     metadata = obj.get('_scout_transport',{})
     endpoint = metadata.get('endpoint',room_read_endpoint(room,min(page_size,200),seed))
-    summary = ingest_messages(conn,room,records,generation=generation,source='service-poll',
+    summary = pre_ingested_summary if pre_ingested_summary is not None else ingest_messages(conn,room,records,generation=generation,source='service-poll',
         source_endpoint=endpoint,transport_metadata=metadata)
     dictionaries = [r for r in records if isinstance(r,dict)]
     server = response_latest_seq(obj,dictionaries)
@@ -4063,12 +4076,20 @@ def fetch_room_export(room, generation, *, stop_event=None):
                     if not chunk: break
                     total += len(chunk)
                     if total>coverage_store.MAX_EXPORT_BYTES: raise ValueError('Export exceeds size limit')
-                    output.write(chunk)
-            output.flush(); os.fsync(output.fileno())
+                    with diagnostics.operation('snapshot_write',room):output.write(chunk)
+            with diagnostics.operation('snapshot_write',room):
+                output.flush(); os.fsync(output.fileno())
         meta = {'headers':headers,'complete':True,'retrieved_at':utc_now()}
         snapshot = coverage_store.inspect_export(path,room,generation,endpoint,endpoint,meta)
         dest = directory/(snapshot['snapshot_id']+'.jsonl')
-        os.replace(path,dest)
+        with diagnostics.operation('snapshot_write',room):
+            if dest.exists():
+                existing=hashlib.sha256()
+                with dest.open('rb') as saved:
+                    for block in iter(lambda:saved.read(65536),b''):existing.update(block)
+                if existing.hexdigest()!=snapshot['sha256']:raise ValueError('Existing export snapshot hash mismatch')
+                path.unlink()
+            else:os.replace(path,dest)
         directory_fd = os.open(directory,os.O_RDONLY)
         try: os.fsync(directory_fd)
         finally: os.close(directory_fd)
@@ -4976,7 +4997,7 @@ def self_test() -> None:
 
 
 def main() -> None:
-    if not (len(sys.argv) > 2 and sys.argv[1:3] == ["evidence", "schema-status"]):
+    if not (len(sys.argv) > 2 and sys.argv[1:3] in (["evidence", "schema-status"], ["worker", "diagnostics"])):
         ensure_home()
     p = argparse.ArgumentParser(description="FLOP Scout v0.3.3 - Service Presence")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -5016,6 +5037,8 @@ def main() -> None:
 
     worker_parser = sub.add_parser('worker')
     worker_sub = worker_parser.add_subparsers(dest='worker_cmd',required=True)
+    worker_diagnostics = worker_sub.add_parser('diagnostics')
+    worker_diagnostics.add_argument('--state-dir',type=Path,default=HOME)
     worker_run = worker_sub.add_parser('run')
     worker_run.add_argument('--concurrency',type=int,default=4)
     worker_run.add_argument('--config',type=Path)
@@ -5173,7 +5196,8 @@ def main() -> None:
             inbox_reply(a.id, a.text, yes=a.yes)
     elif a.cmd == 'worker':
         import scout_worker
-        scout_worker.run(a.config,a.concurrency)
+        if a.worker_cmd=='diagnostics':print(json.dumps(scout_worker.read_diagnostics(a.state_dir),indent=2))
+        else:scout_worker.run(a.config,a.concurrency)
     elif a.cmd == 'reassess-gaps':
         endpoint = f'{BASE_URL}/r/{valid_room(a.room)}/export'
         metadata = json.loads(a.metadata_file.read_text())

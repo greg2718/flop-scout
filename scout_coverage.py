@@ -1,5 +1,6 @@
 """Coverage and export provenance. Local bookkeeping; network transport lives in Scout."""
 from __future__ import annotations
+import scout_diagnostics as diagnostics
 import hashlib
 import json
 import sqlite3
@@ -110,6 +111,7 @@ def event(conn, room, generation, kind, details):
         (room,str(generation),kind,ev.now(),ev.dumps(details)))
 
 
+@diagnostics.timed('coverage_recompute')
 def contiguous(conn, room, generation, cursor):
     # Streaming distinct positions; duplicates/conflicts never imply extra coverage.
     rows = conn.execute('''SELECT DISTINCT r.seq FROM raw_network_records r
@@ -143,6 +145,7 @@ def save_tail(conn, room, generation, seed, high, server, *, ambiguous=False):
     return state(conn,room,generation)
 
 
+@diagnostics.timed('export_parse')
 def inspect_export(path, room, generation, endpoint, expected_endpoint, metadata):
     """Validate a fully downloaded bounded JSONL file before any coverage decision."""
     if generation is None or str(generation) in ('GENERATION_MISSING','UNKNOWN_LEGACY'):
@@ -200,33 +203,26 @@ def register_snapshot(conn, snapshot):
     return dict(conn.execute('SELECT * FROM evidence_export_snapshots WHERE snapshot_id=?',(snapshot['snapshot_id'],)).fetchone())
 
 
-def apply_export_steps(conn, snapshot, ingest_batch, *, seed=0, after_batch=None):
+def begin_export(conn, snapshot, seed=0):
     s = register_snapshot(conn,snapshot)
-    current = state(conn,s['room'],s['generation'],seed)
+    state(conn,s['room'],s['generation'],seed)
     with conn:
         conn.execute("UPDATE source_coverage_state SET coverage_status='BACKFILLING' WHERE room=? AND generation=?",(s['room'],s['generation']))
         ev.bump(conn,'backfills_started')
         event(conn,s['room'],s['generation'],'BACKFILL_STARTED',{'snapshot_id':s['snapshot_id']})
-    processed = s['processed_records']
-    batch = []
-    def persist_batch(batch, position):
-        before = conn.execute("SELECT value FROM evidence_metrics WHERE name='records_ingested'").fetchone()[0]
-        ingest_batch(batch,s)
-        after = conn.execute("SELECT value FROM evidence_metrics WHERE name='records_ingested'").fetchone()[0]
-        with conn:
-            conn.execute('UPDATE evidence_export_snapshots SET processed_records=? WHERE snapshot_id=?',(position,s['snapshot_id']))
-            ev.bump(conn,'backfill_records_recovered',after-before)
-        if after_batch: after_batch(position)
-    with Path(s['path']).open('rb') as stream:
-        for position,line in enumerate(stream,1):
-            if position<=processed: continue
-            batch.append(json.loads(line))
-            if len(batch)==BATCH_SIZE:
-                persist_batch(batch,position); batch=[]
-                yield position
-        if batch:
-            persist_batch(batch,position)
-            yield position
+    return s
+
+
+def persist_batch(conn,s,batch,position,ingest_batch):
+    before = conn.execute("SELECT value FROM evidence_metrics WHERE name='records_ingested'").fetchone()[0]
+    ingest_batch(batch,s)
+    after = conn.execute("SELECT value FROM evidence_metrics WHERE name='records_ingested'").fetchone()[0]
+    with conn:
+        conn.execute('UPDATE evidence_export_snapshots SET processed_records=? WHERE snapshot_id=?',(position,s['snapshot_id']))
+        ev.bump(conn,'backfill_records_recovered',after-before)
+
+
+def finish_export(conn,s,seed=0):
     # Tails may advance this source between export batches. Re-read its state
     # before finalization so an old snapshot cannot overwrite newer high waters.
     current = state(conn,s['room'],s['generation'],seed)
@@ -262,7 +258,26 @@ def apply_export_steps(conn, snapshot, ingest_batch, *, seed=0, after_batch=None
         conn.execute("UPDATE evidence_export_snapshots SET status='PERSISTED' WHERE snapshot_id=?",(s['snapshot_id'],))
         ev.bump(conn,'backfills_completed' if status!='UNRESOLVED' else 'backfills_failed')
         event(conn,s['room'],s['generation'],'BACKFILL_COMPLETED' if status!='UNRESOLVED' else 'BACKFILL_UNRESOLVED',{'snapshot_id':s['snapshot_id'],'coverage_cursor':cursor,'status':status})
-    yield state(conn,s['room'],s['generation'])
+    return state(conn,s['room'],s['generation'])
+
+
+
+def apply_export_steps(conn, snapshot, ingest_batch, *, seed=0, after_batch=None):
+    s=begin_export(conn,snapshot,seed)
+    processed=s['processed_records'];batch=[]
+    with Path(s['path']).open('rb') as stream:
+        for position,line in enumerate(stream,1):
+            if position<=processed:continue
+            batch.append(json.loads(line))
+            if len(batch)==BATCH_SIZE:
+                persist_batch(conn,s,batch,position,ingest_batch)
+                if after_batch:after_batch(position)
+                batch=[];yield position
+        if batch:
+            persist_batch(conn,s,batch,position,ingest_batch)
+            if after_batch:after_batch(position)
+            yield position
+    yield finish_export(conn,s,seed)
 
 
 def apply_export(conn, snapshot, ingest_batch, **kwargs):
@@ -272,6 +287,7 @@ def apply_export(conn, snapshot, ingest_batch, **kwargs):
     return result
 
 
+@diagnostics.timed('gap_reassessment')
 def reassess(conn, s):
     if s.get('status') != 'PERSISTED':
         stored = conn.execute('SELECT status FROM evidence_export_snapshots WHERE snapshot_id=?',(s['snapshot_id'],)).fetchone()

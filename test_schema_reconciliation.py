@@ -129,13 +129,16 @@ def test_atomic_rollback_on_post_repair_failure(populated):
 def test_worker_startup_reconciles_before_coordinator(populated,monkeypatch):
     c,path=populated
     drop_origin(c)
-    monkeypatch.setattr(scout,'observer_connect',lambda:scout.observer_connect_write(path))
+    monkeypatch.setattr(scout,'OBSERVER_DB',path)
     called=[]
-    def run(coordinator):
-        assert schema.status(coordinator.conn)['status']=='PASS'
-        cv.save_tail(coordinator.conn,'technocore','g1',100,160,160)
+    from scout_runtime import Runtime
+    def run(runtime):
+        def check():
+            assert schema.status(runtime.storage.conn)['status']=='PASS'
+            cv.save_tail(runtime.storage.conn,'technocore','g1',100,160,160)
+        runtime.write_pool.submit(check).result(timeout=5)
         called.append(True)
-    monkeypatch.setattr(worker.Coordinator,'run',run)
+    monkeypatch.setattr(Runtime,'loop',run)
     worker.run()
     assert called
 
@@ -145,8 +148,9 @@ def test_worker_incompatible_fails_before_coordinator(populated,monkeypatch):
     drop_origin(c)
     c.execute('ALTER TABLE source_coverage_state ADD COLUMN origin_unknown TEXT')
     c.commit()
-    monkeypatch.setattr(scout,'observer_connect',lambda:scout.observer_connect_write(path))
-    with patch.object(worker,'Coordinator') as coordinator:
+    monkeypatch.setattr(scout,'OBSERVER_DB',path)
+    from scout_runtime import Runtime
+    with patch.object(Runtime,'loop') as coordinator:
         with pytest.raises(schema.SchemaDrift,match='SCHEMA_DRIFT'):worker.run()
         coordinator.assert_not_called()
 
