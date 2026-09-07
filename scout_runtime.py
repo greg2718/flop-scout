@@ -11,14 +11,18 @@ import scout_diagnostics as diagnostics
 import scout_preparation as preparation
 import scout_coverage as coverage
 import scout_evidence as evidence
+import scout_checkpoint as checkpoint
 
 
 class BatchBudget:
     """Conservative first turn; adapt towards 25ms, never exceed 200 records."""
     def __init__(self,target=0.025):self.size=1;self.target=target
-    def observe(self,records,seconds):
+    def observe(self,records,seconds,commit_ms=0,checkpoint_ms=0,tail_age=0):
         if records:
             desired=max(1,min(200,int(records*self.target/max(seconds,0.000001))))
+            if commit_ms>250 or checkpoint_ms>1000 or tail_age>1:
+                self.size=max(1,min(desired,self.size//4))
+                return
             self.size=min(max(1,self.size*2),desired)
 
 
@@ -30,6 +34,18 @@ class Storage:
         self.owner=threading.get_ident();self.diag=diag
         with diagnostics.operation('schema_verification'):
             self.conn=scout.observer_connect_write(path,connection_factory=diagnostics.TimedConnection)
+        # FULL retains each committed WAL transaction through a power failure;
+        # deferred checkpoints must not extend NORMAL's unsynced-data window.
+        self.conn.execute('PRAGMA synchronous=FULL')
+        self.conn.execute('PRAGMA wal_autocheckpoint=0')
+        # Only SQLite's safe post-checkpoint WAL reset may trim allocation.
+        # This is not a blocking TRUNCATE checkpoint or manual WAL deletion.
+        self.conn.execute('PRAGMA journal_size_limit=4194304')
+        self.conn.diagnostic_path=Path(path)
+        with diag.lock:
+            diag.values['sqlite_settings']={k:self.conn.execute('PRAGMA '+k).fetchone()[0]
+                for k in ('journal_mode','synchronous','wal_autocheckpoint','page_size','cache_size',
+                          'mmap_size','temp_store','locking_mode','busy_timeout','fullfsync','checkpoint_fullfsync','journal_size_limit')}
         self.settings=settings if settings is not None else worker.configuration(
             scout.validation_watch_rooms(self.conn),config or scout.HOME/'polling.json',
             evidence.load_collections(scout.HOME/'watch_collections.json'))
@@ -175,9 +191,11 @@ class Runtime:
             elif not self.export or self.export['room']!=room:self.backfills.pop(room,None)
 
     def schedule_reads(self):
+        maintenance=getattr(self,'checkpointer',None)
         due=sorted((r for r,v in self.data.items() if r not in self.active and v['due']<=self.clock()
                     and not(self.once and r in self.tail_done)),key=lambda r:(self.data[r]['due'],self.settings[r]['priority'],r))
         for room in due:
+            if maintenance and maintenance.drain_tail_admission:break
             if len(self.reads)>=self.concurrency or len(self.active)>=2*self.concurrency:break
             info=self.data[room];started=self.clock();stamp=datetime.fromtimestamp(self.wall(),timezone.utc).isoformat()
             job=dict(room=room,started=started,started_wall=stamp,cursor=info['cursor']['last_seq'])
@@ -185,6 +203,7 @@ class Runtime:
             self.reads[future]=job;self.active.add(room)
             info['poll']['last_poll_started']=stamp
         self.discover()
+        if maintenance and maintenance.pressure:return
         if self.export is None and self.cleanup is None:
             for room in self.backfills:
                 info=self.data[room]
@@ -240,8 +259,11 @@ class Runtime:
                 self.diag.values['sqlite_queue_wait_ms']=wait
                 self.diag.values['sqlite_max_queue_wait_ms']=max(wait,self.diag.values.get('sqlite_max_queue_wait_ms',0))
             began=self.clock()
+            connection=getattr(self.storage,'conn',None)
+            if connection is not None:connection.turn_commit_max_ms=0
             result=self.call('sqlite_write',room,getattr(self.storage,kind),*args)
             result['_write_seconds']=self.clock()-began
+            result['_commit_ms']=getattr(connection,'turn_commit_max_ms',0)
             return result
         write.task_kind=kind;write.task_args=args
         future=self.write_pool.submit(write)
@@ -264,8 +286,13 @@ class Runtime:
             else:raise
             return
         self.update(result)
+        cp=getattr(self,'checkpointer',None)
+        if cp:cp.changed()
+        pressure=dict(commit_ms=result.get('_commit_ms',0),
+                      checkpoint_ms=cp.last_ms if cp else 0,
+                      tail_age=max((self.clock()-j['queued'] for j in self.tails.values()),default=0))
         if kind=='tail':
-            self.tail_budget.observe(result.get('records',0),result.get('_write_seconds',self.clock()-job['started']))
+            self.tail_budget.observe(result.get('records',0),result.get('_write_seconds',self.clock()-job['started']),**pressure)
             if result.get('done'):
                 page_ms=(self.clock()-self.tails[room]['queued'])*1000
                 with self.diag.lock:
@@ -276,21 +303,31 @@ class Runtime:
         elif kind=='tail_failed':self.active.discard(room);self.tail_done.add(room)
         elif kind=='export_failed':self.export_blocked.discard(room)
         elif kind=='export_batch':
-            self.export_budget.observe(result.get('records',0),result.get('_write_seconds',self.clock()-job['started']))
+            self.export_budget.observe(result.get('records',0),result.get('_write_seconds',self.clock()-job['started']),**pressure)
             if result.get('done'):self.finish_export(result.get('error'))
             else:self.export['ready']=None
 
     def choose_write(self):
         if self.writer_job:return
+        cp=getattr(self,'checkpointer',None)
+        if cp and cp.blocks_writes:
+            if cp.future is not None and getattr(cp,'serial_turn',not cp.concurrent):return
+            # At the high watermark, drain only the finite work already
+            # admitted. Otherwise urgent pages and maintenance would deadlock.
+            # New reads/exports are paused; no status/export writes can grow WAL
+            # indefinitely behind a pinned reader.
+            if not (self.tails or self.critical):return
         if self.critical:
             kind,room,args=self.critical.pop(0);self.submit_write(kind,room,args);return
-        ready=self.export and self.export['ready'] is not None
+        ready=self.export and self.export['ready'] is not None and not (cp and getattr(cp,'pressure',False))
         if self.tails and (not ready or self.turns<16):
             # Rotate a partly written page behind other already-fetched pages.
             room=next(iter(self.tails));job=self.tails.pop(room);self.tails[room]=job
+            with self.diag.lock:self.diag.values['sqlite_batch_size']=self.tail_budget.size
             self.submit_write('tail',room,(room,job,self.tail_budget.size),job['turn_ready']);self.turns+=1
         elif ready:
             job=self.export;records,prepared,position,done=job['ready']
+            with self.diag.lock:self.diag.values['sqlite_batch_size']=len(records)
             self.submit_write('export_batch',job['room'],(job['room'],job['stream'].snapshot,records,prepared,position,done),job['ready_at']);self.turns=0
         elif self.clock()-self.last_status>=1:
             self.submit_write('save_status',None,(self.scheduler_snapshot(),));self.last_status=self.clock()
@@ -313,7 +350,10 @@ class Runtime:
 
     def _step(self):
         self.diag.tick()
-        self.harvest_write();self.harvest_reads();self.schedule_reads();self.choose_write()
+        self.harvest_write();self.harvest_reads();self.schedule_reads()
+        cp=getattr(self,'checkpointer',None)
+        if cp:cp.step(urgent=bool(self.tails or self.critical),writer_busy=self.writer_job is not None)
+        self.choose_write()
         with self.diag.lock:
             self.diag.queues=dict(tail_read_queue=len(self.reads),tail_persist_queue=len(self.tails),backfill_queue=len(self.backfills),
                                   sqlite_queue=len(self.tails)+len(self.critical)+int(bool(self.export and self.export['ready'] is not None)),
@@ -334,6 +374,7 @@ class Runtime:
             try:
                 while not opened.done():self.diag.tick();self.stop.wait(0.01)
                 self.storage=opened.result();self.settings=self.storage.settings
+                self.checkpointer=checkpoint.Checkpoints(self.path,self.diag,self.clock)
                 initial=self.write_pool.submit(self.storage.metadata)
                 while not initial.done():self.diag.tick();self.stop.wait(0.01)
                 self.data=initial.result()
@@ -357,7 +398,12 @@ class Runtime:
                     try:
                         if self.writer_job:self.writer_job['future'].result()
                     finally:
-                        try:self.write_pool.submit(self.storage.save_status,self.scheduler_snapshot()).result()
-                        finally:self.write_pool.submit(self.storage.close).result()
+                        try:
+                            if hasattr(self,'checkpointer'):self.checkpointer.close()
+                            self.write_pool.submit(self.storage.save_status,self.scheduler_snapshot()).result()
+                        finally:
+                            # Join checkpoint work before last-writer close to
+                            # avoid an implicit close checkpoint racing it.
+                            self.write_pool.submit(self.storage.close).result()
                 self.diag.lifecycle='STOPPED'
                 self.diag.close()

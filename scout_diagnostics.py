@@ -106,6 +106,13 @@ class Diagnostics:
                 'sqlite_write_max_duration_ms','export_fetch_duration_ms','export_parse_duration_ms',
                 'export_persist_duration_ms','tail_fetch_duration_ms','tail_persist_duration_ms','snapshot_write_duration_ms')}
             values.update(self.values)
+            commit=max(values.get('sqlite_commit_ms',0),max((x['elapsed']*1000 for x in active if x['type']=='sqlite_commit'),default=0))
+            checkpoint=max(values.get('sqlite_checkpoint_ms',0),max(((self.clock()-x['monotonic'])*1000 for stack in self.active.values() for x in stack if x['type']=='sqlite_checkpoint'),default=0))
+            values['sqlite_commit_health']='BLOCKING' if commit>10000 else 'DEGRADED' if commit>250 else 'HEALTHY'
+            values['sqlite_checkpoint_health']='BLOCKING' if checkpoint>10000 else 'DEGRADED' if checkpoint>1000 else 'HEALTHY'
+            for key in ('sqlite_commit_ms','sqlite_max_commit_ms','sqlite_checkpoint_ms','sqlite_max_checkpoint_ms',
+                        'slow_commit_count','slow_checkpoint_count','sqlite_batch_size','sqlite_rows_per_commit'):
+                values.setdefault(key,0)
             return dict(values,worker_lifecycle=self.lifecycle,event_loop_lag_ms=lag,event_loop_max_lag_ms=self.max_lag,
                         event_loop_health='STALLED' if age>2 else 'DEGRADED' if age>0.5 else 'HEALTHY',
                         scheduler_tick_age=age,scheduler_tick_duration=self.tick_duration,
@@ -152,9 +159,35 @@ class TimedConnection(sqlite3.Connection):
     def execute(self,sql,*args,**kwargs):
         verb=sql.lstrip().split(None,1)[0].lower() if sql.strip() else 'statement'
         label='sqlite_'+verb if verb in ('select','insert','update','delete') else 'sqlite_statement'
-        with operation(label):return super().execute(sql,*args,**kwargs)
-    def commit(self):
-        with operation('sqlite_commit'):return super().commit()
+        before=self.in_transaction;changes=self.total_changes;started=time.monotonic()
+        with operation(label):result=super().execute(sql,*args,**kwargs)
+        if not before and self.in_transaction:
+            self.transaction_started=started;self.transaction_changes=changes
+        return result
+
+    def _finish(self,fn,rollback=False):
+        if not self.in_transaction or getattr(self,'_finishing',False):return fn()
+        self._finishing=True;start=time.monotonic();diag=_CURRENT.get()
+        def wal_size():
+            try:return Path(str(self.diagnostic_path)+'-wal').stat().st_size
+            except (AttributeError,FileNotFoundError):return 0
+        before=wal_size()
+        try:
+            with operation('sqlite_rollback' if rollback else 'sqlite_commit'):return fn()
+        finally:
+            self._finishing=False;elapsed=(time.monotonic()-start)*1000
+            if diag is not None and not rollback:
+                self.recent_commit_ms=elapsed
+                self.turn_commit_max_ms=max(elapsed,getattr(self,'turn_commit_max_ms',0))
+                with diag.lock:
+                    diag.values.update(sqlite_commit_ms=elapsed,
+                        sqlite_max_commit_ms=max(elapsed,diag.values.get('sqlite_max_commit_ms',0)),
+                        sqlite_rows_per_commit=self.total_changes-getattr(self,'transaction_changes',self.total_changes),
+                        sqlite_rows_per_commit_scope='SQLite total_changes delta, includes metadata and trigger changes',
+                        sqlite_transaction_ms=(time.monotonic()-getattr(self,'transaction_started',start))*1000,
+                        sqlite_wal_before_commit=before,sqlite_wal_after_commit=wal_size())
+                    if elapsed>250:diag.values['slow_commit_count']=diag.values.get('slow_commit_count',0)+1
+
+    def commit(self):return self._finish(super().commit)
     def __exit__(self,*args):
-        with operation('sqlite_rollback' if args[0] else 'sqlite_commit'):
-            return super().__exit__(*args)
+        return self._finish(lambda:super(TimedConnection,self).__exit__(*args),rollback=args[0] is not None)
