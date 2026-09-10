@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import wraps
 import json
+import math
 import os
 from pathlib import Path
 import sqlite3
@@ -60,6 +61,7 @@ class Diagnostics:
     def __init__(self,path=None,clock=time.monotonic,wall=time.time):
         self.path=Path(path) if path else None;self.clock=clock;self.wall=wall
         self.lock=threading.RLock();self.active={};self.recent=deque(maxlen=64)
+        self.writer_holds=Counter()
         self.events=deque(maxlen=32);self.values={};self.failures=Counter();self.by_room={}
         self.last_tick=clock();self.tick_duration=0;self.max_lag=0;self.last_stall=0
         self.lifecycle='STARTING';self.queues={};self.closed=threading.Event();self.thread=None
@@ -81,6 +83,17 @@ class Diagnostics:
                 self.values[name+'_total_duration_ms']=self.values.get(name+'_total_duration_ms',0)+elapsed
                 self.values[name+'_count']=self.values.get(name+'_count',0)+1
                 self.values[name+'_max_duration_ms']=max(elapsed,self.values.get(name+'_max_duration_ms',0))
+                if name=='sqlite_write':
+                    # Fixed 1 ms histogram, bounded even during a long service run.
+                    bucket=min(60000,int(elapsed)+1)
+                    self.writer_holds[bucket]+=1
+                    rank=max(1,(math.ceil(sum(self.writer_holds.values())*.95)))
+                    total=0
+                    for bound,count in sorted(self.writer_holds.items()):
+                        total+=count
+                        if total>=rank:
+                            self.values['writer_hold_p95_ms']=bound;break
+                    self.values['writer_hold_max_ms']=self.values[name+'_max_duration_ms']
                 if elapsed>=100:self.recent.append(dict(item,duration_ms=elapsed))
 
     def tick(self):

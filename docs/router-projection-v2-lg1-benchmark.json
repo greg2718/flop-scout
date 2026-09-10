@@ -1,0 +1,197 @@
+{
+  "environment": {
+    "platform": "darwin",
+    "python": "3.9.6 (default, Jan  9 2026, 11:03:41) \n[Clang 17.0.0 (clang-1700.6.4.2)]"
+  },
+  "limitations": [
+    "Matched synthetic text, one evidence cache reference per raw; A1 and LG1_NULL controls omit reported generations because strict A1 cannot admit the LG1 class.",
+    "Fresh process per trial; peak RSS includes source setup. Projection throughput includes source mapping, staging and full-cut rules; publication includes producer validation.",
+    "No production-size or Router-consumer readiness claim. Full originals are retained privately; required annotations may materially increase artifact size."
+  ],
+  "median": {
+    "A1": {
+      "database_bytes": 2789376,
+      "mapping_seconds": 0.3662505839999999,
+      "peak_rss_bytes": 50364416,
+      "private_ledger_bytes": 8200192,
+      "projection_seconds": 4.647898039999999,
+      "publication_seconds": 0.08955741699999997,
+      "rows_per_second": 400.39596502311593,
+      "validation_seconds": 0.07595204199999994
+    },
+    "LG1_NULL": {
+      "database_bytes": 2899968,
+      "mapping_seconds": 0.34820249999999975,
+      "peak_rss_bytes": 51068928,
+      "private_ledger_bytes": 8196096,
+      "projection_seconds": 4.6814015819999995,
+      "publication_seconds": 0.09022212500000037,
+      "rows_per_second": 397.64561333120065,
+      "validation_seconds": 0.07666379200000062
+    },
+    "LG1_REPORTED": {
+      "database_bytes": 4620288,
+      "mapping_seconds": 0.6356850850000004,
+      "peak_rss_bytes": 63455232,
+      "private_ledger_bytes": 16392192,
+      "projection_seconds": 5.589916041,
+      "publication_seconds": 0.6595128750000008,
+      "rows_per_second": 317.5573929911471,
+      "validation_seconds": 0.16103358400000012
+    }
+  },
+  "no_material_performance_regression": false,
+  "percent_change_vs_a1": {
+    "LG1_NULL": {
+      "database_bytes": 3.96475770925111,
+      "mapping_seconds": -4.927796647554327,
+      "peak_rss_bytes": 1.398828887443071,
+      "private_ledger_bytes": -0.04995004995005381,
+      "projection_seconds": 0.7208321204911883,
+      "publication_seconds": 0.7422143494830946,
+      "rows_per_second": -0.6869079441788384,
+      "validation_seconds": 0.9371044954929353
+    },
+    "LG1_REPORTED": {
+      "database_bytes": 65.63876651982379,
+      "mapping_seconds": 73.56561675817031,
+      "peak_rss_bytes": 25.9921925829538,
+      "private_ledger_bytes": 99.90009990009989,
+      "projection_seconds": 20.26761329299731,
+      "publication_seconds": 636.4134619916528,
+      "rows_per_second": -20.6891625461776,
+      "validation_seconds": 112.020084989947
+    }
+  },
+  "production_data": false,
+  "records": 2000,
+  "repetitions": 3,
+  "router_contract_sha256": "a845223a84d277ceca1f1eb8be893cdbf0160190e78713d1bac778917f3ad3f1",
+  "schema": "scout-lg1-synthetic-overhead/v1",
+  "source_code_sha256": {
+    "scout_projection.py": "c03bf212a8118a62693ecbcec6d0c6448566a745c96e9266b306e35d4d6d261d",
+    "scout_projection_cli.py": "1481ea02dcac6167e3f9a2d03fc0b5b820c896b1f92f4fdbee885bf40d54eb0f",
+    "scout_projection_contract.py": "3f6179783b4606b0f464a67ea7344f6549d5c7a3fce151ee9dc9ae9bfe61729e",
+    "scout_projection_legacy.py": "1e9bdba9634b5161e514bb93aa198668794572d370bf5b0bf5aa683e20f9b2a8",
+    "scout_projection_model.py": "b143927ae9b1a06730dfcd4c673a589763878791b1e3da1d3b8b16ed23a61ddd",
+    "scout_projection_pins.py": "d6b4b470c4dfc47597479f19e0f03b060e4f3433ba3c4df2b54f354d4a97bf74",
+    "scout_projection_publish.py": "e52da69782c90544f89c7caec42b633b1e4b8508fedb4dbd044b1f10c57ec69b",
+    "scout_projection_rules.py": "b478633542c1080237fc92f524180066282a772f8b45aeececd07c524ff3e150",
+    "scout_projection_service.py": "b2cde043b0d81dc43b3c9c2f607ee948dd3b2243399b30046856319e1c568f6e",
+    "scout_projection_source.py": "0838c86b7f4f0394ad0f151a5a8199fba612d3785f0abdbb3f9125e0d1d3dab3",
+    "scout_runtime.py": "0fd9abefdadf000872f2325ea93df4198ac3f618d472d76ca48b3ced348af763",
+    "scripts/benchmark_projection_lg1.py": "22cf622055642766bde50a44089c181811ac9265871507b507a3ebb1ee6da2ab",
+    "scripts/projection_lg1_support.py": "3a0ca1076dc2c4cad163d796948e69403baa9dd804b8b8c4476cd8a1af255d64"
+  },
+  "temporary_artifacts": "/private/tmp/scout-lg1-benchmark-final-20260908",
+  "trials": [
+    {
+      "database_bytes": 2789376,
+      "mapping_seconds": 0.4193987910000001,
+      "mode": "A1",
+      "peak_rss_bytes": 43499520,
+      "private_ledger_bytes": 8200192,
+      "projection_seconds": 4.843618207,
+      "publication_seconds": 0.08955741699999997,
+      "records": 2000,
+      "rows_per_second": 380.01017301673556,
+      "validation_seconds": 0.0762987079999995
+    },
+    {
+      "database_bytes": 2899968,
+      "mapping_seconds": 0.3442607089999994,
+      "mode": "LG1_NULL",
+      "peak_rss_bytes": 49659904,
+      "private_ledger_bytes": 8196096,
+      "projection_seconds": 4.51267346,
+      "publication_seconds": 0.09022212500000037,
+      "records": 2000,
+      "rows_per_second": 411.7823981978703,
+      "validation_seconds": 0.07632020900000036
+    },
+    {
+      "database_bytes": 4620288,
+      "mapping_seconds": 0.7081580840000006,
+      "mode": "LG1_REPORTED",
+      "peak_rss_bytes": 62619648,
+      "private_ledger_bytes": 16392192,
+      "projection_seconds": 5.589916041,
+      "publication_seconds": 0.6595128750000008,
+      "records": 2000,
+      "rows_per_second": 317.5573929911471,
+      "validation_seconds": 0.16103358400000012
+    },
+    {
+      "database_bytes": 2789376,
+      "mapping_seconds": 0.3662505839999999,
+      "mode": "A1",
+      "peak_rss_bytes": 53116928,
+      "private_ledger_bytes": 8200192,
+      "projection_seconds": 4.616302127,
+      "publication_seconds": 0.08877695900000049,
+      "records": 2000,
+      "rows_per_second": 401.40067070130385,
+      "validation_seconds": 0.07595204199999994
+    },
+    {
+      "database_bytes": 2899968,
+      "mapping_seconds": 0.3485097910000001,
+      "mode": "LG1_NULL",
+      "peak_rss_bytes": 53657600,
+      "private_ledger_bytes": 8196096,
+      "projection_seconds": 4.701981667,
+      "publication_seconds": 0.09000433400000052,
+      "records": 2000,
+      "rows_per_second": 396.00106576400435,
+      "validation_seconds": 0.07666379200000062
+    },
+    {
+      "database_bytes": 4620288,
+      "mapping_seconds": 0.6353746679999992,
+      "mode": "LG1_REPORTED",
+      "peak_rss_bytes": 63455232,
+      "private_ledger_bytes": 16392192,
+      "projection_seconds": 5.505692625000001,
+      "publication_seconds": 0.6635332500000004,
+      "records": 2000,
+      "rows_per_second": 325.6762879442363,
+      "validation_seconds": 0.16175841599999963
+    },
+    {
+      "database_bytes": 2789376,
+      "mapping_seconds": 0.347157291999999,
+      "mode": "A1",
+      "peak_rss_bytes": 50364416,
+      "private_ledger_bytes": 8200192,
+      "projection_seconds": 4.647898039999999,
+      "publication_seconds": 0.09474074999999971,
+      "records": 2000,
+      "rows_per_second": 400.39596502311593,
+      "validation_seconds": 0.07515608299999954
+    },
+    {
+      "database_bytes": 2899968,
+      "mapping_seconds": 0.34820249999999975,
+      "mode": "LG1_NULL",
+      "peak_rss_bytes": 51068928,
+      "private_ledger_bytes": 8196096,
+      "projection_seconds": 4.6814015819999995,
+      "publication_seconds": 0.09086875000000028,
+      "records": 2000,
+      "rows_per_second": 397.64561333120065,
+      "validation_seconds": 0.07732816699999923
+    },
+    {
+      "database_bytes": 4620288,
+      "mapping_seconds": 0.6356850850000004,
+      "mode": "LG1_REPORTED",
+      "peak_rss_bytes": 65372160,
+      "private_ledger_bytes": 16392192,
+      "projection_seconds": 5.8073207909999995,
+      "publication_seconds": 0.6485715830000007,
+      "records": 2000,
+      "rows_per_second": 310.4141201314031,
+      "validation_seconds": 0.16102504200000034
+    }
+  ]
+}

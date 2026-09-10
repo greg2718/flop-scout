@@ -45,9 +45,35 @@ class ExportStream:
                         self.close();break
                     if len(line)>coverage.MAX_LINE_BYTES or not line.endswith(b'\n'):raise ValueError('Export incomplete line')
                     self.digest.update(line);self.position+=1;records.append(json.loads(line))
-            return records,prepare(self.room,records),self.position,self.done
+            return records,prepare_page(self.room,records,generation=self.generation,source='export-backfill',
+                endpoint=self.snapshot['source_endpoint'],
+                metadata={**json.loads(self.snapshot['metadata_json']),'snapshot_id':self.snapshot['snapshot_id']},
+                retrieved_at=self.snapshot['retrieved_at']),self.position,self.done
         except BaseException:
             self.close();raise
 
     def close(self):
         self.stream.close()
+
+
+def prepare_page(room,records,*,generation=None,source='service-poll',endpoint=None,metadata=None,retrieved_at=None):
+    """Reader-owned immutable inputs; no SQLite reads, writes or identity access."""
+    import flop_scout as scout
+    stamp=retrieved_at or scout.utc_now()
+    cache=prepare(room,records)
+    token=scout._VERIFICATION_CACHE.set(cache)
+    items=[]
+    try:
+        for raw in records:
+            values=evidence.prepare_record(room,raw,scout.verify_signed_record_offline,
+                generation=None if (metadata or {}).get('generation_conflict') else generation,
+                reported_generation=str(generation) if (metadata or {}).get('generation_conflict') else None,
+                endpoint=endpoint,metadata=metadata,retrieved_at=stamp)
+            row=dict(zip(('raw_record_id','source','source_endpoint','room','generation','reported_generation','seq',
+                'network_timestamp','retrieved_at','nonce','sender_did','signature','raw_text','raw_text_sha256',
+                'raw_record_json','signature_status','signature_error','did_mismatch','transport_metadata_json',
+                'ingestion_schema','ingestion_version','created_at','legacy_record','raw_completeness'),values))
+            items.append(dict(raw=values,row=row,event=evidence.prepare_event(row),
+                compatibility=scout.prepare_compatibility(room,[raw],generation,source,stamp)))
+        return dict(verifications=cache,items=items,retrieved_at=stamp)
+    finally:scout._VERIFICATION_CACHE.reset(token)

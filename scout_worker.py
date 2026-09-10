@@ -334,7 +334,7 @@ def scheduler_status(data,detail=None,now=None):
     return result
 
 
-def run(config=None, concurrency=4):
+def run(config=None, concurrency=4, projection=None):
     import flop_scout as scout
     stop=threading.Event()
     previous={sig:signal.signal(sig,lambda *_:stop.set()) for sig in (signal.SIGTERM,signal.SIGINT)}
@@ -342,6 +342,6 @@ def run(config=None, concurrency=4):
         with scout.poll_lock() as acquired:
             if not acquired: return
             from scout_runtime import Runtime
-            Runtime(scout.OBSERVER_DB,config=config,concurrency=concurrency,stop=stop).run()
+            Runtime(scout.OBSERVER_DB,config=config,concurrency=concurrency,stop=stop,projection=projection).run()
     finally:
         for sig,handler in previous.items(): signal.signal(sig,handler)

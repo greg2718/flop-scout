@@ -48,8 +48,30 @@ def contract():
         return structure(c)
 
 
+@lru_cache(maxsize=1)
+def projection_outbox_contract():
+    """Exact opt-in objects only; never allow arbitrary evidence-table triggers."""
+    import scout_evidence as ev
+    from scout_projection_source import OUTBOX_SQL, update_trigger_sql
+    with sqlite3.connect(':memory:') as c:
+        c.executescript(ev.DDL)
+        c.executescript("""
+          CREATE TABLE compatibility_evidence_links(cache_table TEXT,cache_rowid INTEGER,raw_record_id TEXT,raw_text_sha256 TEXT);
+          CREATE TABLE tclk_frames(offer_id TEXT,frame_type TEXT,room TEXT,generation TEXT,contract_id TEXT);
+          CREATE TABLE interactions(room TEXT,source_seq INTEGER,response_seq INTEGER,source_did TEXT,target_did TEXT,relationship_type TEXT,confidence REAL);
+          CREATE TABLE messages(dummy TEXT);
+          CREATE TABLE evidence_records(dummy TEXT);
+          CREATE TABLE kibble_events(dummy TEXT);
+        """)
+        c.executescript(OUTBOX_SQL)
+        for table in ('messages','evidence_records','kibble_events','tclk_frames'):c.execute(update_trigger_sql(table))
+        return {name:obj for name,obj in structure(c).items() if name.startswith('router_projection_')}
+
+
 def status(conn):
-    expected, actual = contract(), structure(conn)
+    expected, actual = dict(contract()), structure(conn)
+    optional=projection_outbox_contract() if any(name.startswith('router_projection_') for name in actual) else {}
+    expected.update(optional)
     result = dict(declared_schema_version=None, expected_schema_version=3,
                   missing_tables=[], missing_columns=[], missing_indexes=[],
                   missing_triggers=[], incompatible_objects=[])
@@ -91,8 +113,12 @@ def status(conn):
         elif normalized(obj['sql']) != normalized(other['sql']):
             result['incompatible_objects'].append(name+': definition mismatch')
     for name, obj in actual.items():
+        if optional and name.startswith('router_projection_') and name not in optional:
+            result['incompatible_objects'].append(name+': unexpected projection outbox object')
         if obj['kind'] == 'trigger' and obj['table'] in expected and name not in expected:
             result['incompatible_objects'].append(name+': unexpected trigger on evidence table')
+    if optional and any(name in optional for key in ('missing_tables','missing_indexes','missing_triggers') for name in result[key]):
+        result['incompatible_objects'].append('projection outbox: incomplete feed schema requires explicit recovery')
     version = result['declared_schema_version']
     if version != 3:
         result['incompatible_objects'].append('requires declared schema version 3; use normal initialization for older schemas')

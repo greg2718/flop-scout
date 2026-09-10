@@ -78,7 +78,8 @@ class Checkpoints:
                 self.mode='RESTART'
                 with diagnostics.operation('sqlite_checkpoint_restart'):
                     result=tuple(self.connection.execute('PRAGMA wal_checkpoint(RESTART)').fetchone())
-        return result,(self.clock()-t)*1000
+        ended=self.clock();self.last_interval=(t,ended)
+        return result,(ended-t)*1000
 
     def step(self,urgent=False,writer_busy=False):
         if self.future and self.future.done():

@@ -1,0 +1,252 @@
+{
+  "audit_stress": {
+    "duplicate": {
+      "initial_projection_bytes": 98304,
+      "ledger_bytes": 897024,
+      "messages": 201,
+      "projection_bytes": 483328,
+      "qualifications_after": 5,
+      "qualifications_before": 5
+    },
+    "elapsed_seconds": 3.232285375,
+    "supersession": {
+      "ledger_bytes": 2170880,
+      "messages": 50,
+      "projection_bytes": 778240,
+      "publication_bytes": 778240,
+      "qualification_events": 49,
+      "qualifications": 250
+    },
+    "synthetic": true
+  },
+  "baseline_tests": 364,
+  "benchmarks": [
+    {
+      "assumptions": {
+        "all_qualifying_capabilities": true,
+        "audited_message_fraction": 0.01,
+        "authority_artifacts": "Synthetic opaque references; not deployable audit attestations",
+        "full_text_copies_per_message": 1,
+        "normalized_text_fraction": 1.0,
+        "qualified_message_fraction": 0.1,
+        "synthetic": true,
+        "update_probe": "Actual producer API on separate 200-row complete cut; not a million-row steady-state throughput claim"
+      },
+      "audit_fraction_of_database": 0.2976727882991492,
+      "audit_index_bytes": 5328896,
+      "audit_table_bytes": {
+        "durable_qualifications": 102653952,
+        "qualification_events": 6807552
+      },
+      "audit_total_bytes": 114790400,
+      "bytes_per_row": 3856.26112,
+      "event_json_bytes": 4368930,
+      "expiry_rows_per_second": 900.863872149401,
+      "full_contract_validation_seconds": 9.221228666999991,
+      "incremental_probe_rows": 200,
+      "incremental_update_rows_per_second": 416.56928665308277,
+      "index_bytes": 19546112,
+      "integrity_check_seconds": 0.3299220829999996,
+      "materialization_seconds": 74.96585341699999,
+      "materialized_rows_per_second": 1333.9406602062777,
+      "online_backup_seconds": 0.6212461659999917,
+      "peak_rss_bytes": 114819072,
+      "qualification_json_bytes": 84062350,
+      "readiness": "QUALIFIED",
+      "row_counts": {
+        "coverage_history": 2,
+        "durable_qualifications": 50000,
+        "interactions": 0,
+        "messages": 100000,
+        "qualification_events": 5000,
+        "selection_membership": 100000,
+        "source_provenance": 100000,
+        "watermarks": 2
+      },
+      "rows": 100000,
+      "sha256": "fe463ce1101650a129fd85be261d71aa825f1da130ab2905583854c202a7a281",
+      "sha256_seconds": 0.13607766699999502,
+      "size_bytes": 385626112,
+      "temporary_root": "/private/tmp/scout-v2-a1-capacity-100k"
+    },
+    {
+      "assumptions": {
+        "all_qualifying_capabilities": true,
+        "audited_message_fraction": 0.01,
+        "authority_artifacts": "Synthetic opaque references; not deployable audit attestations",
+        "full_text_copies_per_message": 1,
+        "normalized_text_fraction": 1.0,
+        "qualified_message_fraction": 0.1,
+        "synthetic": true,
+        "update_probe": "Actual producer API on separate 200-row complete cut; not a million-row steady-state throughput claim"
+      },
+      "audit_fraction_of_database": 0.2974889306726512,
+      "audit_index_bytes": 18587648,
+      "audit_table_bytes": {
+        "durable_qualifications": 359297024,
+        "qualification_events": 23908352
+      },
+      "audit_total_bytes": 401793024,
+      "bytes_per_row": 3858.900114285714,
+      "event_json_bytes": 15318930,
+      "expiry_rows_per_second": 802.4276099258954,
+      "full_contract_validation_seconds": 33.266730457999984,
+      "incremental_probe_rows": 200,
+      "incremental_update_rows_per_second": 408.98854576451276,
+      "index_bytes": 69177344,
+      "integrity_check_seconds": 1.4414360000000102,
+      "materialization_seconds": 270.12519024999995,
+      "materialized_rows_per_second": 1295.6955242718245,
+      "online_backup_seconds": 1.7432015829999727,
+      "peak_rss_bytes": 119357440,
+      "qualification_json_bytes": 294912350,
+      "readiness": "WARNING_LARGE",
+      "row_counts": {
+        "coverage_history": 2,
+        "durable_qualifications": 175000,
+        "interactions": 0,
+        "messages": 350000,
+        "qualification_events": 17500,
+        "selection_membership": 350000,
+        "source_provenance": 350000,
+        "watermarks": 2
+      },
+      "rows": 350000,
+      "sha256": "17dc38fd1bb1dca03e3d21329111b5c63a1edd55223b546a0cb02a709795b0ff",
+      "sha256_seconds": 0.5070207080000273,
+      "size_bytes": 1350615040,
+      "temporary_root": "/private/tmp/scout-v2-a1-capacity-350k"
+    },
+    {
+      "assumptions": {
+        "all_qualifying_capabilities": true,
+        "audited_message_fraction": 0.01,
+        "authority_artifacts": "Synthetic opaque references; not deployable audit attestations",
+        "full_text_copies_per_message": 1,
+        "normalized_text_fraction": 1.0,
+        "qualified_message_fraction": 0.1,
+        "synthetic": true,
+        "update_probe": "Actual producer API on separate 200-row complete cut; not a million-row steady-state throughput claim"
+      },
+      "audit_fraction_of_database": 0.297540076070491,
+      "audit_index_bytes": 53092352,
+      "audit_table_bytes": {
+        "durable_qualifications": 1026576384,
+        "qualification_events": 68395008
+      },
+      "audit_total_bytes": 1148063744,
+      "bytes_per_row": 3858.518016,
+      "event_json_bytes": 43788940,
+      "expiry_rows_per_second": 867.6822525901312,
+      "full_contract_validation_seconds": 99.430115667,
+      "incremental_probe_rows": 200,
+      "incremental_update_rows_per_second": 420.11853119218245,
+      "index_bytes": 197120000,
+      "integrity_check_seconds": 5.795909249999909,
+      "materialization_seconds": 775.061882875,
+      "materialized_rows_per_second": 1290.2195580701489,
+      "online_backup_seconds": 4.410840417000031,
+      "peak_rss_bytes": 126271488,
+      "qualification_json_bytes": 843622375,
+      "readiness": "WARNING_LARGE",
+      "row_counts": {
+        "coverage_history": 2,
+        "durable_qualifications": 500000,
+        "interactions": 0,
+        "messages": 1000000,
+        "qualification_events": 50000,
+        "selection_membership": 1000000,
+        "source_provenance": 1000000,
+        "watermarks": 2
+      },
+      "rows": 1000000,
+      "sha256": "cc41b6204fbeb7700640fe9a47c3db8d7d64549c21edf15d3a79248c0bdf7d19",
+      "sha256_seconds": 1.3754328750000013,
+      "size_bytes": 3858518016,
+      "temporary_root": "/private/tmp/scout-v2-a1-capacity-1m"
+    }
+  ],
+  "compilation": "34 Python files passed",
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.9.6 (default, Jan  9 2026, 11:03:41) \n[Clang 17.0.0 (clang-1700.6.4.2)]",
+    "sqlite": "3.51.0"
+  },
+  "fixture_checks": {
+    "duplicate-downgrade": {
+      "hashes_verified": true,
+      "readiness": "QUALIFIED",
+      "size_bytes": 98304
+    },
+    "heartbeat-reuse": {
+      "hashes_verified": true,
+      "readiness": "QUALIFIED",
+      "size_bytes": 98304
+    },
+    "invalidation-audit": {
+      "hashes_verified": true,
+      "readiness": "QUALIFIED",
+      "size_bytes": 98304
+    },
+    "large-size-warning": {
+      "hashes_verified": true,
+      "readiness": "WARNING_LARGE",
+      "size_bytes": 1350615040
+    },
+    "normal": {
+      "hashes_verified": true,
+      "readiness": "QUALIFIED",
+      "size_bytes": 98304
+    },
+    "oversize-rejection": {
+      "hashes_verified": true,
+      "readiness": "OVERSIZE",
+      "size_bytes": 4294971392
+    },
+    "same-operator-bench": {
+      "hashes_verified": true,
+      "readiness": "QUALIFIED",
+      "size_bytes": 98304
+    },
+    "unknown-legacy": {
+      "hashes_verified": true,
+      "readiness": "QUALIFIED",
+      "size_bytes": 86016
+    }
+  },
+  "fixture_root": "/private/tmp/scout-v2-a1-review-fixtures",
+  "implementation_sha256": {
+    "flop_scout.py": "764c014bae16450a070991d4d32b473822c1a662f7b9e60054a183e742d7ef32",
+    "scout_projection.py": "455520c7af4fcbaba96a4319279c19a32b119172ecc73eef6aed96bf2aef0c77",
+    "scout_projection_cli.py": "9ac03be23d1e1bf1cb2df9a35e7cb160d2b2cb3cb7040528d1cb8736833b3cb2",
+    "scout_projection_contract.py": "4aae66971723fa4f8924b5e3b51ab5134bebcbcdc8586914d9daae3adb3269b2",
+    "scout_projection_model.py": "b143927ae9b1a06730dfcd4c673a589763878791b1e3da1d3b8b16ed23a61ddd",
+    "scout_projection_pins.py": "d6b4b470c4dfc47597479f19e0f03b060e4f3433ba3c4df2b54f354d4a97bf74",
+    "scout_projection_publish.py": "5ef5079ab621209dfb2bda87a7144f265b61324e30249025c3fe45c7fb397d34",
+    "scout_projection_rules.py": "b478633542c1080237fc92f524180066282a772f8b45aeececd07c524ff3e150",
+    "scout_projection_service.py": "b2cde043b0d81dc43b3c9c2f607ee948dd3b2243399b30046856319e1c568f6e",
+    "scout_projection_source.py": "ee3a40a16ac86b1a54983a9efcf3ac7939c5f8cfa8b83aade6ae929fe5b62db6",
+    "scout_runtime.py": "018cf3f37833ec1728ac9f66c138761a444e7dc3d5d63a0c078b483aeb2b96ed",
+    "scout_schema.py": "446b3bee239edd56cce99aea94d96da0d2404cd3984967ee16a3c41dfb7acad5",
+    "scout_worker.py": "f6fec511b813f63da2106b5469d81783fe8d695281785f74f6e3a8bb6ea89e23",
+    "scripts/benchmark_projection_v2.py": "17068656aa04be20ef4eed814487fcfc0f74d9742fda206a5800e405ad005644",
+    "scripts/projection_audit_stress.py": "c30d43e78d304f1c8c1329bb3732e853fab3b3bdd2696b77219fc437b8a6d0ea",
+    "scripts/projection_fixture_support.py": "a712c11cd6168a73b297f1594bdc8e83311199e99571a6a3b485355852ff2216",
+    "scripts/projection_v2_fixtures.py": "bd24da65ea58ab5315c48ab2dfbc74d75d3bda4b52d1b0a18025c5c9011968d0",
+    "test_scout_projection.py": "8d6910b1785189cf2e86faca09a463ebe580a81595748b940a3fd863856efe78"
+  },
+  "limitations": [
+    "Synthetic exact-schema capacity model, not warehouse ingest throughput.",
+    "Actual 200-row producer update/expiry probes run in separate fresh state, not at 1M steady state.",
+    "No live observer/projection/publication root or production scheduler was accessed.",
+    "Private replay/outbox storage requires a separate budget; no pruning policy.",
+    "Database byte readiness is not operational qualification."
+  ],
+  "production_qualified": false,
+  "schema": "scout-v2-a1-development-benchmark/v1",
+  "self_test": "PASS; temporary state, ephemeral self-test identity, no network",
+  "source_review_sha256": "bce31fa7dce1f133c317a09539d3eaa8745f15f45316b3250b65bdc36a6297a0",
+  "test_result": "418 passed in 54.22s",
+  "tests_log": "/private/tmp/scout-v2-a1-reviewed-tests.log",
+  "whitespace": "git diff --check and new-file checks passed"
+}

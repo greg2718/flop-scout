@@ -1,0 +1,3180 @@
+{
+  "aggregate_a": {
+    "all_compatibility_link_multiplicity": [
+      {
+        "n": 3,
+        "raw_count": 128183
+      },
+      {
+        "n": 4,
+        "raw_count": 32890
+      }
+    ],
+    "concrete_link_multiplicity": {
+      "exactly_one_concrete_link": 128183,
+      "multiple_conflicting_generations": 0,
+      "multiple_same_generation": 32890
+    },
+    "concrete_link_pairs": 193963,
+    "distinct_affected_raw_records": 161073,
+    "generation_set_categories": {
+      "0_and_1": 0,
+      "0_only": 127146,
+      "1_only": 33927,
+      "other_multiple": 0,
+      "other_singleton": 0
+    },
+    "generation_sets": [
+      {
+        "generations": [
+          "0"
+        ],
+        "raw_count": 127146
+      },
+      {
+        "generations": [
+          "1"
+        ],
+        "raw_count": 33927
+      }
+    ],
+    "maximum_concrete_links_per_raw": 2,
+    "maximum_distinct_linked_generations": 1,
+    "pair_provenance_breakdown": [
+      {
+        "cache_source": "service-poll",
+        "cache_source_class": "UNAVAILABLE",
+        "count": 127146,
+        "endpoint_available": false,
+        "generation": "0",
+        "ingestion_schema": "flop-scout-evidence/v1",
+        "ingestion_version": "1",
+        "legacy_record": 1,
+        "raw_completeness": "PARTIAL",
+        "raw_source": "legacy_evidence",
+        "reported_generation": "0",
+        "table": "evidence_records"
+      },
+      {
+        "cache_source": "service-poll",
+        "cache_source_class": "UNAVAILABLE",
+        "count": 33927,
+        "endpoint_available": false,
+        "generation": "1",
+        "ingestion_schema": "flop-scout-evidence/v1",
+        "ingestion_version": "1",
+        "legacy_record": 1,
+        "raw_completeness": "PARTIAL",
+        "raw_source": "legacy_evidence",
+        "reported_generation": "1",
+        "table": "evidence_records"
+      },
+      {
+        "cache_source": "UNAVAILABLE",
+        "cache_source_class": "UNAVAILABLE",
+        "count": 32294,
+        "endpoint_available": false,
+        "generation": "1",
+        "ingestion_schema": "flop-scout-evidence/v1",
+        "ingestion_version": "1",
+        "legacy_record": 1,
+        "raw_completeness": "PARTIAL",
+        "raw_source": "legacy_evidence",
+        "reported_generation": "1",
+        "table": "tclk_frames"
+      },
+      {
+        "cache_source": "UNAVAILABLE",
+        "cache_source_class": "UNAVAILABLE",
+        "count": 391,
+        "endpoint_available": false,
+        "generation": "0",
+        "ingestion_schema": "flop-scout-evidence/v1",
+        "ingestion_version": "1",
+        "legacy_record": 1,
+        "raw_completeness": "PARTIAL",
+        "raw_source": "legacy_evidence",
+        "reported_generation": "0",
+        "table": "tclk_frames"
+      },
+      {
+        "cache_source": "UNAVAILABLE",
+        "cache_source_class": "SOURCE_TRANSCRIPT",
+        "count": 205,
+        "endpoint_available": false,
+        "generation": "0",
+        "ingestion_schema": "flop-scout-evidence/v1",
+        "ingestion_version": "1",
+        "legacy_record": 1,
+        "raw_completeness": "PARTIAL",
+        "raw_source": "legacy_evidence",
+        "reported_generation": "0",
+        "table": "kibble_events"
+      }
+    ],
+    "pairs_by_cache_table_generation": [
+      {
+        "distinct_raws": 8,
+        "gen": null,
+        "pairs": 8,
+        "tab": "evidence_records"
+      },
+      {
+        "distinct_raws": 127146,
+        "gen": "0",
+        "pairs": 127146,
+        "tab": "evidence_records"
+      },
+      {
+        "distinct_raws": 33927,
+        "gen": "1",
+        "pairs": 33927,
+        "tab": "evidence_records"
+      },
+      {
+        "distinct_raws": 205,
+        "gen": "0",
+        "pairs": 205,
+        "tab": "kibble_events"
+      },
+      {
+        "distinct_raws": 168875,
+        "gen": null,
+        "pairs": 168875,
+        "tab": "messages"
+      },
+      {
+        "distinct_raws": 168875,
+        "gen": null,
+        "pairs": 168875,
+        "tab": "opportunities"
+      },
+      {
+        "distinct_raws": 391,
+        "gen": "0",
+        "pairs": 391,
+        "tab": "tclk_frames"
+      },
+      {
+        "distinct_raws": 32294,
+        "gen": "1",
+        "pairs": 32294,
+        "tab": "tclk_frames"
+      }
+    ]
+  },
+  "aggregate_b": {
+    "alternate_raw_candidates": {
+      "affected_raws_with_alternates": 0,
+      "affected_raws_without_alternates": 161073,
+      "comparison_counts": [],
+      "complete_signed_transport_candidate_pairs": [],
+      "counts_by_alternate_generation": [],
+      "generation_sets_per_raw": [],
+      "maximum_alternates_per_raw": 0,
+      "pairs": 0,
+      "proof_status_counts": [],
+      "raws_with_differing_identity_fields": 0,
+      "sources": []
+    },
+    "ambiguity_summary": {
+      "alternate_same_room_seq_hash_raws": 0,
+      "competing_generation_link_raws": 0,
+      "fresh_verified_raws": 161058,
+      "full_provenance_agreement_pairs": 0,
+      "full_provenance_agreement_raws": 0,
+      "identity_crypto_valid_without_lineage_distinct_raws": 161056,
+      "invalid_signature_raws": 1,
+      "observed_room_seq_hash_or_sender_mismatch_pairs": 0,
+      "raw_internal_did_mismatch_flag_count": 2,
+      "raw_internal_did_mismatch_generation": "1",
+      "sender_binding_unavailable_raws": 14,
+      "signature_generation_binding": false,
+      "source_label_difference_explanation": "legacy_evidence is a migration container; service-poll is the original cache ingestion label. This difference is not a proven endpoint/protocol conflict.",
+      "unresolved_original_generation_authority_raws": 161073,
+      "unsigned_raws": 14
+    },
+    "joint_check_counts": [
+      {
+        "count": 127146,
+        "generation": "0",
+        "predicate": "room_seq_hash_agree",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127133,
+        "generation": "0",
+        "predicate": "identity_nonce_signature_network_time_agree",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127133,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_agree",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127133,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_lineage_unknown",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127132,
+        "generation": "0",
+        "predicate": "identity_crypto_valid_without_lineage",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "generation": "1",
+        "predicate": "room_seq_hash_agree",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33926,
+        "generation": "1",
+        "predicate": "identity_nonce_signature_network_time_agree",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33926,
+        "generation": "1",
+        "predicate": "room_seq_hash_sender_agree",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33926,
+        "generation": "1",
+        "predicate": "room_seq_hash_sender_lineage_unknown",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33924,
+        "generation": "1",
+        "predicate": "identity_crypto_valid_without_lineage",
+        "table": "evidence_records"
+      },
+      {
+        "count": 32294,
+        "generation": "1",
+        "predicate": "room_seq_hash_agree",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32293,
+        "generation": "1",
+        "predicate": "room_seq_hash_sender_agree",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32293,
+        "generation": "1",
+        "predicate": "room_seq_hash_sender_lineage_unknown",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "generation": "0",
+        "predicate": "room_seq_hash_agree",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_agree",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_lineage_unknown",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 205,
+        "generation": "0",
+        "predicate": "identity_crypto_valid_without_lineage",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "generation": "0",
+        "predicate": "identity_nonce_signature_network_time_agree",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "generation": "0",
+        "predicate": "room_seq_hash_agree",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_agree",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_lineage_unknown",
+        "table": "kibble_events"
+      },
+      {
+        "count": 13,
+        "generation": "0",
+        "predicate": "sender_unavailable",
+        "table": "evidence_records"
+      },
+      {
+        "count": 1,
+        "generation": "1",
+        "predicate": "sender_unavailable",
+        "table": "evidence_records"
+      },
+      {
+        "count": 1,
+        "generation": "1",
+        "predicate": "sender_unavailable",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "full_provenance_pass",
+        "table": "evidence_records"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_agree_hash_differs",
+        "table": "evidence_records"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_differs",
+        "table": "evidence_records"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_lineage_agree",
+        "table": "evidence_records"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_lineage_differs",
+        "table": "evidence_records"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "full_provenance_pass",
+        "table": "evidence_records"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "room_seq_agree_hash_differs",
+        "table": "evidence_records"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "room_seq_hash_sender_differs",
+        "table": "evidence_records"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "room_seq_hash_sender_lineage_agree",
+        "table": "evidence_records"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "room_seq_hash_sender_lineage_differs",
+        "table": "evidence_records"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "full_provenance_pass",
+        "table": "kibble_events"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_agree_hash_differs",
+        "table": "kibble_events"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_differs",
+        "table": "kibble_events"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_lineage_agree",
+        "table": "kibble_events"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_lineage_differs",
+        "table": "kibble_events"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "sender_unavailable",
+        "table": "kibble_events"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "full_provenance_pass",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "identity_crypto_valid_without_lineage",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "identity_nonce_signature_network_time_agree",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_agree_hash_differs",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_differs",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_lineage_agree",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "room_seq_hash_sender_lineage_differs",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "predicate": "sender_unavailable",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "full_provenance_pass",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "identity_crypto_valid_without_lineage",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "identity_nonce_signature_network_time_agree",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "room_seq_agree_hash_differs",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "room_seq_hash_sender_differs",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "room_seq_hash_sender_lineage_agree",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "predicate": "room_seq_hash_sender_lineage_differs",
+        "table": "tclk_frames"
+      }
+    ],
+    "joint_vectors": [
+      {
+        "checks": {
+          "capture_timestamp": "AGREE",
+          "endpoint": "UNAVAILABLE_BOTH",
+          "ingestion_source_label": "DIFFER",
+          "link_hash": "AGREE",
+          "network_timestamp": "AGREE",
+          "nonce": "AGREE",
+          "origin_lineage": "UNKNOWN",
+          "room": "AGREE",
+          "sender": "AGREE",
+          "sequence": "AGREE",
+          "signature": "AGREE",
+          "text_hash": "AGREE"
+        },
+        "generation": "0",
+        "pairs": 127133,
+        "table": "evidence_records"
+      },
+      {
+        "checks": {
+          "capture_timestamp": "AGREE",
+          "endpoint": "UNAVAILABLE_BOTH",
+          "ingestion_source_label": "DIFFER",
+          "link_hash": "AGREE",
+          "network_timestamp": "AGREE",
+          "nonce": "UNAVAILABLE_BOTH",
+          "origin_lineage": "UNKNOWN",
+          "room": "AGREE",
+          "sender": "UNAVAILABLE_LINK",
+          "sequence": "AGREE",
+          "signature": "UNAVAILABLE_BOTH",
+          "text_hash": "AGREE"
+        },
+        "generation": "0",
+        "pairs": 13,
+        "table": "evidence_records"
+      },
+      {
+        "checks": {
+          "capture_timestamp": "AGREE",
+          "endpoint": "UNAVAILABLE_BOTH",
+          "ingestion_source_label": "DIFFER",
+          "link_hash": "AGREE",
+          "network_timestamp": "AGREE",
+          "nonce": "AGREE",
+          "origin_lineage": "UNKNOWN",
+          "room": "AGREE",
+          "sender": "AGREE",
+          "sequence": "AGREE",
+          "signature": "AGREE",
+          "text_hash": "AGREE"
+        },
+        "generation": "1",
+        "pairs": 33926,
+        "table": "evidence_records"
+      },
+      {
+        "checks": {
+          "capture_timestamp": "AGREE",
+          "endpoint": "UNAVAILABLE_BOTH",
+          "ingestion_source_label": "DIFFER",
+          "link_hash": "AGREE",
+          "network_timestamp": "AGREE",
+          "nonce": "UNAVAILABLE_BOTH",
+          "origin_lineage": "UNKNOWN",
+          "room": "AGREE",
+          "sender": "UNAVAILABLE_LINK",
+          "sequence": "AGREE",
+          "signature": "UNAVAILABLE_BOTH",
+          "text_hash": "AGREE"
+        },
+        "generation": "1",
+        "pairs": 1,
+        "table": "evidence_records"
+      },
+      {
+        "checks": {
+          "capture_timestamp": "AGREE",
+          "endpoint": "UNAVAILABLE_BOTH",
+          "ingestion_source_label": "UNAVAILABLE_LINK",
+          "link_hash": "AGREE",
+          "network_timestamp": "AGREE",
+          "nonce": "AGREE",
+          "origin_lineage": "UNKNOWN",
+          "room": "AGREE",
+          "sender": "AGREE",
+          "sequence": "AGREE",
+          "signature": "AGREE",
+          "text_hash": "AGREE"
+        },
+        "generation": "0",
+        "pairs": 205,
+        "table": "kibble_events"
+      },
+      {
+        "checks": {
+          "capture_timestamp": "AGREE",
+          "endpoint": "UNAVAILABLE_BOTH",
+          "ingestion_source_label": "UNAVAILABLE_LINK",
+          "link_hash": "AGREE",
+          "network_timestamp": "UNAVAILABLE_LINK",
+          "nonce": "UNAVAILABLE_LINK",
+          "origin_lineage": "UNKNOWN",
+          "room": "AGREE",
+          "sender": "AGREE",
+          "sequence": "AGREE",
+          "signature": "UNAVAILABLE_LINK",
+          "text_hash": "AGREE"
+        },
+        "generation": "0",
+        "pairs": 391,
+        "table": "tclk_frames"
+      },
+      {
+        "checks": {
+          "capture_timestamp": "AGREE",
+          "endpoint": "UNAVAILABLE_BOTH",
+          "ingestion_source_label": "UNAVAILABLE_LINK",
+          "link_hash": "AGREE",
+          "network_timestamp": "UNAVAILABLE_LINK",
+          "nonce": "UNAVAILABLE_BOTH",
+          "origin_lineage": "UNKNOWN",
+          "room": "AGREE",
+          "sender": "UNAVAILABLE_LINK",
+          "sequence": "AGREE",
+          "signature": "UNAVAILABLE_BOTH",
+          "text_hash": "AGREE"
+        },
+        "generation": "1",
+        "pairs": 1,
+        "table": "tclk_frames"
+      },
+      {
+        "checks": {
+          "capture_timestamp": "AGREE",
+          "endpoint": "UNAVAILABLE_BOTH",
+          "ingestion_source_label": "UNAVAILABLE_LINK",
+          "link_hash": "AGREE",
+          "network_timestamp": "UNAVAILABLE_LINK",
+          "nonce": "UNAVAILABLE_LINK",
+          "origin_lineage": "UNKNOWN",
+          "room": "AGREE",
+          "sender": "AGREE",
+          "sequence": "AGREE",
+          "signature": "UNAVAILABLE_LINK",
+          "text_hash": "AGREE"
+        },
+        "generation": "1",
+        "pairs": 32293,
+        "table": "tclk_frames"
+      }
+    ],
+    "marginal_checks": [
+      {
+        "count": 127146,
+        "field": "capture_timestamp",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "endpoint",
+        "generation": "0",
+        "result": "UNAVAILABLE_BOTH",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "ingestion_source_label",
+        "generation": "0",
+        "result": "DIFFER",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "link_hash",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "network_timestamp",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "origin_lineage",
+        "generation": "0",
+        "result": "UNKNOWN",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "room",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "sequence",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "text_hash",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127133,
+        "field": "nonce",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127133,
+        "field": "sender",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127133,
+        "field": "signature",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "capture_timestamp",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "endpoint",
+        "generation": "1",
+        "result": "UNAVAILABLE_BOTH",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "ingestion_source_label",
+        "generation": "1",
+        "result": "DIFFER",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "link_hash",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "network_timestamp",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "origin_lineage",
+        "generation": "1",
+        "result": "UNKNOWN",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "room",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "sequence",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "text_hash",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33926,
+        "field": "nonce",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33926,
+        "field": "sender",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33926,
+        "field": "signature",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 32294,
+        "field": "capture_timestamp",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "endpoint",
+        "generation": "1",
+        "result": "UNAVAILABLE_BOTH",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "ingestion_source_label",
+        "generation": "1",
+        "result": "UNAVAILABLE_LINK",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "link_hash",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "network_timestamp",
+        "generation": "1",
+        "result": "UNAVAILABLE_LINK",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "origin_lineage",
+        "generation": "1",
+        "result": "UNKNOWN",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "room",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "sequence",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "text_hash",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32293,
+        "field": "nonce",
+        "generation": "1",
+        "result": "UNAVAILABLE_LINK",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32293,
+        "field": "sender",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32293,
+        "field": "signature",
+        "generation": "1",
+        "result": "UNAVAILABLE_LINK",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "capture_timestamp",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "endpoint",
+        "generation": "0",
+        "result": "UNAVAILABLE_BOTH",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "ingestion_source_label",
+        "generation": "0",
+        "result": "UNAVAILABLE_LINK",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "link_hash",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "network_timestamp",
+        "generation": "0",
+        "result": "UNAVAILABLE_LINK",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "nonce",
+        "generation": "0",
+        "result": "UNAVAILABLE_LINK",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "origin_lineage",
+        "generation": "0",
+        "result": "UNKNOWN",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "room",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "sender",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "sequence",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "signature",
+        "generation": "0",
+        "result": "UNAVAILABLE_LINK",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "text_hash",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 205,
+        "field": "capture_timestamp",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "endpoint",
+        "generation": "0",
+        "result": "UNAVAILABLE_BOTH",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "ingestion_source_label",
+        "generation": "0",
+        "result": "UNAVAILABLE_LINK",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "link_hash",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "network_timestamp",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "nonce",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "origin_lineage",
+        "generation": "0",
+        "result": "UNKNOWN",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "room",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "sender",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "sequence",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "signature",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "text_hash",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 13,
+        "field": "nonce",
+        "generation": "0",
+        "result": "UNAVAILABLE_BOTH",
+        "table": "evidence_records"
+      },
+      {
+        "count": 13,
+        "field": "sender",
+        "generation": "0",
+        "result": "UNAVAILABLE_LINK",
+        "table": "evidence_records"
+      },
+      {
+        "count": 13,
+        "field": "signature",
+        "generation": "0",
+        "result": "UNAVAILABLE_BOTH",
+        "table": "evidence_records"
+      },
+      {
+        "count": 1,
+        "field": "nonce",
+        "generation": "1",
+        "result": "UNAVAILABLE_BOTH",
+        "table": "evidence_records"
+      },
+      {
+        "count": 1,
+        "field": "sender",
+        "generation": "1",
+        "result": "UNAVAILABLE_LINK",
+        "table": "evidence_records"
+      },
+      {
+        "count": 1,
+        "field": "signature",
+        "generation": "1",
+        "result": "UNAVAILABLE_BOTH",
+        "table": "evidence_records"
+      },
+      {
+        "count": 1,
+        "field": "nonce",
+        "generation": "1",
+        "result": "UNAVAILABLE_BOTH",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 1,
+        "field": "sender",
+        "generation": "1",
+        "result": "UNAVAILABLE_LINK",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 1,
+        "field": "signature",
+        "generation": "1",
+        "result": "UNAVAILABLE_BOTH",
+        "table": "tclk_frames"
+      }
+    ],
+    "other_cache_checks": [
+      {
+        "count": 127146,
+        "field": "cache_envelope_generation",
+        "generation": "0",
+        "result": "UNAVAILABLE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "cache_envelope_text_hash",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "cache_parse_status",
+        "generation": "0",
+        "result": "UNAVAILABLE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "exact_text_available",
+        "generation": "0",
+        "result": "True",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "raw_reported_generation_agreement",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 127146,
+        "field": "stored_hash_vs_text",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "cache_envelope_generation",
+        "generation": "1",
+        "result": "UNAVAILABLE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "cache_envelope_text_hash",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "cache_parse_status",
+        "generation": "1",
+        "result": "UNAVAILABLE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "exact_text_available",
+        "generation": "1",
+        "result": "True",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "raw_reported_generation_agreement",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 33927,
+        "field": "stored_hash_vs_text",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "evidence_records"
+      },
+      {
+        "count": 32294,
+        "field": "cache_envelope_generation",
+        "generation": "1",
+        "result": "UNAVAILABLE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "cache_envelope_text_hash",
+        "generation": "1",
+        "result": "UNAVAILABLE_LINK",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "exact_text_available",
+        "generation": "1",
+        "result": "True",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "raw_reported_generation_agreement",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 32294,
+        "field": "stored_hash_vs_text",
+        "generation": "1",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 27551,
+        "field": "cache_parse_status",
+        "generation": "1",
+        "result": "TCLK_PARSEABLE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 4743,
+        "field": "cache_parse_status",
+        "generation": "1",
+        "result": "TCLK_MALFORMED",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "cache_envelope_generation",
+        "generation": "0",
+        "result": "UNAVAILABLE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "cache_envelope_text_hash",
+        "generation": "0",
+        "result": "UNAVAILABLE_LINK",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "exact_text_available",
+        "generation": "0",
+        "result": "True",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "raw_reported_generation_agreement",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 391,
+        "field": "stored_hash_vs_text",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 390,
+        "field": "cache_parse_status",
+        "generation": "0",
+        "result": "TCLK_PARSEABLE",
+        "table": "tclk_frames"
+      },
+      {
+        "count": 205,
+        "field": "cache_envelope_generation",
+        "generation": "0",
+        "result": "UNAVAILABLE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "cache_envelope_text_hash",
+        "generation": "0",
+        "result": "UNAVAILABLE_LINK",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "cache_parse_status",
+        "generation": "0",
+        "result": "KIBBLE_MALFORMED",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "exact_text_available",
+        "generation": "0",
+        "result": "True",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "raw_reported_generation_agreement",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 205,
+        "field": "stored_hash_vs_text",
+        "generation": "0",
+        "result": "AGREE",
+        "table": "kibble_events"
+      },
+      {
+        "count": 1,
+        "field": "cache_parse_status",
+        "generation": "0",
+        "result": "TCLK_MALFORMED",
+        "table": "tclk_frames"
+      }
+    ],
+    "raw_record_checks": [
+      {
+        "count": 127146,
+        "field": "did_mismatch",
+        "generation": "0",
+        "value": "0"
+      },
+      {
+        "count": 127146,
+        "field": "endpoint_available",
+        "generation": "0",
+        "value": "False"
+      },
+      {
+        "count": 127146,
+        "field": "envelope_generation",
+        "generation": "0",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 127146,
+        "field": "envelope_hash_ok",
+        "generation": "0",
+        "value": "True"
+      },
+      {
+        "count": 127146,
+        "field": "generation",
+        "generation": "0",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 127146,
+        "field": "ingestion_schema",
+        "generation": "0",
+        "value": "flop-scout-evidence/v1"
+      },
+      {
+        "count": 127146,
+        "field": "ingestion_version",
+        "generation": "0",
+        "value": "1"
+      },
+      {
+        "count": 127146,
+        "field": "legacy_record",
+        "generation": "0",
+        "value": "1"
+      },
+      {
+        "count": 127146,
+        "field": "meta.body_generation",
+        "generation": "0",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 127146,
+        "field": "meta.endpoint",
+        "generation": "0",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 127146,
+        "field": "meta.epoch_present",
+        "generation": "0",
+        "value": "False"
+      },
+      {
+        "count": 127146,
+        "field": "meta.generation_conflict",
+        "generation": "0",
+        "value": "False"
+      },
+      {
+        "count": 127146,
+        "field": "meta.header_generation",
+        "generation": "0",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 127146,
+        "field": "meta.snapshot_present",
+        "generation": "0",
+        "value": "False"
+      },
+      {
+        "count": 127146,
+        "field": "raw_completeness",
+        "generation": "0",
+        "value": "PARTIAL"
+      },
+      {
+        "count": 127146,
+        "field": "raw_identity_ok",
+        "generation": "0",
+        "value": "True"
+      },
+      {
+        "count": 127146,
+        "field": "reported_generation",
+        "generation": "0",
+        "value": "0"
+      },
+      {
+        "count": 127146,
+        "field": "signed_text_generation",
+        "generation": "0",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 127146,
+        "field": "source",
+        "generation": "0",
+        "value": "legacy_evidence"
+      },
+      {
+        "count": 127146,
+        "field": "text_hash_ok",
+        "generation": "0",
+        "value": "True"
+      },
+      {
+        "count": 127132,
+        "field": "fresh_verification",
+        "generation": "0",
+        "value": "VERIFIED_OFFLINE"
+      },
+      {
+        "count": 127132,
+        "field": "signature_status",
+        "generation": "0",
+        "value": "VERIFIED_OFFLINE"
+      },
+      {
+        "count": 33927,
+        "field": "endpoint_available",
+        "generation": "1",
+        "value": "False"
+      },
+      {
+        "count": 33927,
+        "field": "envelope_generation",
+        "generation": "1",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 33927,
+        "field": "envelope_hash_ok",
+        "generation": "1",
+        "value": "True"
+      },
+      {
+        "count": 33927,
+        "field": "generation",
+        "generation": "1",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 33927,
+        "field": "ingestion_schema",
+        "generation": "1",
+        "value": "flop-scout-evidence/v1"
+      },
+      {
+        "count": 33927,
+        "field": "ingestion_version",
+        "generation": "1",
+        "value": "1"
+      },
+      {
+        "count": 33927,
+        "field": "legacy_record",
+        "generation": "1",
+        "value": "1"
+      },
+      {
+        "count": 33927,
+        "field": "meta.body_generation",
+        "generation": "1",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 33927,
+        "field": "meta.endpoint",
+        "generation": "1",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 33927,
+        "field": "meta.epoch_present",
+        "generation": "1",
+        "value": "False"
+      },
+      {
+        "count": 33927,
+        "field": "meta.generation_conflict",
+        "generation": "1",
+        "value": "False"
+      },
+      {
+        "count": 33927,
+        "field": "meta.header_generation",
+        "generation": "1",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 33927,
+        "field": "meta.snapshot_present",
+        "generation": "1",
+        "value": "False"
+      },
+      {
+        "count": 33927,
+        "field": "raw_completeness",
+        "generation": "1",
+        "value": "PARTIAL"
+      },
+      {
+        "count": 33927,
+        "field": "raw_identity_ok",
+        "generation": "1",
+        "value": "True"
+      },
+      {
+        "count": 33927,
+        "field": "reported_generation",
+        "generation": "1",
+        "value": "1"
+      },
+      {
+        "count": 33927,
+        "field": "signed_text_generation",
+        "generation": "1",
+        "value": "UNAVAILABLE"
+      },
+      {
+        "count": 33927,
+        "field": "source",
+        "generation": "1",
+        "value": "legacy_evidence"
+      },
+      {
+        "count": 33927,
+        "field": "text_hash_ok",
+        "generation": "1",
+        "value": "True"
+      },
+      {
+        "count": 33926,
+        "field": "fresh_verification",
+        "generation": "1",
+        "value": "VERIFIED_OFFLINE"
+      },
+      {
+        "count": 33926,
+        "field": "signature_status",
+        "generation": "1",
+        "value": "VERIFIED_OFFLINE"
+      },
+      {
+        "count": 33925,
+        "field": "did_mismatch",
+        "generation": "1",
+        "value": "0"
+      },
+      {
+        "count": 13,
+        "field": "fresh_verification",
+        "generation": "0",
+        "value": "UNSIGNED"
+      },
+      {
+        "count": 13,
+        "field": "signature_status",
+        "generation": "0",
+        "value": "MISSING"
+      },
+      {
+        "count": 2,
+        "field": "did_mismatch",
+        "generation": "1",
+        "value": "1"
+      },
+      {
+        "count": 1,
+        "field": "fresh_verification",
+        "generation": "0",
+        "value": "INVALID_SIGNATURE"
+      },
+      {
+        "count": 1,
+        "field": "signature_status",
+        "generation": "0",
+        "value": "FAILED"
+      },
+      {
+        "count": 1,
+        "field": "fresh_verification",
+        "generation": "1",
+        "value": "UNSIGNED"
+      },
+      {
+        "count": 1,
+        "field": "signature_status",
+        "generation": "1",
+        "value": "MISSING"
+      }
+    ],
+    "recursive_generation_field_audit": {
+      "metadata_key_occurrences": {
+        "envelope_serialization": 161073,
+        "hash_basis": 161073
+      },
+      "recursive_generation_field_occurrences": [],
+      "scope": "all affected raw transport metadata, reconstructed message envelopes, and parsed JSON/TCLK text recursively searched for generation-named fields; no generation fields found; non-JSON free prose is not treated as a transport authority assertion"
+    },
+    "retrieval_metadata": {
+      "conflict_rows_by_linked_generation": {},
+      "distribution": [],
+      "generation_claim_raws": 0,
+      "rows": 0
+    },
+    "verification_statuses": [
+      {
+        "cache_status": "VERIFIED_OFFLINE",
+        "count": 127132,
+        "fresh_raw_status": "VERIFIED_OFFLINE",
+        "generation": "0",
+        "table": "evidence_records"
+      },
+      {
+        "cache_status": "VERIFIED_OFFLINE",
+        "count": 33926,
+        "fresh_raw_status": "VERIFIED_OFFLINE",
+        "generation": "1",
+        "table": "evidence_records"
+      },
+      {
+        "cache_status": "VERIFIED_OFFLINE",
+        "count": 32293,
+        "fresh_raw_status": "VERIFIED_OFFLINE",
+        "generation": "1",
+        "table": "tclk_frames"
+      },
+      {
+        "cache_status": "VERIFIED_OFFLINE",
+        "count": 391,
+        "fresh_raw_status": "VERIFIED_OFFLINE",
+        "generation": "0",
+        "table": "tclk_frames"
+      },
+      {
+        "cache_status": "VERIFIED_OFFLINE",
+        "count": 205,
+        "fresh_raw_status": "VERIFIED_OFFLINE",
+        "generation": "0",
+        "table": "kibble_events"
+      },
+      {
+        "cache_status": "UNSIGNED",
+        "count": 13,
+        "fresh_raw_status": "UNSIGNED",
+        "generation": "0",
+        "table": "evidence_records"
+      },
+      {
+        "cache_status": "INVALID_SIGNATURE",
+        "count": 1,
+        "fresh_raw_status": "INVALID_SIGNATURE",
+        "generation": "0",
+        "table": "evidence_records"
+      },
+      {
+        "cache_status": "UNSIGNED",
+        "count": 1,
+        "fresh_raw_status": "UNSIGNED",
+        "generation": "1",
+        "table": "evidence_records"
+      },
+      {
+        "cache_status": "UNSIGNED",
+        "count": 1,
+        "fresh_raw_status": "UNSIGNED",
+        "generation": "1",
+        "table": "tclk_frames"
+      }
+    ]
+  },
+  "aggregate_d": {
+    "classification_note": "Legacy importer demonstrably carried the cache label into raw.reported_generation. The original cache label has no preserved authoritative capture; carriage does not prove server origin. Signature failures are authenticity failures, not asserted generation conflicts.",
+    "migration_carriage_distinct_raws": {
+      "0": 127146,
+      "1": 33927
+    },
+    "migration_carriage_is_separate_dimension": true,
+    "origin_counts": {
+      "0": {
+        "AUTHORITATIVE_TRANSPORT_CAPTURE": 0,
+        "CONFLICTING": 0,
+        "DEFAULTED": 0,
+        "DERIVED_FROM_PRIOR_CAPTURE": 0,
+        "INFERRED": 0,
+        "MIGRATION_CARRIED_FORWARD": 0,
+        "SIGNED_MESSAGE_REPORTED": 0,
+        "UNKNOWN_ORIGIN": 127742
+      },
+      "1": {
+        "AUTHORITATIVE_TRANSPORT_CAPTURE": 0,
+        "CONFLICTING": 0,
+        "DEFAULTED": 0,
+        "DERIVED_FROM_PRIOR_CAPTURE": 0,
+        "INFERRED": 0,
+        "MIGRATION_CARRIED_FORWARD": 0,
+        "SIGNED_MESSAGE_REPORTED": 0,
+        "UNKNOWN_ORIGIN": 66221
+      }
+    },
+    "original_label_origin_distinct_raws": {
+      "0": {
+        "AUTHORITATIVE_TRANSPORT_CAPTURE": 0,
+        "CONFLICTING": 0,
+        "DEFAULTED": 0,
+        "DERIVED_FROM_PRIOR_CAPTURE": 0,
+        "INFERRED": 0,
+        "MIGRATION_CARRIED_FORWARD": 0,
+        "SIGNED_MESSAGE_REPORTED": 0,
+        "UNKNOWN_ORIGIN": 127146
+      },
+      "1": {
+        "AUTHORITATIVE_TRANSPORT_CAPTURE": 0,
+        "CONFLICTING": 0,
+        "DEFAULTED": 0,
+        "DERIVED_FROM_PRIOR_CAPTURE": 0,
+        "INFERRED": 0,
+        "MIGRATION_CARRIED_FORWARD": 0,
+        "SIGNED_MESSAGE_REPORTED": 0,
+        "UNKNOWN_ORIGIN": 33927
+      }
+    },
+    "raw_report_creation_class_counts": {
+      "0": {
+        "AUTHORITATIVE_TRANSPORT_CAPTURE": 0,
+        "CONFLICTING": 0,
+        "DEFAULTED": 0,
+        "DERIVED_FROM_PRIOR_CAPTURE": 0,
+        "INFERRED": 0,
+        "MIGRATION_CARRIED_FORWARD": 127146,
+        "SIGNED_MESSAGE_REPORTED": 0,
+        "UNKNOWN_ORIGIN": 0
+      },
+      "1": {
+        "AUTHORITATIVE_TRANSPORT_CAPTURE": 0,
+        "CONFLICTING": 0,
+        "DEFAULTED": 0,
+        "DERIVED_FROM_PRIOR_CAPTURE": 0,
+        "INFERRED": 0,
+        "MIGRATION_CARRIED_FORWARD": 33927,
+        "SIGNED_MESSAGE_REPORTED": 0,
+        "UNKNOWN_ORIGIN": 0
+      }
+    },
+    "raw_report_creation_unit": "distinct raw reported-generation field; describes carriage only, separate from ultimate origin of linked cache labels",
+    "unit": "concrete linked cache row; ultimate server-generation origin, mutually exclusive classes"
+  },
+  "counting_scope": {
+    "all_linked_rows_by_table": [
+      {
+        "distinct_raws": 161081,
+        "pairs": 161081,
+        "tab": "evidence_records"
+      },
+      {
+        "distinct_raws": 205,
+        "pairs": 205,
+        "tab": "kibble_events"
+      },
+      {
+        "distinct_raws": 168875,
+        "pairs": 168875,
+        "tab": "messages"
+      },
+      {
+        "distinct_raws": 168875,
+        "pairs": 168875,
+        "tab": "opportunities"
+      },
+      {
+        "distinct_raws": 32685,
+        "pairs": 32685,
+        "tab": "tclk_frames"
+      }
+    ],
+    "concrete_predicate": "value is not NULL and string(value) not in ('','UNKNOWN_LEGACY','GENERATION_MISSING')",
+    "concrete_row_unit": "one (compatibility cache_table, cache_rowid); own reported_generation is not counted as another link",
+    "unknown_only_linked_raws": 7809,
+    "unknown_raw_count": 168882,
+    "unknown_raw_predicate": "generation IS NULL OR generation='UNKNOWN_LEGACY'",
+    "unknown_raws_with_any_compatibility_link": 168882,
+    "unknown_raws_without_any_compatibility_link": 0,
+    "unknown_raws_without_concrete_compatibility_link": 7809
+  },
+  "decision_input": {
+    "contract_or_runtime_changes": false,
+    "future_work": "C: only a separately reviewed, audited reconciliation or resolution representation preserving captured UNKNOWN_LEGACY, immutable raw IDs, history and captured-domain watermarks. Current evidence cannot authorize enrichment to 0 or 1.",
+    "generation_0_authoritatively_resolvable_for_affected_rows": "NO",
+    "generation_1_authoritatively_resolvable_for_affected_rows": "NO",
+    "generation_resolution_blocked": true,
+    "implementation_readiness": "BLOCKED_PENDING_GENERATION_AUTHORITY",
+    "recommendation": "B: strict conflict should remain"
+  },
+  "diagnostic_reproduction": {
+    "note": "Scripts use private temporary DB/IDs internally but emit aggregates only. Set root tracker to a new owner-created safe copy; original temporary copy is removed after validation. No production message text or identities embedded.",
+    "scripts": {
+      "aggregate": "import sqlite3,json,collections,hashlib,subprocess\nfrom pathlib import Path\nroot=Path(Path('/private/tmp/generation-authority-root.txt').read_text());c=sqlite3.connect((root/'analysis.sqlite').as_uri()+'?mode=ro',uri=True);c.row_factory=sqlite3.Row\nC=collections.Counter\ndef rows(sql):return [dict(r) for r in c.execute(sql)]\ndef hist(counter,keys):return [dict(zip(keys,k if isinstance(k,tuple) else (k,)),count=v) for k,v in sorted(counter.items(),key=lambda x:(-x[1],str(x[0])))]\ndef marker(v):return 'UNAVAILABLE' if v is None else str(v)\ndef room_group(room):\n if room.startswith('mb-'):return 'mailbox'\n if room in ['lobby','faucet','kibble','technocore']:return room\n if room.startswith('tclk'):return 'TCLK-related'\n return 'other'\n# Only report room names from non-mailbox rooms; mailbox identities stay private.\ndef room_label(room):return 'mailbox (redacted)' if room.startswith('mb-') else room\npair=C();marg=C();joint=C();joint_groups=C();verif=C();cacheother=C();rawsets={};linkcount=C();unknownonly=0;pairbreak=C()\nfor row in c.execute('SELECT c.*,r.room,r.body AS rawbody FROM checks c JOIN raws r ON r.id=c.rid WHERE c.gen IS NOT NULL'):\n g=row['gen'];tab=row['tab'];b=json.loads(row['body']);r=json.loads(row['rawbody']);f=b['checks'];rid=row['rid'];rawsets.setdefault(rid,set()).add(g);linkcount[rid]+=1;pair[(tab,g)]+=1\n for k,v in f.items():marg[(tab,g,k,v)]+=1\n joint[(tab,g,json.dumps(f,sort_keys=True))]+=1\n core=all(f[k]=='AGREE' for k in ['room','sequence','text_hash']);sender=core and f['sender']=='AGREE';bound=sender and all(f[k]=='AGREE' for k in ['nonce','signature','network_timestamp']);valid=bound and r['fresh_verification']=='VERIFIED_OFFLINE' and r['raw_identity_ok'] and r['text_hash_ok'] and r['envelope_hash_ok'] and not r['did_mismatch']\n tests={'room_seq_hash_agree':core,'room_seq_hash_sender_agree':sender,'room_seq_hash_sender_lineage_agree':sender and f['origin_lineage']=='AGREE','room_seq_hash_sender_lineage_unknown':sender and f['origin_lineage']=='UNKNOWN','room_seq_hash_sender_lineage_differs':sender and f['origin_lineage']=='DIFFER','room_seq_hash_sender_differs':core and f['sender']=='DIFFER','room_seq_agree_hash_differs':f['room']==f['sequence']=='AGREE' and f['text_hash']=='DIFFER','identity_nonce_signature_network_time_agree':bound,'identity_crypto_valid_without_lineage':valid,'full_provenance_pass':valid and f['origin_lineage']=='AGREE','sender_unavailable':f['sender'].startswith('UNAVAILABLE')}\n for k,v in tests.items():joint_groups[(tab,g,k)]+=int(v)\n verif[(tab,g,marker(b['cache_verification']),r['fresh_verification'])]+=1\n for k in ('stored_hash_vs_text','cache_envelope_text_hash','raw_reported_generation_agreement','cache_parse_status','exact_text_available','cache_envelope_generation'):cacheother[(tab,g,k,marker(b[k]))]+=1\n pairbreak[(tab,g,r['source'],r['legacy_record'],r['raw_completeness'],marker(r['reported_generation']),r['ingestion_schema'],r['ingestion_version'],r['source_endpoint'] is not None,marker(b['source']),marker(b['source_class']))]+=1\nsets=C(tuple(sorted(g)) for g in rawsets.values());mult=C('exactly_one_concrete_link' if linkcount[rid]==1 else 'multiple_same_generation' if len(gs)==1 else 'multiple_conflicting_generations' for rid,gs in rawsets.items());rawstats=C();timehist=C();roomhist=C();roomgroups=C();timebounds={};sourcehist=C();before=C();migration='2026-09-05T13:31:26.462699+00:00'\nfor row in c.execute('SELECT r.* FROM affected a JOIN raws r ON r.id=a.rid'):\n r=json.loads(row['body']);gs=tuple(sorted(rawsets[row['id']]));g=','.join(gs)\n for k in ('source','generation','reported_generation','legacy_record','raw_completeness','ingestion_schema','ingestion_version','fresh_verification','signature_status','did_mismatch','raw_identity_ok','text_hash_ok','envelope_hash_ok','envelope_generation','signed_text_generation'):\n  rawstats[(g,k,marker(r[k]))]+=1\n for k,v in r['meta'].items():rawstats[(g,'meta.'+k,marker(v))]+=1\n rawstats[(g,'endpoint_available',str(r['source_endpoint'] is not None))]+=1\n for field in ('retrieved_at','created_at','network_timestamp'):\n  v=r[field];timehist[(g,field,v[:10] if v else 'UNAVAILABLE')]+=1\n  if v:\n   key=g+':'+field;bb=timebounds.setdefault(key,{'min':v,'max':v});bb['min']=min(bb['min'],v);bb['max']=max(bb['max'],v)\n before[(g,'retrieved_before_schema1')]+=int(bool(r['retrieved_at']) and r['retrieved_at']<migration)\n before[(g,'created_equals_retrieved')]+=int(r['created_at']==r['retrieved_at'])\n roomhist[(g,room_label(row['room']))]+=1;roomgroups[(g,room_group(row['room']))]+=1\n# Cache source labels count original evidence rows once; other cache rows shown separately.\nfor row in c.execute(\"SELECT gen,json_extract(body,'$.source') AS source,count(*) AS n FROM checks WHERE tab='evidence_records' AND gen IS NOT NULL GROUP BY gen,source\"):\n sourcehist[(row['gen'],marker(row['source']))]+=row['n']\nalllinkhist=rows('SELECT n,count(*) AS raw_count FROM (SELECT a.rid,count(l.n) AS n FROM affected a JOIN links l ON l.rid=a.rid GROUP BY a.rid) GROUP BY n')\n# Alternate candidates have already been matched on exact room/sequence/hash.\nalt_pairs=C();alt_checks=C();alt_per={};alt_generations={};alt_stats=C();alt_source=C();alt_multi=C();alt_full=C();alt_invalid=C()\nfor row in c.execute('SELECT * FROM alternatives'):\n b=json.loads(row['body']);rid=row['rid'];g=','.join(sorted(rawsets[rid]));ag=marker(row['gen']);alt_pairs[(g,ag)]+=1;alt_per[rid]=alt_per.get(rid,0)+1;alt_generations.setdefault(rid,set()).add(ag)\n for k,v in b['checks'].items():alt_checks[(g,k,v)]+=1\n for k in ['identity_fields_all_agree','endpoint_available','legacy_record','raw_completeness','transport_generation_candidate','generation_conflict','snapshot_present','hash_ok','envelope_hash_ok','raw_identity_ok','fresh_verification']:\n  alt_stats[(g,k,marker(b[k]))]+=1\n alt_source[(g,b['source'],ag)]+=1\n if b['identity_fields_all_agree'] and b['transport_generation_candidate'] and b['hash_ok'] and b['envelope_hash_ok'] and b['raw_identity_ok'] and b['fresh_verification']=='VERIFIED_OFFLINE':alt_full[(g,ag)]+=1\n if any(b['checks'][k]=='DIFFER' for k in ['sender_did','nonce','signature','network_timestamp']):alt_invalid[rid]+=1\nfor rid,gs in alt_generations.items():alt_multi[(','.join(sorted(rawsets[rid])),tuple(sorted(gs)))]+=1\nretr=C();retr_claim_sets={};retr_conf=C()\nfor row in c.execute('SELECT * FROM retrievals'):\n b=json.loads(row['body']);rid=row['rid'];g=','.join(sorted(rawsets[rid])) if rid in rawsets else 'unknown-only';retr[(g,marker(row['gen']),b['endpoint_available'],b['conflict'])]+=1\n gs=set(v for v in [b['body_generation'],b['header_generation']] if v is not None);retr_claim_sets.setdefault(rid,set()).update(gs)\n if b['conflict']:retr_conf[g]+=1\nunknown_raws=c.execute('SELECT count(*) FROM raws').fetchone()[0];linked_raws=c.execute('SELECT count(DISTINCT rid) FROM links').fetchone()[0]\nclasses=['AUTHORITATIVE_TRANSPORT_CAPTURE','SIGNED_MESSAGE_REPORTED','DERIVED_FROM_PRIOR_CAPTURE','MIGRATION_CARRIED_FORWARD','DEFAULTED','INFERRED','UNKNOWN_ORIGIN','CONFLICTING']\norigin={g:{k:0 for k in classes} for g in ['0','1']}\nfor (tab,g),n in pair.items():origin[g]['UNKNOWN_ORIGIN']+=n\nout={'snapshot':json.loads((root/'snapshot.json').read_text()),'counting_scope':{'unknown_raw_predicate':\"generation IS NULL OR generation='UNKNOWN_LEGACY'\",'concrete_predicate':\"value is not NULL and string(value) not in ('','UNKNOWN_LEGACY','GENERATION_MISSING')\",'concrete_row_unit':'one (compatibility cache_table, cache_rowid); own reported_generation is not counted as another link','unknown_raw_count':unknown_raws,'unknown_raws_with_any_compatibility_link':linked_raws,'unknown_raws_without_any_compatibility_link':unknown_raws-linked_raws,'unknown_raws_without_concrete_compatibility_link':unknown_raws-len(rawsets),'unknown_only_linked_raws':linked_raws-len(rawsets),'all_linked_rows_by_table':rows('SELECT tab,count(*) AS pairs,count(DISTINCT rid) AS distinct_raws FROM links GROUP BY tab')},'aggregate_a':{'distinct_affected_raw_records':len(rawsets),'concrete_link_pairs':sum(pair.values()),'generation_sets':[{'generations':list(k),'raw_count':v} for k,v in sorted(sets.items())],'maximum_distinct_linked_generations':max(map(len,rawsets.values())),'concrete_link_multiplicity':dict(mult),'maximum_concrete_links_per_raw':max(linkcount.values()),'all_compatibility_link_multiplicity':alllinkhist,'pairs_by_cache_table_generation':rows('SELECT tab,gen,count(*) AS pairs,count(DISTINCT rid) AS distinct_raws FROM checks GROUP BY tab,gen'),'pair_provenance_breakdown':hist(pairbreak,['table','generation','raw_source','legacy_record','raw_completeness','reported_generation','ingestion_schema','ingestion_version','endpoint_available','cache_source','cache_source_class'])},'aggregate_b':{'marginal_checks':hist(marg,['table','generation','field','result']),'joint_check_counts':hist(joint_groups,['table','generation','predicate']),'joint_vectors':[{'table':k[0],'generation':k[1],'checks':json.loads(k[2]),'pairs':v} for k,v in sorted(joint.items())],'verification_statuses':hist(verif,['table','generation','cache_status','fresh_raw_status']),'other_cache_checks':hist(cacheother,['table','generation','field','result']),'raw_record_checks':hist(rawstats,['generation','field','value']),'alternate_raw_candidates':{'pairs':sum(alt_pairs.values()),'affected_raws_with_alternates':len(alt_per),'affected_raws_without_alternates':len(rawsets)-len(alt_per),'maximum_alternates_per_raw':max(alt_per.values(),default=0),'counts_by_alternate_generation':hist(alt_pairs,['linked_generation','alternate_captured_generation']),'generation_sets_per_raw':[{'linked_generation':k[0],'alternate_generation_set':list(k[1]),'raw_count':v} for k,v in alt_multi.items()],'comparison_counts':hist(alt_checks,['linked_generation','field','result']),'proof_status_counts':hist(alt_stats,['linked_generation','field','value']),'sources':hist(alt_source,['linked_generation','alternate_source','alternate_generation']),'complete_signed_transport_candidate_pairs':hist(alt_full,['linked_generation','alternate_generation']),'raws_with_differing_identity_fields':len(alt_invalid)},'retrieval_metadata':{'rows':sum(retr.values()),'generation_claim_raws':sum(bool(v) for v in retr_claim_sets.values()),'conflict_rows_by_linked_generation':dict(retr_conf),'distribution':hist(retr,['linked_generation','retrieval_generation','endpoint_available','conflict'])}},'aggregate_d':{'unit':'concrete linked cache row; ultimate server-generation origin, mutually exclusive classes','origin_counts':origin,'migration_carriage_distinct_raws':{','.join(k):v for k,v in sets.items()},'migration_carriage_is_separate_dimension':True,'classification_note':'Legacy importer demonstrably carried the cache label into raw.reported_generation. The original cache label has no preserved authoritative capture; carriage does not prove server origin. Signature failures are authenticity failures, not asserted generation conflicts.'},'temporal_version':{'migration_times':json.loads((root/'snapshot.json').read_text())['evidence_schema'],'timestamp_ranges':timebounds,'daily_counts':hist(timehist,['generation','field','date']),'boundary_counts':hist(before,['generation','predicate'])},'room_source_distribution':{'rooms':hist(roomhist,['generation','room']),'room_groups':hist(roomgroups,['generation','group']),'evidence_cache_sources':hist(sourcehist,['generation','source'])}}\n# Internal IDs/DIDs/signatures and message hashes never enter out.\n(root/'aggregates.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\\n')\nprint(json.dumps({'aggregate_a':{k:v for k,v in out['aggregate_a'].items() if k!='pair_provenance_breakdown'},'alternates':out['aggregate_b']['alternate_raw_candidates'],'retrievals':out['aggregate_b']['retrieval_metadata'],'temporal':out['temporal_version']['timestamp_ranges'],'room_sources':out['room_source_distribution']},indent=2))\n",
+      "extract": "import sys,sqlite3,json,hashlib,time,collections\nfrom pathlib import Path\nsys.path.insert(0,'/Users/greg/Dev/flop_scout_v02')\nimport flop_scout as scout\nimport scout_evidence as ev\nroot=Path(Path('/private/tmp/generation-authority-root.txt').read_text());s=sqlite3.connect((root/'source.sqlite').as_uri()+'?mode=ro',uri=True);s.row_factory=sqlite3.Row;s.execute('PRAGMA query_only=ON');s.execute('PRAGMA cache_size=-131072')\nd=sqlite3.connect(root/'analysis.sqlite');d.row_factory=sqlite3.Row;d.execute('PRAGMA cache_size=-131072');d.executescript('CREATE TABLE raws(id TEXT PRIMARY KEY,room TEXT,seq INTEGER,h TEXT,body TEXT); CREATE TABLE links(tab TEXT,n INTEGER,rid TEXT,h TEXT,PRIMARY KEY(tab,n)); CREATE INDEX link_raw ON links(rid); CREATE TABLE checks(tab TEXT,n INTEGER,rid TEXT,gen TEXT,body TEXT,PRIMARY KEY(tab,n)); CREATE INDEX check_raw ON checks(rid);')\ndef js(x):return json.dumps(x,sort_keys=True,separators=(',',':'))\ndef sha(x):return hashlib.sha256(x.encode('utf-8')).hexdigest() if isinstance(x,str) else None\ndef parse(x):\n try:return json.loads(x)\n except (ValueError,TypeError):return {}\ndef gen(x):return None if x is None or str(x) in ('','UNKNOWN_LEGACY','GENERATION_MISSING') else str(x)\ndef cmp(a,b):\n if a is None and b is None:return 'UNAVAILABLE_BOTH'\n if a is None:return 'UNAVAILABLE_RAW'\n if b is None:return 'UNAVAILABLE_LINK'\n return 'AGREE' if a==b else 'DIFFER'\ndef scalar(x):return None if x is None else str(x)\ndef metadata(x):\n obj=parse(x);obj=obj if isinstance(obj,dict) else {};headers=obj.get('headers') or {};headers=headers if isinstance(headers,dict) else {}\n return {'body_generation':gen(obj.get('body_generation')),'header_generation':gen(obj.get('header_generation',headers.get('X-Room-Generation',headers.get('x-room-generation')))),'generation_conflict':obj.get('generation_conflict') is True,'snapshot_present':obj.get('snapshot_id') is not None,'epoch_present':any(obj.get(k) is not None for k in ('epoch','source_epoch','generation_epoch')),'endpoint':obj.get('endpoint')}\nstart=time.time();counts=collections.Counter();batch=[]\nfor rr in s.execute(\"SELECT * FROM raw_network_records WHERE generation IS NULL OR generation='UNKNOWN_LEGACY'\"):\n r=dict(rr);raw=parse(r['raw_record_json']);raw=raw if isinstance(raw,dict) else {};meta=metadata(r['transport_metadata_json']);text=r['raw_text'];payload=parse(text[6:] if isinstance(text,str) and text.startswith('tclk1 ') else text);payload=payload if isinstance(payload,dict) else {}\n try:verification=scout.verify_signed_record_offline(r['room'],raw)\n except BaseException:verification='UNVERIFIABLE_INPUT'\n try:identity_ok=ev.raw_identity(r['source'],r['room'],r['generation'],r['reported_generation'],raw)==r['raw_record_id']\n except Exception:identity_ok=False\n body={k:r[k] for k in ('source','source_endpoint','generation','reported_generation','network_timestamp','retrieved_at','nonce','sender_did','signature','signature_status','did_mismatch','ingestion_schema','ingestion_version','created_at','legacy_record','raw_completeness')}\n body.update(meta=meta,fresh_verification=verification,raw_identity_ok=identity_ok,text_hash_ok=sha(text)==r['raw_text_sha256'],envelope_generation=gen(raw.get('generation')),signed_text_generation=gen(payload.get('generation')),envelope_hash_ok=sha(raw.get('text'))==r['raw_text_sha256'])\n batch.append((r['raw_record_id'],r['room'],r['seq'],r['raw_text_sha256'],js(body)));counts[r['source']]+=1\n if len(batch)==500:\n  with d:d.executemany('INSERT INTO raws VALUES(?,?,?,?,?)',batch)\n  batch=[]\n  if sum(counts.values())%25000==0:print(js({'phase':'unknown_raws','count':sum(counts.values()),'seconds':time.time()-start}),flush=True)\nif batch:\n with d:d.executemany('INSERT INTO raws VALUES(?,?,?,?,?)',batch)\nprint(js({'phase':'unknown_raws_complete','by_source':dict(counts),'seconds':time.time()-start}),flush=True)\nd.execute('ATTACH DATABASE ? AS source',((root/'source.sqlite').as_uri()+'?mode=ro',))\nwith d:d.execute('INSERT INTO links SELECT l.cache_table,l.cache_rowid,l.raw_record_id,l.raw_text_sha256 FROM source.compatibility_evidence_links l NOT INDEXED CROSS JOIN raws r WHERE r.id=l.raw_record_id')\nprint(js({'phase':'links','counts':dict(d.execute('SELECT tab,count(*) FROM links GROUP BY tab'))}),flush=True)\ntextcols={'messages':'text','evidence_records':'text','tclk_frames':'raw_text','kibble_events':'exact_text','opportunities':'message_text','validation_response_candidates':'bounded_text'}\nfor tab,tc in textcols.items():\n cursor=d.execute('SELECT l.*,r.room AS rr,r.seq AS rs,r.h AS rh,r.body AS rb FROM links l JOIN raws r ON r.id=l.rid WHERE tab=? ORDER BY n',(tab,));n=0\n for link in cursor:\n  row=s.execute('SELECT rowid AS internal_rowid,* FROM '+tab+' WHERE rowid=?',(link['n'],)).fetchone()\n  if row is None:raise RuntimeError('Linked cache row missing')\n  c=dict(row);r=parse(link['rb']);sender=next((c[k] for k in ('did','sender_did','transport_did','sender') if k in c),None);signature=next((c[k] for k in ('sig','signature') if k in c),None);stamp=next((c[k] for k in ('server_timestamp','timestamp') if k in c),None)\n  h=sha(c.get(tc)) if tab!='validation_response_candidates' else c.get('message_hash');stored=c.get('message_hash',c.get('frame_hash'));text_exact=tab!='validation_response_candidates'\n  fields={'room':cmp(link['rr'],c.get('room')),'sequence':cmp(link['rs'],c.get('seq')),'text_hash':cmp(link['rh'],h),'link_hash':cmp(link['rh'],link['h']),'sender':cmp(r['sender_did'],sender),'nonce':cmp(r['nonce'],scalar(c.get('nonce'))),'signature':cmp(r['signature'],signature),'network_timestamp':cmp(r['network_timestamp'],scalar(stamp)),'capture_timestamp':cmp(r['retrieved_at'],c.get('retrieved_at',c.get('observed_at',c.get('discovered_at')))),'ingestion_source_label':cmp(r['source'],c.get('source')),'endpoint':cmp(r['source_endpoint'],c.get('source_endpoint'))}\n  fields['origin_lineage']=fields['endpoint'] if r['source_endpoint'] is not None and c.get('source_endpoint') is not None else 'UNKNOWN'\n  envelope=parse(c.get('raw_record_json'));envelope=envelope if isinstance(envelope,dict) else {}\n  result={'checks':fields,'exact_text_available':text_exact,'stored_hash_vs_text':cmp(stored,h),'source':c.get('source'),'source_class':c.get('source_class'),'cache_timestamp':c.get('retrieved_at',c.get('observed_at',c.get('discovered_at'))),'cache_verification':c.get('verification_status',c.get('transport_verification_status',c.get('signature_verification'))),'cache_parse_status':c.get('parse_status'),'cache_envelope_generation':gen(envelope.get('generation')),'cache_envelope_text_hash':cmp(h,sha(envelope.get('text'))),'raw_reported_generation_agreement':cmp(gen(r['reported_generation']),gen(c.get('generation')))}\n  d.execute('INSERT INTO checks VALUES(?,?,?,?,?)',(tab,link['n'],link['rid'],gen(c.get('generation')),js(result)));n+=1\n  if n%500==0:d.commit()\n d.commit();print(js({'phase':'cache_checks','table':tab,'rows':n,'seconds':time.time()-start}),flush=True)\n(root/'extraction.json').write_text(js({'unknown_raws_by_source':dict(counts),'seconds':time.time()-start}));s.close();d.close()\n",
+      "fields": "import sqlite3,json,collections\nfrom pathlib import Path\nroot=Path(Path('/private/tmp/generation-authority-root.txt').read_text());d=sqlite3.connect((root/'analysis.sqlite').as_uri()+'?mode=ro',uri=True);d.execute('ATTACH DATABASE ? AS source',((root/'source.sqlite').as_uri()+'?mode=ro',));counts=collections.Counter();meta=collections.Counter()\ndef walk(x):\n if isinstance(x,dict):\n  for k,v in x.items():\n   if isinstance(k,str) and 'generation' in k.lower():yield k,v\n   yield from walk(v)\n elif isinstance(x,list):\n  for v in x:yield from walk(v)\nfor (metadata,envelope,text) in d.execute('SELECT s.transport_metadata_json,s.raw_record_json,s.raw_text FROM affected a CROSS JOIN source.raw_network_records s WHERE s.raw_record_id=a.rid'):\n for k in json.loads(metadata):meta[k]+=1\n for label,serialized in [('metadata',metadata),('envelope',envelope),('signed_text_json',text[6:] if text.startswith('tclk1 ') else text)]:\n  try:obj=json.loads(serialized)\n  except (ValueError,TypeError):continue\n  for k,v in walk(obj):counts[(label,k if k in ['generation','room_generation','body_generation','header_generation'] else 'other_generation_key',str(v) if str(v) in ['0','1','None','UNKNOWN_LEGACY','GENERATION_MISSING'] else 'OTHER_VALUE')]+=1\nout={'metadata_key_occurrences':dict(meta),'recursive_generation_field_occurrences':[{'container':k[0],'key':k[1],'value_category':k[2],'count':v} for k,v in counts.items()]};(root/'field-audit.json').write_text(json.dumps(out,indent=2));print(json.dumps(out,indent=2))\n",
+      "history": "import ast,subprocess,json,hashlib,sys,types,urllib.parse,urllib.error\nfrom pathlib import Path\nsys.path.insert(0,'/Users/greg/Dev/flop_scout_v02')\nimport flop_scout as scout\nroot=Path(Path('/private/tmp/generation-authority-root.txt').read_text())\ndef sha(s):return hashlib.sha256(s.encode()).hexdigest()\ndef git(*args):return subprocess.check_output(['git',*args],text=True)\nrevs=git('log','--all','--format=%H','--','flop_scout.py','scout_evidence.py','scout_schema.py','scout_coverage.py').splitlines()\npaths=['flop_scout.py','scout_evidence.py','scout_schema.py','scout_coverage.py'];versions={};assignments={};functions={};seen=set()\nfor rev in revs:\n for path in paths:\n  got=subprocess.run(['git','show',rev+':'+path],capture_output=True,text=True)\n  if got.returncode:continue\n  code=got.stdout;h=sha(code)\n  if (path,h) in seen:continue\n  seen.add((path,h));versions.setdefault(path,[]).append({'commit':rev,'sha256':h})\n  tree=ast.parse(code)\n  for node in ast.walk(tree):\n   if isinstance(node,(ast.Assign,ast.AnnAssign)):\n    expr=ast.get_source_segment(code,node) or ''\n    lhs=expr.split('=',1)[0]\n    if ('generation' in lhs and len(expr)<900) or ('generation' in expr and 'UNKNOWN_LEGACY' in expr and len(expr)<900):assignments.setdefault(expr,[]).append(rev)\n   if isinstance(node,ast.FunctionDef) and node.name in ('fetch_room_view','evidence_record_from_message','network_result_generation','initialize','ingest','raw_identity','compatibility_links','ingest_messages','fetch_room_export','inspect_export'):\n    txt=ast.get_source_segment(code,node);key=path+':'+node.name+':'+sha(txt)\n    functions.setdefault(key,{'path':path,'function':node.name,'sha256':sha(txt),'example_commit':rev,'line':node.lineno})\noldrev='8251fdaaa5b9d0c5413c8a4c5beda769f570d392';old=git('show',oldrev+':flop_scout.py');node=next(n for n in ast.parse(old).body if isinstance(n,ast.FunctionDef) and n.name=='fetch_room_view')\nclass Resp:\n def __enter__(self):return self\n def __exit__(self,*a):pass\n def read(self,*a):return json.dumps(self.body).encode()\nresp=Resp(); fake=types.SimpleNamespace(parse=urllib.parse,error=urllib.error,request=types.SimpleNamespace(Request=lambda *a,**k:None,urlopen=lambda *a,**k:resp))\nns={'urllib':fake,'json':json,'Any':object,'BASE_URL':'https://synthetic.invalid','USER_AGENT':'synthetic','valid_room':lambda x:x}\nexec(compile('from __future__ import annotations\\n'+ast.get_source_segment(old,node),'<historical-function>','exec'),ns)\nresults=[]\nfor name,body,header in [('body_zero',0,None),('header_zero',None,'0'),('body_one',1,None),('header_one',None,'1'),('missing',None,None),('conflicting_body_zero_header_one',0,'1')]:\n resp.body={} if body is None else {'generation':body};resp.headers={} if header is None else {'X-Room-Generation':header}\n obj,g=ns['fetch_room_view']('synthetic-room',10)\n rec=scout.evidence_record_from_message('synthetic-room',g,{'seq':1,'text':'synthetic fixture'},source='synthetic',retrieved_at='2000-01-01T00:00:00Z')\n results.append({'case':name,'body_generation':body,'header_generation':header,'historical_parser_output':g,'cache_writer_output':rec['generation'],'bench_helper_output':scout.network_result_generation(g),'historical_parser_retained_transport_metadata':'_scout_transport' in obj})\nassert [r['historical_parser_output'] for r in results]==['0','0','1','1',None,'0']\nassert [r['cache_writer_output'] for r in results]==['0','0','1','1','UNKNOWN_LEGACY','0']\nassert [r['bench_helper_output'] for r in results]==['UNKNOWN_LEGACY','UNKNOWN_LEGACY','1','1','UNKNOWN_LEGACY','UNKNOWN_LEGACY']\nout={'commits_examined':revs,'unique_file_versions':versions,'generation_assignment_expressions':assignments,'function_revisions':list(functions.values()),'synthetic_reproduction':{'historical_commit':oldrev,'historical_function_sha256':sha(ast.get_source_segment(old,node)),'cases':results,'network_requests':0,'production_writes':0,'description':'AST-extracted immutable fetch_room_view function with injected in-memory urllib response; current pure cache and Bench helper functions; no actual urllib request object/opener.'}}\n(root/'history.json').write_text(json.dumps(out,indent=2));print(json.dumps({'unique_versions':{k:len(v) for k,v in versions.items()},'assignments':len(assignments),'synthetic_reproduction':out['synthetic_reproduction']},indent=2))\n",
+      "migration-proof": "import subprocess,sqlite3,json,hashlib,ast\nfrom pathlib import Path\nroot=Path(Path('/private/tmp/generation-authority-root.txt').read_text());rev='2e631dba758f8426861ae7b986a9e39d87aa2485';code=subprocess.check_output(['git','show',rev+':scout_evidence.py'],text=True);ns={'__name__':'synthetic_historical_evidence'};exec(compile(code,'<immutable-historical-evidence>','exec'),ns)\nc=sqlite3.connect(':memory:');c.row_factory=sqlite3.Row;c.execute('CREATE TABLE evidence_records(room TEXT,generation TEXT,seq INTEGER,server_timestamp TEXT,did TEXT,nonce TEXT,sig TEXT,text TEXT,message_hash TEXT,retrieved_at TEXT,source TEXT,verification_status TEXT,raw_record_json TEXT)')\nfor n,g in enumerate(['0','1','UNKNOWN_LEGACY'],1):\n raw={'seq':n,'text':'synthetic fixture '+str(n),'ts':'2000-01-01T00:00:00Z'};c.execute('INSERT INTO evidence_records VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',('synthetic-room',g,n,raw['ts'],None,None,None,raw['text'],hashlib.sha256(raw['text'].encode()).hexdigest(),'2000-01-02T00:00:00Z','synthetic','UNSIGNED',json.dumps(raw)))\nc.commit();ns['initialize'](c,lambda room,raw:'UNSIGNED')\nresult=[dict(r) for r in c.execute('SELECT generation,reported_generation,source,source_endpoint,legacy_record,raw_completeness,created_at=retrieved_at AS created_equals_retrieved FROM raw_network_records ORDER BY seq')]\nassert [r['generation'] for r in result]==[None,None,None];assert [r['reported_generation'] for r in result]==['0','1','UNKNOWN_LEGACY'];assert all(r['created_equals_retrieved'] for r in result)\nout={'historical_commit':rev,'module_sha256':hashlib.sha256(code.encode()).hexdigest(),'method':'Execute immutable historical module and initialize with three synthetic unsigned evidence cache rows in SQLite :memory: only; verification callback never reads keys or network.','rows':result,'network_requests':0,'production_writes':0};(root/'migration-proof.json').write_text(json.dumps(out,indent=2));print(json.dumps(out,indent=2))\n",
+      "supplement": "import sqlite3,json,time,sys,hashlib,collections\nfrom pathlib import Path\nsys.path.insert(0,'/Users/greg/Dev/flop_scout_v02')\nimport flop_scout as scout\nimport scout_evidence as ev\nroot=Path(Path('/private/tmp/generation-authority-root.txt').read_text());d=sqlite3.connect(root/'analysis.sqlite');d.row_factory=sqlite3.Row;d.execute('PRAGMA cache_size=-131072');d.execute('ATTACH DATABASE ? AS source',((root/'source.sqlite').as_uri()+'?mode=ro',));start=time.time()\ndef js(x):return json.dumps(x,sort_keys=True,separators=(',',':'))\ndef parse(x):\n try:return json.loads(x)\n except (TypeError,ValueError):return {}\ndef gen(x):return None if x is None or str(x) in ('','UNKNOWN_LEGACY','GENERATION_MISSING') else str(x)\ndef compare(a,b):\n if a is None or b is None:return 'UNAVAILABLE'\n return 'AGREE' if str(a)==str(b) else 'DIFFER'\nd.executescript('CREATE TABLE affected AS SELECT DISTINCT rid FROM checks WHERE gen IS NOT NULL; CREATE UNIQUE INDEX affected_id ON affected(rid); CREATE TABLE retrievals(rid TEXT, gen TEXT, body TEXT); CREATE INDEX retrieval_raw ON retrievals(rid); CREATE TABLE alternatives(rid TEXT,aid TEXT,gen TEXT,body TEXT); CREATE INDEX alternative_raw ON alternatives(rid);')\nretrieved=0\nfor row in d.execute('SELECT x.* FROM source.evidence_retrievals x NOT INDEXED CROSS JOIN raws r WHERE x.raw_record_id=r.id'):\n m=parse(row['transport_metadata_json']);headers=m.get('headers') or {};bg=gen(m.get('body_generation'));hg=gen(m.get('header_generation',headers.get('X-Room-Generation',headers.get('x-room-generation'))));gs=sorted(set(g for g in [bg,hg] if g is not None));b={'date':row['retrieved_at'],'endpoint_available':row['source_endpoint'] is not None,'body_generation':bg,'header_generation':hg,'conflict':bool(m.get('generation_conflict')) or len(gs)>1,'snapshot_present':m.get('snapshot_id') is not None}\n d.execute('INSERT INTO retrievals VALUES(?,?,?)',(row['raw_record_id'],gs[0] if len(gs)==1 else None,js(b)));retrieved+=1\n if retrieved%500==0:d.commit()\nd.commit();print(js({'phase':'retrievals','rows':retrieved,'seconds':time.time()-start}),flush=True)\ncount=0;alts=0\nfor r in d.execute('SELECT r.* FROM affected a JOIN raws r ON r.id=a.rid'):\n rb=parse(r['body'])\n for a in d.execute('SELECT a.* FROM source.raw_network_records a INDEXED BY raw_room_sequence WHERE a.room=? AND a.seq=? AND a.raw_text_sha256=? AND a.raw_record_id!=?',(r['room'],r['seq'],r['h'],r['id'])):\n  a=dict(a);m=parse(a['transport_metadata_json']);headers=m.get('headers') or {};bg=gen(m.get('body_generation'));hg=gen(m.get('header_generation',headers.get('X-Room-Generation',headers.get('x-room-generation'))));ag=gen(a['generation']);raw=parse(a['raw_record_json']);raw=raw if isinstance(raw,dict) else {}\n  checks={k:compare(rb[k],a[k]) for k in ['sender_did','nonce','signature','network_timestamp','source_endpoint','source']};proof_fields=['sender_did','nonce','signature','network_timestamp'];exact=all(checks[k]=='AGREE' for k in proof_fields)\n  text=a['raw_text'];hashok=isinstance(text,str) and hashlib.sha256(text.encode()).hexdigest()==r['h'];envelopeok=isinstance(raw.get('text'),str) and hashlib.sha256(raw['text'].encode()).hexdigest()==r['h']\n  conflict=bool(m.get('generation_conflict')) or (bg is not None and hg is not None and bg!=hg);transport=(ag is not None and a['source_endpoint'] is not None and not a['legacy_record'] and a['raw_completeness']=='COMPLETE' and not conflict and (bg==ag or hg==ag))\n  try:status=scout.verify_signed_record_offline(a['room'],raw)\n  except Exception:status='UNVERIFIABLE_INPUT'\n  b={'checks':checks,'identity_fields_all_agree':exact,'source':a['source'],'endpoint_available':a['source_endpoint'] is not None,'legacy_record':a['legacy_record'],'raw_completeness':a['raw_completeness'],'body_generation':bg,'header_generation':hg,'transport_generation_candidate':transport,'generation_conflict':conflict,'snapshot_present':m.get('snapshot_id') is not None,'retrieved_at':a['retrieved_at'],'reported_generation':a['reported_generation'],'hash_ok':hashok,'envelope_hash_ok':envelopeok,'raw_identity_ok':ev.raw_identity(a['source'],a['room'],a['generation'],a['reported_generation'],raw)==a['raw_record_id'],'fresh_verification':status,'ingestion_schema':a['ingestion_schema'],'ingestion_version':a['ingestion_version']}\n  d.execute('INSERT INTO alternatives VALUES(?,?,?,?)',(r['id'],a['raw_record_id'],ag,js(b)));alts+=1\n count+=1\n if count%1000==0:d.commit()\n if count%25000==0:print(js({'phase':'alternatives','raws_checked':count,'candidate_pairs':alts,'seconds':time.time()-start}),flush=True)\nd.commit();print(js({'phase':'complete','raws_checked':count,'candidate_pairs':alts,'seconds':time.time()-start}),flush=True);d.close()\n",
+      "transport": "import sqlite3,json,time\nfrom pathlib import Path\nroot=Path(Path('/private/tmp/generation-authority-root.txt').read_text());c=sqlite3.connect((root/'source.sqlite').as_uri()+'?mode=ro',uri=True);c.execute('PRAGMA query_only=ON');c.execute('PRAGMA cache_size=-131072');start=time.time()\n# Aggregate only: these are other raw captures, not authority for unknown legacy IDs.\nq=\"\"\"SELECT generation, source, legacy_record,raw_completeness,source_endpoint IS NOT NULL AS endpoint_available,\n CAST(json_extract(transport_metadata_json,'$.body_generation') AS TEXT) AS body_generation,\n COALESCE(CAST(json_extract(transport_metadata_json,'$.header_generation') AS TEXT),CAST(json_extract(transport_metadata_json,'$.headers.\\\"X-Room-Generation\\\"') AS TEXT),CAST(json_extract(transport_metadata_json,'$.headers.\\\"x-room-generation\\\"') AS TEXT)) AS header_generation,\n COALESCE(json_extract(transport_metadata_json,'$.generation_conflict'),0) AS conflict,\n count(*) AS rows\n FROM raw_network_records WHERE generation IN ('0','1') GROUP BY 1,2,3,4,5,6,7,8\"\"\"\nc.row_factory=sqlite3.Row;out={'scope':'Other raw records with captured generation 0 or 1; NOT affected UNKNOWN_LEGACY records','query':q,'counts':[dict(r) for r in c.execute(q)],'seconds':time.time()-start};(root/'other-captures.json').write_text(json.dumps(out,indent=2));print(json.dumps(out,indent=2))\n"
+    },
+    "scripts_sha256": {
+      "aggregate": "5eb4a38deb4bc70c47c1ffca76f728deeb84f000dc37db528b4482bb5be6af2c",
+      "extract": "293b6cd8614ae721f5a737f3e27dd7609ad5a86a9ed85f78c9ded9da2eee60c1",
+      "fields": "a572932ed7a77cc970303324efe25238c7d1c4667a6298d5d1b0b4227c24b498",
+      "history": "443b18f0187b524ad6566cd7b8f14410d1a080d19658948b82a500ac3aff545d",
+      "migration-proof": "78fa86e5734194d3ea406284a994ac20d7c5ce80303d7734f80f02fd0cfbb400",
+      "supplement": "347472d53f28e558d72c69c40d2d8db3b946880a5f7cabc2d7d90bc75daea385",
+      "transport": "f8fd46a695f429925f91bc30eae9a50efd773c6e6c28bab525712b6affcec41f"
+    }
+  },
+  "generated_at": "2026-09-08T21:50:10.752586+00:00",
+  "generation_writer_paths": [
+    {
+      "affected_evidence": "DIRECT_TRANSPORT_INPUT_CAPABLE; execution/metadata not retained for affected rows",
+      "code_reference": "flop_scout.py:fetch_room_view; historical 8251fda; current line 3881",
+      "generation_input_and_behavior": "JSON body generation, otherwise X-Room-Generation header; preserves 0 and 1; missing both returns None. Historical parser did not retain body/header disagreement. Current capture records both and conflict flag.",
+      "path": "transport_room_view"
+    },
+    {
+      "affected_evidence": "All 161073 affected evidence rows have source=service-poll; original response origin remains UNKNOWN_ORIGIN",
+      "code_reference": "flop_scout.py:service_poll (8251fda), service_poll_room, ingest_messages, evidence_record_from_message:1318, store_evidence_record:1361",
+      "generation_input_and_behavior": "service-poll passes parser generation to cache writer. str(value) for non-None; only None maps to UNKNOWN_LEGACY. raw_record_json stores message envelope, not original response body/headers. Cursor generation initializes status but is not used as a fabricated cache generation.",
+      "path": "service_poll_and_cache_writer"
+    },
+    {
+      "affected_evidence": "32685 TCLK and 205 Kibble linked rows; same reported generation, no extra transport capture",
+      "code_reference": "flop_scout.py:tclk_record_from_message:1469; kibble_record_from_message:1725",
+      "generation_input_and_behavior": "Caller generation argument; str(non-None), otherwise UNKNOWN_LEGACY; neither extracts room generation from signed frame/event payload.",
+      "path": "tclk_and_kibble_cache_writers"
+    },
+    {
+      "affected_evidence": "No raw-body/header conflict metadata survives in affected migration rows; all are legacy/PARTIAL",
+      "code_reference": "scout_evidence.py:ingest:378; raw_identity:372; introduced 2e631db",
+      "generation_input_and_behavior": "Actual and reported generation are separate inputs and both enter raw identity. Current ingest_messages passes actual None plus reported cache value on body/header conflict. Direct imports without endpoint are PARTIAL; invalid UTF-8 actual metadata moves to reported.",
+      "path": "raw_ingest"
+    },
+    {
+      "affected_evidence": "MIGRATION_CARRIED_FORWARD:127146 zero and33927 one distinct raw reports; ultimate cache-label origin UNKNOWN_ORIGIN",
+      "code_reference": "scout_evidence.py:initialize:264; 2e631dba758f8426861ae7b986a9e39d87aa2485",
+      "generation_input_and_behavior": "Existing evidence cache generation copied verbatim to reported_generation; actual generation explicitly None; source legacy_evidence; legacy=True. No zero default and no conversion of report to actual.",
+      "path": "legacy_evidence_schema1"
+    },
+    {
+      "affected_evidence": "7801 legacy_messages unknown raws; no affected raw from this source; all affected raw source legacy_evidence; no alternate exact candidates",
+      "code_reference": "scout_evidence.py:initialize:277; compatibility_links:695",
+      "generation_input_and_behavior": "Legacy messages lack generation. Compatibility fallback creates legacy_<table> raw with reported_generation=row.get(generation). Initial first match uses room/seq/text without sender/generation; insert trigger adds generation predicate but still first-match.",
+      "path": "legacy_messages_and_compatibility_fallback"
+    },
+    {
+      "affected_evidence": "0 proven DEFAULTED or INFERRED affected original labels; absence of origin proof is UNKNOWN_ORIGIN, not proof of no outside/default writer",
+      "code_reference": "flop_scout.py evidence/TCLK/Kibble DDL; scout_schema.py; scout_evidence.py; scout_coverage.py",
+      "generation_input_and_behavior": "No hardcoded generation 0/1 default found in reviewed writer/DDL history. Missing generation remains None/UNKNOWN_LEGACY/GENERATION_MISSING by context. Schema2 gaps and schema3 coverage/reconciliation do not establish old server generation.",
+      "path": "schema_defaults_and_later_migrations"
+    },
+    {
+      "affected_evidence": "All161073 affected created_at equal imported retrieved_at; these are not schema1 execution timestamps",
+      "code_reference": "scout_evidence.py:ingest; 614fc8d79066c3aa7728c0c6456b145f80823e14",
+      "generation_input_and_behavior": "Changes new raw created_at from supplied retrieved_at to now(); does not rewrite existing immutable raw rows.",
+      "path": "created_at_time_fix"
+    },
+    {
+      "affected_evidence": "Contextual zero sentinel, not universal zero meaning; no affected cache row has a Bench source label",
+      "code_reference": "flop_scout.py:network_result_generation:666; normalize_network_bench_delivery:698; scout_ingest_network_verification_result:838; introduced8251fda",
+      "generation_input_and_behavior": "None, empty, or zero -> UNKNOWN_LEGACY in normalized Bench result transport_provenance; separate reported_generation keeps input. Does not mutate service-poll verification cache generation.",
+      "path": "bench_result_normalization"
+    },
+    {
+      "affected_evidence": "Separate package behavior; does not prove origin of Scout cache rows",
+      "code_reference": "/Users/greg/Dev/flop_bench/src/flop_bench/provenance.py:_coerce_record:98",
+      "generation_input_and_behavior": "Uses generation_context when supplied; otherwise raw generation if nonempty. Preserves numeric/string zero.",
+      "path": "bench_package_coercion"
+    },
+    {
+      "affected_evidence": "Context/path inference exists for offline export reports, not evidence that affected service-poll generations were inferred",
+      "code_reference": "flop_scout.py:legacy fetch_room_export:3594, verify_export_bytes:3613, verify_export_file:3717; current fetch_room_export:4056; scout_coverage.py:inspect_export:149",
+      "generation_input_and_behavior": "Legacy export reads X-Room-Generation. Offline verify accepts manifest or generation-<value> directory context but only produces verification output, not affected observer cache inserts. Current backfill requires expected generation AND matching actual export header before ingest.",
+      "path": "export_and_offline_verification"
+    },
+    {
+      "affected_evidence": "0 generation claims proven SIGNED_MESSAGE_REPORTED; valid message signature alone is not server-generation authority",
+      "code_reference": "flop_scout.py:canonical_payload_hash and verify_signed_record_offline:1266",
+      "generation_input_and_behavior": "Signature preimage binds room|nonce|exact text; API generation and sequence are not signed. Checked raw envelopes and top-level JSON/TCLK text generation claims: none present for affected rows.",
+      "path": "signed_payload"
+    }
+  ],
+  "historical_evidence": {
+    "commits_examined": [
+      "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+      "d15d5a1af97126a1142786df34b2bd0f0ccf811b",
+      "3baef7573157f6f4064e05a55b76b6bdc35f3d7b",
+      "4b996db851d397df16d5ede429fc6054cb1c88bf",
+      "46469e5d65ef6659796ab8cc295766b056c96b16",
+      "614fc8d79066c3aa7728c0c6456b145f80823e14",
+      "87c3cdb68f51b30cf0f68419608eb8a55e4612b0",
+      "259dbfabc01197acb17f2707fd62338b09bc8bed",
+      "2e631dba758f8426861ae7b986a9e39d87aa2485",
+      "8251fdaaa5b9d0c5413c8a4c5beda769f570d392",
+      "976e1a9f40cb12df73ea4764142deff6118e737b",
+      "7135618d528c556a5f3650bbe59183c7161cb662",
+      "47d1f35af1a5a779ad4175031c7f42c55a915de7",
+      "1fad46f2da91e80e868042be5e5df99757610cc4",
+      "e1547d1dd9412ff24bf994feff227337ae0f2031",
+      "bc81d71e8f0457dc0442226df37aeb7e2ff86813",
+      "5fbe5a220e914f54dc755f1e06106f63988bdff0",
+      "3638987b509bf2495c7abf2c999eff1239b8cb7c"
+    ],
+    "function_revisions": [
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "network_result_generation",
+        "line": 666,
+        "path": "flop_scout.py",
+        "sha256": "b175d56609625b97adad58030b0de9a60c58d46b3d2c35001b00ad7dc0830c88"
+      },
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "evidence_record_from_message",
+        "line": 1318,
+        "path": "flop_scout.py",
+        "sha256": "24586fc28096ff10c6621dd9fee391b757eff4b423b98e65ae2c678615cddce1"
+      },
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "ingest_messages",
+        "line": 2143,
+        "path": "flop_scout.py",
+        "sha256": "cd6a18c69ef6953c73c35da19c09db2f10ce0057354501ea689d163e72de0302"
+      },
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "fetch_room_export",
+        "line": 3594,
+        "path": "flop_scout.py",
+        "sha256": "e0e42fc3d18585488b1e390db3400f681b4c438df4dd39d00af3e9d431e34a7e"
+      },
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "fetch_room_view",
+        "line": 3881,
+        "path": "flop_scout.py",
+        "sha256": "d13a77b32de4a6b0ea2c6f22a69d8ff9f93361bb28e055743f9aacad469adf82"
+      },
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "fetch_room_export",
+        "line": 4056,
+        "path": "flop_scout.py",
+        "sha256": "b13a8466c1d8b5195ef0eaac63478a441a246b92f9a8b063d683de2fa0960a74"
+      },
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "initialize",
+        "line": 234,
+        "path": "scout_evidence.py",
+        "sha256": "5fa410ae2bfe4cbad2d83506991a73aa71f1403f325aa0c3e00f7bdb6850256e"
+      },
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "raw_identity",
+        "line": 372,
+        "path": "scout_evidence.py",
+        "sha256": "9de37b78bb218e1b5d05480bf3c3951f952703b49ffc881f459c95619aab7e04"
+      },
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "ingest",
+        "line": 378,
+        "path": "scout_evidence.py",
+        "sha256": "c8939966d7872523c8bffc268f201228ea9bbcd84f0fc5af4fa020cc35f9556c"
+      },
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "compatibility_links",
+        "line": 695,
+        "path": "scout_evidence.py",
+        "sha256": "537090b5e5cb2e424d99b881e7cec953440b97da739e38cc1acba1915235e4f1"
+      },
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "initialize",
+        "line": 80,
+        "path": "scout_coverage.py",
+        "sha256": "4e93cbc8f19f5b4e716d88d09578051bc3923f7ed237a447c7c604b7946731ff"
+      },
+      {
+        "example_commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+        "function": "inspect_export",
+        "line": 149,
+        "path": "scout_coverage.py",
+        "sha256": "6532d45c6adabd9194d3c23bce0cc86ffb7dc907c94e630fa661c0304f8e59c4"
+      },
+      {
+        "example_commit": "d15d5a1af97126a1142786df34b2bd0f0ccf811b",
+        "function": "fetch_room_export",
+        "line": 4043,
+        "path": "flop_scout.py",
+        "sha256": "1c14cd6f648df5bd9db7c5cce7721a9b5acb656545255ff6f3aa373bf5504ba0"
+      },
+      {
+        "example_commit": "4b996db851d397df16d5ede429fc6054cb1c88bf",
+        "function": "initialize",
+        "line": 232,
+        "path": "scout_evidence.py",
+        "sha256": "8db4d0f12e28708726c8488ea5caa9f192d1fdfd2b2cfcffe379f3598a87e4f6"
+      },
+      {
+        "example_commit": "4b996db851d397df16d5ede429fc6054cb1c88bf",
+        "function": "initialize",
+        "line": 50,
+        "path": "scout_coverage.py",
+        "sha256": "96ebfe72eb553b8dfce612db6b579eddb9978e6e5761e21504442c37c897a01b"
+      },
+      {
+        "example_commit": "46469e5d65ef6659796ab8cc295766b056c96b16",
+        "function": "ingest_messages",
+        "line": 2114,
+        "path": "flop_scout.py",
+        "sha256": "178a62b6527eb578e7064ac99d5f642b83289436b2e052d047a1825a0f8f9dfa"
+      },
+      {
+        "example_commit": "46469e5d65ef6659796ab8cc295766b056c96b16",
+        "function": "fetch_room_export",
+        "line": 3564,
+        "path": "flop_scout.py",
+        "sha256": "2e694c71f88019e0d34ee0ddf0a6ecde020d3ed02133ee0d6ccb64d38052e9df"
+      },
+      {
+        "example_commit": "46469e5d65ef6659796ab8cc295766b056c96b16",
+        "function": "fetch_room_view",
+        "line": 3851,
+        "path": "flop_scout.py",
+        "sha256": "9d5162c404977c3519aabc364073f3585835c3953f9dabc4bb58ca9f9cd52e09"
+      },
+      {
+        "example_commit": "46469e5d65ef6659796ab8cc295766b056c96b16",
+        "function": "initialize",
+        "line": 232,
+        "path": "scout_evidence.py",
+        "sha256": "158444b630aa9507d8865709da9e94ee55cda44fbe396d5d052d224845f854b9"
+      },
+      {
+        "example_commit": "614fc8d79066c3aa7728c0c6456b145f80823e14",
+        "function": "ingest_messages",
+        "line": 2112,
+        "path": "flop_scout.py",
+        "sha256": "0b5bd9b35397405cc43d2160180358880417360c3a934a9c4172d820786f3e67"
+      },
+      {
+        "example_commit": "614fc8d79066c3aa7728c0c6456b145f80823e14",
+        "function": "initialize",
+        "line": 147,
+        "path": "scout_evidence.py",
+        "sha256": "cff8a3d6b22b944839887ed18350447e0602030e4374307d1a1608d6b465011f"
+      },
+      {
+        "example_commit": "614fc8d79066c3aa7728c0c6456b145f80823e14",
+        "function": "ingest",
+        "line": 274,
+        "path": "scout_evidence.py",
+        "sha256": "9b5536a3246a588f05dac900805e6d1bfceea89a323f0114b9f32c69764d0357"
+      },
+      {
+        "example_commit": "87c3cdb68f51b30cf0f68419608eb8a55e4612b0",
+        "function": "ingest",
+        "line": 274,
+        "path": "scout_evidence.py",
+        "sha256": "cb3f0e72a2afc146eb8e01b3ad111bf8f5d734de34cb173818d9cd2db91baa1c"
+      },
+      {
+        "example_commit": "259dbfabc01197acb17f2707fd62338b09bc8bed",
+        "function": "ingest_messages",
+        "line": 2013,
+        "path": "flop_scout.py",
+        "sha256": "82b29847cb048b9917cadc8d560c710d0b864990227699bca10e449148a30f52"
+      },
+      {
+        "example_commit": "259dbfabc01197acb17f2707fd62338b09bc8bed",
+        "function": "fetch_room_view",
+        "line": 3695,
+        "path": "flop_scout.py",
+        "sha256": "54e89d0ba7876f119546bdf63c6cc8ff1ff55c96e7c401b9fa8a8758d5adebac"
+      },
+      {
+        "example_commit": "8251fdaaa5b9d0c5413c8a4c5beda769f570d392",
+        "function": "ingest_messages",
+        "line": 1491,
+        "path": "flop_scout.py",
+        "sha256": "cf44608605ce3178ec44416c92ce0fa5e0db5a8937659cca42bc47c3d750a45a"
+      },
+      {
+        "example_commit": "8251fdaaa5b9d0c5413c8a4c5beda769f570d392",
+        "function": "fetch_room_view",
+        "line": 3163,
+        "path": "flop_scout.py",
+        "sha256": "78932c42688dd47aef4035bc680cf387f0ab1705a86ba8b298082503ad1a7131"
+      },
+      {
+        "example_commit": "7135618d528c556a5f3650bbe59183c7161cb662",
+        "function": "ingest_messages",
+        "line": 891,
+        "path": "flop_scout.py",
+        "sha256": "75d70145233bdc94f44b8d0ea5958bd793cfba1590c400717ed3fc2d8898ca43"
+      },
+      {
+        "example_commit": "e1547d1dd9412ff24bf994feff227337ae0f2031",
+        "function": "ingest_messages",
+        "line": 448,
+        "path": "flop_scout.py",
+        "sha256": "f54e53f931e762143cc65f9b17f3d62be0856a3ec85ad7adbd7f258401e2bfe2"
+      }
+    ],
+    "generation_assignment_expressions": [
+      "generation = get_state(conn, f\"cursor:{room}:generation\", \"\")",
+      "raw, generation = fetch_network_verification_record(room, seq, db_path=db_path, evidence_ref=evidence_ref)",
+      "generation_value = str(generation) if generation is not None else UNKNOWN_LEGACY_GENERATION",
+      "raw, generation = fetch_room_export(room)",
+      "generation_value = generation if generation is not None else GENERATION_MISSING",
+      "generation = obj.get(\"generation\")",
+      "obj, _generation = fetch_room_view(room, limit, since=since, allow_missing=allow_missing)",
+      "generation_changed = generation is not None and cursor['generation'] not in (None,UNKNOWN_LEGACY_GENERATION,GENERATION_MISSING,str(generation))",
+      "room,generation = snapshot['room'],snapshot['generation']",
+      "generation = UNKNOWN_LEGACY_GENERATION if legacy_seq else \"\"",
+      "generation_value = GENERATION_MISSING",
+      "generation_value = str(generation)",
+      "generation = str(manifest.get(\"generation\")) if manifest.get(\"generation\") is not None else None",
+      "generation = raw_path.parent.name.removeprefix(\"generation-\")",
+      "generation = header_generation",
+      "obj,generation = response if response is not None else fetch_room_view(room,min(page_size,200),since=seed,allow_missing=True)",
+      "obj, generation = fetch_room_view(room, limit)",
+      "obj, generation = fetch_room_view(MAILBOX_ROOM, 200, since=since, allow_missing=True)",
+      "status = \"UNKNOWN_LEGACY\" if cursor[\"generation\"] == UNKNOWN_LEGACY_GENERATION else \"CURRENT\"",
+      "obj, generation = fetch_room_view(room, limit, since=since, allow_missing=True)",
+      "generation = resp.headers.get(\"X-Room-Generation\")",
+      "header_generation = resp.headers.get(\"X-Room-Generation\")",
+      "generation = str(generation) if generation is not None else None",
+      "reported_generation = dumps(generation)",
+      "generation = None",
+      "generation_clause = \" AND (r.generation=NEW.generation OR r.reported_generation=NEW.generation OR (r.generation IS NULL AND NEW.generation IN ('UNKNOWN_LEGACY','GENERATION_MISSING')))\" if 'generation' in columns else ''",
+      "cursor_generation = cursor[\"generation\"]",
+      "generation_value = cursor_generation",
+      "generation_changed = False",
+      "generation_value = str(generation) if generation is not None else None",
+      "obj, generation = fetch_room_view(room, page_size, since=cursor_after, allow_missing=True)",
+      "generation_changed = True",
+      "obj, generation = fetch_room_view(room, page_size, since=0, allow_missing=True)",
+      "obj, generation = fetch_room_view(room, 200, since=max(0, seq - 1), allow_missing=True)",
+      "obj, generation = fetch_room_view(room, 800, allow_missing=True)",
+      "raw, generation = fetch_network_verification_record(room, seq)",
+      "obj, generation = fetch_room_view(room, 200, since=since, allow_missing=True)",
+      "obj, generation = fetch_room_view(room, 200, since=0, allow_missing=True)"
+    ],
+    "limits": "Reachable local Git history plus current working files establish possible writer behavior, not the executing revision of each historical row. Static ingestion_version=1 is not a Git revision. No surviving raw transport linkage was found for affected rows.",
+    "synthetic_migration": {
+      "historical_commit": "2e631dba758f8426861ae7b986a9e39d87aa2485",
+      "method": "Execute immutable historical module and initialize with three synthetic unsigned evidence cache rows in SQLite :memory: only; verification callback never reads keys or network.",
+      "module_sha256": "ead6db2b8069d28d2ae4a2d48687194e88e6ad56529e7a4a8de1d2b096534b9d",
+      "network_requests": 0,
+      "production_writes": 0,
+      "rows": [
+        {
+          "created_equals_retrieved": 1,
+          "generation": null,
+          "legacy_record": 1,
+          "raw_completeness": "PARTIAL",
+          "reported_generation": "0",
+          "source": "legacy_evidence",
+          "source_endpoint": null
+        },
+        {
+          "created_equals_retrieved": 1,
+          "generation": null,
+          "legacy_record": 1,
+          "raw_completeness": "PARTIAL",
+          "reported_generation": "1",
+          "source": "legacy_evidence",
+          "source_endpoint": null
+        },
+        {
+          "created_equals_retrieved": 1,
+          "generation": null,
+          "legacy_record": 1,
+          "raw_completeness": "PARTIAL",
+          "reported_generation": "UNKNOWN_LEGACY",
+          "source": "legacy_evidence",
+          "source_endpoint": null
+        }
+      ]
+    },
+    "synthetic_parser_cache_bench": {
+      "cache_bench_function_equivalence": {
+        "evidence_record_from_message": {
+          "identical_historical_and_working_source": true,
+          "sha256": "24586fc28096ff10c6621dd9fee391b757eff4b423b98e65ae2c678615cddce1"
+        },
+        "network_result_generation": {
+          "identical_historical_and_working_source": true,
+          "sha256": "b175d56609625b97adad58030b0de9a60c58d46b3d2c35001b00ad7dc0830c88"
+        }
+      },
+      "cases": [
+        {
+          "bench_helper_output": "UNKNOWN_LEGACY",
+          "body_generation": 0,
+          "cache_writer_output": "0",
+          "case": "body_zero",
+          "header_generation": null,
+          "historical_parser_output": "0",
+          "historical_parser_retained_transport_metadata": false
+        },
+        {
+          "bench_helper_output": "UNKNOWN_LEGACY",
+          "body_generation": null,
+          "cache_writer_output": "0",
+          "case": "header_zero",
+          "header_generation": "0",
+          "historical_parser_output": "0",
+          "historical_parser_retained_transport_metadata": false
+        },
+        {
+          "bench_helper_output": "1",
+          "body_generation": 1,
+          "cache_writer_output": "1",
+          "case": "body_one",
+          "header_generation": null,
+          "historical_parser_output": "1",
+          "historical_parser_retained_transport_metadata": false
+        },
+        {
+          "bench_helper_output": "1",
+          "body_generation": null,
+          "cache_writer_output": "1",
+          "case": "header_one",
+          "header_generation": "1",
+          "historical_parser_output": "1",
+          "historical_parser_retained_transport_metadata": false
+        },
+        {
+          "bench_helper_output": "UNKNOWN_LEGACY",
+          "body_generation": null,
+          "cache_writer_output": "UNKNOWN_LEGACY",
+          "case": "missing",
+          "header_generation": null,
+          "historical_parser_output": null,
+          "historical_parser_retained_transport_metadata": false
+        },
+        {
+          "bench_helper_output": "UNKNOWN_LEGACY",
+          "body_generation": 0,
+          "cache_writer_output": "0",
+          "case": "conflicting_body_zero_header_one",
+          "header_generation": "1",
+          "historical_parser_output": "0",
+          "historical_parser_retained_transport_metadata": false
+        }
+      ],
+      "description": "AST-extracted immutable fetch_room_view function with injected in-memory urllib response; current pure cache and Bench helper functions; no actual urllib request object/opener.",
+      "historical_commit": "8251fdaaa5b9d0c5413c8a4c5beda769f570d392",
+      "historical_function_sha256": "78932c42688dd47aef4035bc680cf387f0ab1705a86ba8b298082503ad1a7131",
+      "network_requests": 0,
+      "production_writes": 0
+    },
+    "unique_file_versions": {
+      "flop_scout.py": [
+        {
+          "commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+          "sha256": "8d42862ee269085cbc3376e175a95985a66e0ba24908b2d58e904b289aa35140"
+        },
+        {
+          "commit": "d15d5a1af97126a1142786df34b2bd0f0ccf811b",
+          "sha256": "da153c665bd5d3677514e7f52793b42627a95263b978fe5d2e1c27d42d9b420e"
+        },
+        {
+          "commit": "4b996db851d397df16d5ede429fc6054cb1c88bf",
+          "sha256": "5c4ef9fd5d44b7bbfea0a2c5aefd288538645ed155851459eda96218c345c387"
+        },
+        {
+          "commit": "46469e5d65ef6659796ab8cc295766b056c96b16",
+          "sha256": "a7361082d1d610fbd4c00d83467e92b620f5df5d0ea566ab19c60a964079547e"
+        },
+        {
+          "commit": "614fc8d79066c3aa7728c0c6456b145f80823e14",
+          "sha256": "4ce7d1c56f284b87a5dc87de854aff0fac82056803423af7d80debe7ec72ccc7"
+        },
+        {
+          "commit": "259dbfabc01197acb17f2707fd62338b09bc8bed",
+          "sha256": "4347798f688a258f11fc6f2189b613bf61387d84246a5f3edb35f14f626b92aa"
+        },
+        {
+          "commit": "2e631dba758f8426861ae7b986a9e39d87aa2485",
+          "sha256": "3f932a3f6bee64b1617308ad9c7ed7b084a92c7a1ca37bc10d24dbc0e7ae84d4"
+        },
+        {
+          "commit": "8251fdaaa5b9d0c5413c8a4c5beda769f570d392",
+          "sha256": "9f3e143eacb23a0eb310823f5ef1ae760ec663446788f39c090f791b7a9a6ea8"
+        },
+        {
+          "commit": "976e1a9f40cb12df73ea4764142deff6118e737b",
+          "sha256": "ef46b950f2adf1e6f266bfbf3ae0ed03d6c2c93dca8910cca9a696d266f45363"
+        },
+        {
+          "commit": "7135618d528c556a5f3650bbe59183c7161cb662",
+          "sha256": "a0575fa310731feb058146b72f49a4a5409e3b8a6cce07ade5b8273cc1534d7c"
+        },
+        {
+          "commit": "1fad46f2da91e80e868042be5e5df99757610cc4",
+          "sha256": "3bd0817a0d668bd70835886443cd94a050503f649dbc9d90eba5842e0bcca531"
+        },
+        {
+          "commit": "e1547d1dd9412ff24bf994feff227337ae0f2031",
+          "sha256": "9882b75575b693d4e3e534810460732ccd929736cb48a98f94bc8d90251d592a"
+        },
+        {
+          "commit": "5fbe5a220e914f54dc755f1e06106f63988bdff0",
+          "sha256": "9f3226cb9ff08bd8195103cfd67ef592f33a12bf8cc19eea55edca64ba5f884f"
+        },
+        {
+          "commit": "3638987b509bf2495c7abf2c999eff1239b8cb7c",
+          "sha256": "45dfb0b0d41940364480d3c8f8e1e11e4d9b957f2e812df0f0f8ac9d61a4521b"
+        }
+      ],
+      "scout_coverage.py": [
+        {
+          "commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+          "sha256": "736f42512428c2803e8a20f64dbfae9a8d373497d55b233afcb331d68fcbc19b"
+        },
+        {
+          "commit": "d15d5a1af97126a1142786df34b2bd0f0ccf811b",
+          "sha256": "3ad28f1643457c4b49efa259b69d815242ccd34b61d07bbe89ec1ed152f23aa7"
+        },
+        {
+          "commit": "3baef7573157f6f4064e05a55b76b6bdc35f3d7b",
+          "sha256": "12850d23d2216d1c15d82cd32f1513881a9a722d2e79a74796921c693480c58f"
+        },
+        {
+          "commit": "4b996db851d397df16d5ede429fc6054cb1c88bf",
+          "sha256": "9b29a365ba21a1a682adb56594c9f97a6cd52c2d75e4c17e4afcc34b611104b8"
+        }
+      ],
+      "scout_evidence.py": [
+        {
+          "commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+          "sha256": "244d6a3b5033a4f1d4378fabc121b64df437776ad11a995724259e6a44955af1"
+        },
+        {
+          "commit": "d15d5a1af97126a1142786df34b2bd0f0ccf811b",
+          "sha256": "4b621c3e83e421a1b7100fb0c424a58c9005c4cbda12781ec6b12e8e98138a7d"
+        },
+        {
+          "commit": "4b996db851d397df16d5ede429fc6054cb1c88bf",
+          "sha256": "dee1f68936f281edb369d4e8b2f2dd76319a73703addc609781677acd59443ed"
+        },
+        {
+          "commit": "46469e5d65ef6659796ab8cc295766b056c96b16",
+          "sha256": "74e4c7ffb4bba306cef5ca7fad0d3c0ee92b82eb72a2c4af82198588ca6983dd"
+        },
+        {
+          "commit": "614fc8d79066c3aa7728c0c6456b145f80823e14",
+          "sha256": "eeb9233dd51ebc70ae2c8f1d508974076a562db5ab8c3f50bced81a637fb4bae"
+        },
+        {
+          "commit": "87c3cdb68f51b30cf0f68419608eb8a55e4612b0",
+          "sha256": "ead6db2b8069d28d2ae4a2d48687194e88e6ad56529e7a4a8de1d2b096534b9d"
+        }
+      ],
+      "scout_schema.py": [
+        {
+          "commit": "70a7af3ed02d5bfdec6f90b4abef43f7018b258f",
+          "sha256": "825ba71867de65e881732724ea530aba02a47a991c0c5d0508ce58631f7f345a"
+        }
+      ]
+    }
+  },
+  "other_transport_captures": {
+    "caution": "Preserved metadata supports that both values occur in other API captures. This aggregate is not fresh network observation or an authenticity audit of all other records, and none is an alternate exact match for the affected records.",
+    "counts": [
+      {
+        "body_generation": null,
+        "conflict": 0,
+        "endpoint_available": 1,
+        "generation": "0",
+        "header_generation": "0",
+        "legacy_record": 0,
+        "raw_completeness": "COMPLETE",
+        "rows": 1544965,
+        "source": "technocore_room"
+      },
+      {
+        "body_generation": "0",
+        "conflict": 0,
+        "endpoint_available": 1,
+        "generation": "0",
+        "header_generation": null,
+        "legacy_record": 0,
+        "raw_completeness": "COMPLETE",
+        "rows": 2262230,
+        "source": "technocore_room"
+      },
+      {
+        "body_generation": null,
+        "conflict": 0,
+        "endpoint_available": 1,
+        "generation": "1",
+        "header_generation": "1",
+        "legacy_record": 0,
+        "raw_completeness": "COMPLETE",
+        "rows": 120053,
+        "source": "technocore_room"
+      },
+      {
+        "body_generation": "1",
+        "conflict": 0,
+        "endpoint_available": 1,
+        "generation": "1",
+        "header_generation": null,
+        "legacy_record": 0,
+        "raw_completeness": "COMPLETE",
+        "rows": 193720,
+        "source": "technocore_room"
+      }
+    ],
+    "query": "SELECT generation, source, legacy_record,raw_completeness,source_endpoint IS NOT NULL AS endpoint_available,\n CAST(json_extract(transport_metadata_json,'$.body_generation') AS TEXT) AS body_generation,\n COALESCE(CAST(json_extract(transport_metadata_json,'$.header_generation') AS TEXT),CAST(json_extract(transport_metadata_json,'$.headers.\"X-Room-Generation\"') AS TEXT),CAST(json_extract(transport_metadata_json,'$.headers.\"x-room-generation\"') AS TEXT)) AS header_generation,\n COALESCE(json_extract(transport_metadata_json,'$.generation_conflict'),0) AS conflict,\n count(*) AS rows\n FROM raw_network_records WHERE generation IN ('0','1') GROUP BY 1,2,3,4,5,6,7,8",
+    "scope": "Other raw records with captured generation 0 or 1; NOT affected UNKNOWN_LEGACY records",
+    "seconds": 62.28942608833313
+  },
+  "query_definitions": {
+    "Q10_time": "Group first-10-character UTC date of retrieved_at, created_at, network_timestamp separately; ranges and counts. Compare stored retrieved_at to schema1 migration time. Per-row implementation Git revision is unavailable.",
+    "Q11_classification": "Original linked-label authority classified UNKNOWN_ORIGIN unless surviving source binding proves a more specific origin. Separate migration-carriage dimension counts raw reports; do not sum those dimensions.",
+    "Q1_unknown_raws": "SELECT * FROM raw_network_records WHERE generation IS NULL OR generation='UNKNOWN_LEGACY';",
+    "Q2_links": "SELECT l.* FROM compatibility_evidence_links l JOIN unknown_raws r ON r.raw_record_id=l.raw_record_id; -- all tables, no first-match selection in analysis",
+    "Q3_concrete_union": "SELECT cache_table,cache_rowid,raw_record_id,CAST(cache.generation AS TEXT) AS generation FROM selected_links JOIN allowlisted_cache_table cache ON cache.rowid=cache_rowid WHERE cache.generation IS NOT NULL AND CAST(cache.generation AS TEXT) NOT IN ('','UNKNOWN_LEGACY','GENERATION_MISSING'); -- union evidence_records,tclk_frames,kibble_events; messages/opportunities have no generation; validation_response_candidates had no selected links",
+    "Q4_sets": "SELECT raw_record_id,COUNT(*) AS concrete_links,COUNT(DISTINCT generation) AS distinct_generations FROM concrete_union GROUP BY raw_record_id; -- explicit sorted sets computed per identity; never emit identities",
+    "Q5_alternatives": "SELECT a.* FROM affected_raws r JOIN raw_network_records a INDEXED BY raw_room_sequence ON a.room=r.room AND a.seq=r.seq AND a.raw_text_sha256=r.raw_text_sha256 WHERE a.raw_record_id<>r.raw_record_id; -- full source, all generations/sources, no LIMIT",
+    "Q6_retrievals": "SELECT x.* FROM evidence_retrievals x JOIN unknown_raws r ON x.raw_record_id=r.raw_record_id; -- inspect generation claims in body_generation/header_generation/headers if present",
+    "Q7_pair_checks": "For each selected cache row fetch by its PK; exact room/seq; SHA256 of exact UTF-8 raw and cache text; stored link/hash equality; sender aliases; decimal nonce string without float; exact signature; network timestamps and capture timestamps separately. Compare availability before equality. Exact cache timestamps agree wherever represented; no normalization-based equality needed. TCLK observed_at is capture time, not network time. Source container label differs from original endpoint lineage.",
+    "Q8_identity_authenticity": "Recompute raw_identity(source,room,actual_generation,reported_generation,parsed_raw_record_json), exact UTF-8 hash and envelope-text hash. Independently run verify_signed_record_offline(room,raw) using public DID material only. Correlate cache statuses. Signature equality is not signature validity. Full provenance also requires original endpoint/source-epoch and authoritative generation capture; no affected record meets that requirement.",
+    "Q9_joint": "Accumulate complete check-result vectors per (cache_table,generation), plus named predicates on each SAME row, not products/minima of marginal counts. Missing is UNAVAILABLE_RAW/LINK/BOTH or UNKNOWN lineage, never AGREE."
+  },
+  "report_version": "scout-generation-authority-evidence/v1",
+  "repository": {
+    "bench_provenance_sha256": "1a7d1888de2d4a2fad45a97d78eb6631f72a5548dc559ad8115506ad0f2961c1",
+    "branch": "feature/tclk-discovery",
+    "head": "e24636b409d26f74d981619e0521973cae68c870",
+    "router_review_sha256": "f8cc12b7cc2f43e06b5e1fed40a9edd6bab585d749b4d1ea0f8dee9ec10d9364",
+    "source_code_sha256": {
+      "conftest.py": "115cd6c6128b4877d30e7b006840a52d4e454870fee93b33e43e6568c57435e8",
+      "coverage_test_support.py": "76dd016aa0c8e5ee1d7c2feb28232f490818d86ef59e245545f2e8105fbc3b91",
+      "flop_scout.py": "764c014bae16450a070991d4d32b473822c1a662f7b9e60054a183e742d7ef32",
+      "scout_checkpoint.py": "9433c7e9f101853de97dd3210a5ddf71de026cdf85974d3a8de78bfdc8d31c7e",
+      "scout_coverage.py": "736f42512428c2803e8a20f64dbfae9a8d373497d55b233afcb331d68fcbc19b",
+      "scout_diagnostics.py": "f6c927876490fb0fec530ecec0d3f8c261f9d61825974d187f37dbda6dbb4227",
+      "scout_evidence.py": "244d6a3b5033a4f1d4378fabc121b64df437776ad11a995724259e6a44955af1",
+      "scout_preparation.py": "3b6750c7325096db97e37934156762474c8e38ac76aba9b03c48505e182f1765",
+      "scout_projection.py": "455520c7af4fcbaba96a4319279c19a32b119172ecc73eef6aed96bf2aef0c77",
+      "scout_projection_cli.py": "9ac03be23d1e1bf1cb2df9a35e7cb160d2b2cb3cb7040528d1cb8736833b3cb2",
+      "scout_projection_contract.py": "4aae66971723fa4f8924b5e3b51ab5134bebcbcdc8586914d9daae3adb3269b2",
+      "scout_projection_model.py": "b143927ae9b1a06730dfcd4c673a589763878791b1e3da1d3b8b16ed23a61ddd",
+      "scout_projection_pins.py": "d6b4b470c4dfc47597479f19e0f03b060e4f3433ba3c4df2b54f354d4a97bf74",
+      "scout_projection_publish.py": "5ef5079ab621209dfb2bda87a7144f265b61324e30249025c3fe45c7fb397d34",
+      "scout_projection_rules.py": "b478633542c1080237fc92f524180066282a772f8b45aeececd07c524ff3e150",
+      "scout_projection_service.py": "b2cde043b0d81dc43b3c9c2f607ee948dd3b2243399b30046856319e1c568f6e",
+      "scout_projection_source.py": "ee3a40a16ac86b1a54983a9efcf3ac7939c5f8cfa8b83aade6ae929fe5b62db6",
+      "scout_runtime.py": "018cf3f37833ec1728ac9f66c138761a444e7dc3d5d63a0c078b483aeb2b96ed",
+      "scout_schema.py": "446b3bee239edd56cce99aea94d96da0d2404cd3984967ee16a3c41dfb7acad5",
+      "scout_worker.py": "f6fec511b813f63da2106b5469d81783fe8d695281785f74f6e3a8bb6ea89e23",
+      "scripts/benchmark_projection_v2.py": "17068656aa04be20ef4eed814487fcfc0f74d9742fda206a5800e405ad005644",
+      "scripts/benchmark_sqlite_latency.py": "b471c27332a7013fc114b79563ee204cdd7ce094d3af5e0662f6d56574318a49",
+      "scripts/benchmark_worker_persistence.py": "44626081ca8d5c3dcd19c250952a9cca859acf9ce7abf8421dc29ef8bd5c8377",
+      "scripts/projection_audit_stress.py": "c30d43e78d304f1c8c1329bb3732e853fab3b3bdd2696b77219fc437b8a6d0ea",
+      "scripts/projection_fixture_support.py": "a712c11cd6168a73b297f1594bdc8e83311199e99571a6a3b485355852ff2216",
+      "scripts/projection_v2_fixtures.py": "bd24da65ea58ab5315c48ab2dfbc74d75d3bda4b52d1b0a18025c5c9011968d0",
+      "scripts/scout-recover-legacy-lock.py": "17febecae689b2d7f8e54beefe62f94b1fef71b285722503b164a074219523d5",
+      "test_coverage_backfill.py": "e3ded8477897bd1462350a098604b9e5a446b872e240911229e05d6c8b6022bc",
+      "test_evidence_time.py": "ace9083336cd4c22717363f88645d228ba06ff11d02a35e45c8257f73e0a2f6b",
+      "test_flop_scout.py": "4f51963d45e9c890ea0b7ab3f0d55987ab6756c34f441029afc65f2cbaabd52a",
+      "test_global_stalls.py": "39bad7cd29ab6eb0df09ff06334a72b4350e4eb4d99b79313165cb8501a1ef0f",
+      "test_poll_recovery.py": "41c6aff0998c202b69d56c289f6df24ebaec55d8fd2ae3af008443efd1ecee8c",
+      "test_scheduler_fairness.py": "c44e3f5c3721b080bf39341bb7582c3604461a02035c62c33527bbf99c5c9f5e",
+      "test_schema_reconciliation.py": "820cf6b25414c866ec7921871078fe4b767550e945dc3cd03cc6a52a7cd0f21e",
+      "test_scout_evidence.py": "38266526e46c8fe0d6d36ceda68a92f2288471181e0b5040dcda9e3a86403c25",
+      "test_scout_projection.py": "8d6910b1785189cf2e86faca09a463ebe580a81595748b940a3fd863856efe78",
+      "test_sqlite_checkpoints.py": "c525cb8481236f7476eb0aa1e4c780517a2c142955c93a31065a58d7e4eecc7d"
+    },
+    "working_tree_has_preexisting_changes": true
+  },
+  "room_source_distribution": {
+    "evidence_cache_sources": [
+      {
+        "count": 127146,
+        "generation": "0",
+        "source": "service-poll"
+      },
+      {
+        "count": 33927,
+        "generation": "1",
+        "source": "service-poll"
+      }
+    ],
+    "room_groups": [
+      {
+        "count": 68882,
+        "generation": "0",
+        "group": "lobby"
+      },
+      {
+        "count": 58057,
+        "generation": "0",
+        "group": "technocore"
+      },
+      {
+        "count": 33927,
+        "generation": "1",
+        "group": "TCLK-related"
+      },
+      {
+        "count": 205,
+        "generation": "0",
+        "group": "kibble"
+      },
+      {
+        "count": 2,
+        "generation": "0",
+        "group": "mailbox"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "group": "faucet"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "group": "TCLK-related"
+      },
+      {
+        "count": 0,
+        "generation": "0",
+        "group": "other"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "group": "lobby"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "group": "faucet"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "group": "kibble"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "group": "technocore"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "group": "mailbox"
+      },
+      {
+        "count": 0,
+        "generation": "1",
+        "group": "other"
+      }
+    ],
+    "rooms": [
+      {
+        "count": 68882,
+        "generation": "0",
+        "room": "lobby"
+      },
+      {
+        "count": 58057,
+        "generation": "0",
+        "room": "technocore"
+      },
+      {
+        "count": 33927,
+        "generation": "1",
+        "room": "tclk-offers"
+      },
+      {
+        "count": 205,
+        "generation": "0",
+        "room": "kibble"
+      },
+      {
+        "count": 2,
+        "generation": "0",
+        "room": "mailbox (redacted)"
+      }
+    ]
+  },
+  "snapshot": {
+    "clone_seconds": 0.0045778751373291016,
+    "evidence_schema": [
+      [
+        1,
+        "2026-09-05T13:31:26.462699+00:00"
+      ],
+      [
+        2,
+        "2026-09-06T13:24:50.909158+00:00"
+      ],
+      [
+        3,
+        "2026-09-06T14:52:01.315253+00:00"
+      ]
+    ],
+    "fingerprint_columns": [
+      "device",
+      "inode",
+      "size_bytes",
+      "mtime_ns",
+      "ctime_ns"
+    ],
+    "full_database_sha256_computed": false,
+    "matches_prior_validated_source_fingerprint": true,
+    "method": "Quiescent APFS DB+WAL clone; stable file identity/mtime/ctime, WAL SHA256, SQLite data_version",
+    "observed_event_max": 4289850,
+    "prior_source_counts": {
+      "compatibility_evidence_links": 9460539,
+      "evidence_records": 4282049,
+      "interactions": 11908,
+      "kibble_events": 323565,
+      "messages": 4289843,
+      "observed_events": 4289850,
+      "raw_network_records": 4289850,
+      "tclk_frames": 383824
+    },
+    "schema_tables": {
+      "compatibility_evidence_links": [
+        "cache_table",
+        "cache_rowid",
+        "raw_record_id",
+        "raw_text_sha256"
+      ],
+      "evidence_export_snapshots": [
+        "snapshot_id",
+        "room",
+        "generation",
+        "source_endpoint",
+        "sha256",
+        "path",
+        "retrieved_at",
+        "record_count",
+        "first_seq",
+        "last_seq",
+        "consecutive",
+        "processed_records",
+        "status",
+        "metadata_json"
+      ],
+      "evidence_records": [
+        "evidence_id",
+        "room",
+        "generation",
+        "seq",
+        "server_timestamp",
+        "did",
+        "nonce",
+        "sig",
+        "text",
+        "message_hash",
+        "canonical_payload_hash",
+        "retrieved_at",
+        "source",
+        "verification_status",
+        "raw_record_json"
+      ],
+      "evidence_retrievals": [
+        "id",
+        "raw_record_id",
+        "retrieved_at",
+        "source_endpoint",
+        "transport_metadata_json"
+      ],
+      "kibble_events": [
+        "id",
+        "room",
+        "generation",
+        "seq",
+        "server_timestamp",
+        "sender_did",
+        "nonce",
+        "signature",
+        "signature_verification",
+        "exact_text",
+        "message_hash",
+        "event_type",
+        "event_version",
+        "job_id",
+        "observed_at",
+        "parse_status",
+        "parse_error",
+        "payload_json",
+        "source_class"
+      ],
+      "messages": [
+        "room",
+        "seq",
+        "timestamp",
+        "sender",
+        "signed",
+        "text",
+        "normalized_text",
+        "normalized_hash",
+        "discovered_at",
+        "template_normalized_text",
+        "template_normalized_hash"
+      ],
+      "opportunities": [
+        "id",
+        "room",
+        "seq",
+        "sender",
+        "message_text",
+        "category",
+        "reason",
+        "confidence",
+        "status",
+        "created_at",
+        "tier",
+        "signed_status",
+        "request_signal",
+        "normalized_duplicate_count",
+        "distinct_dids_using_template",
+        "originality_classification",
+        "capability_match",
+        "noise_flags",
+        "exact_distinct_dids",
+        "actionability",
+        "unresolved_problem",
+        "request_strength",
+        "template_message_count",
+        "template_distinct_dids",
+        "template_originality_classification",
+        "rejection_reasons"
+      ],
+      "raw_network_records": [
+        "raw_record_id",
+        "source",
+        "source_endpoint",
+        "room",
+        "generation",
+        "reported_generation",
+        "seq",
+        "network_timestamp",
+        "retrieved_at",
+        "nonce",
+        "sender_did",
+        "signature",
+        "raw_text",
+        "raw_text_sha256",
+        "raw_record_json",
+        "signature_status",
+        "signature_error",
+        "did_mismatch",
+        "transport_metadata_json",
+        "ingestion_schema",
+        "ingestion_version",
+        "created_at",
+        "legacy_record",
+        "raw_completeness"
+      ],
+      "tclk_frames": [
+        "id",
+        "room",
+        "generation",
+        "seq",
+        "transport_did",
+        "transport_verification_status",
+        "transport_binding_status",
+        "frame_hash",
+        "frame_type",
+        "frame_from",
+        "offer_id",
+        "contract_id",
+        "ref",
+        "job_proto",
+        "job_id",
+        "job_context_json",
+        "role",
+        "lock_kind",
+        "asset",
+        "amount",
+        "rails_json",
+        "expires_ms",
+        "claim_by_ms",
+        "refund_after_ms",
+        "observed_at",
+        "parse_status",
+        "raw_text",
+        "parse_error"
+      ],
+      "validation_response_candidates": [
+        "id",
+        "validation_id",
+        "response_type",
+        "room",
+        "seq",
+        "timestamp",
+        "sender",
+        "validation_id_present",
+        "message_hash",
+        "bounded_text",
+        "created_at"
+      ]
+    },
+    "snapshot_time": "2026-09-08T21:36:00.918629+00:00",
+    "source_bytes": 52022870016,
+    "source_file_fingerprint": {
+      "/Users/greg/.flop_scout/observer.sqlite": [
+        16777230,
+        124751836,
+        52022870016,
+        1788799782902189387,
+        1788799782902189387
+      ],
+      "/Users/greg/.flop_scout/observer.sqlite-wal": [
+        16777230,
+        131498877,
+        115392,
+        1788799785021535852,
+        1788895498222168356
+      ]
+    },
+    "source_wal_sha256": "e89edce2ee16fd1a86695b754833886054550704ebacfd328b2556bcc573d76a",
+    "validation_basis": "Exact same DB/WAL fingerprint as prior quick_check=ok snapshot; no repeated 48 GiB scan",
+    "wal_bytes": 115392
+  },
+  "temporal_version": {
+    "boundary_counts": [
+      {
+        "count": 127146,
+        "generation": "0",
+        "predicate": "created_equals_retrieved"
+      },
+      {
+        "count": 127146,
+        "generation": "0",
+        "predicate": "retrieved_before_schema1"
+      },
+      {
+        "count": 33927,
+        "generation": "1",
+        "predicate": "created_equals_retrieved"
+      },
+      {
+        "count": 33927,
+        "generation": "1",
+        "predicate": "retrieved_before_schema1"
+      }
+    ],
+    "daily_counts": [
+      {
+        "count": 69086,
+        "date": "2026-09-04",
+        "field": "created_at",
+        "generation": "0"
+      },
+      {
+        "count": 69086,
+        "date": "2026-09-04",
+        "field": "network_timestamp",
+        "generation": "0"
+      },
+      {
+        "count": 69086,
+        "date": "2026-09-04",
+        "field": "retrieved_at",
+        "generation": "0"
+      },
+      {
+        "count": 56284,
+        "date": "2026-09-03",
+        "field": "created_at",
+        "generation": "0"
+      },
+      {
+        "count": 56284,
+        "date": "2026-09-03",
+        "field": "retrieved_at",
+        "generation": "0"
+      },
+      {
+        "count": 56282,
+        "date": "2026-09-03",
+        "field": "network_timestamp",
+        "generation": "0"
+      },
+      {
+        "count": 23222,
+        "date": "2026-09-04",
+        "field": "created_at",
+        "generation": "1"
+      },
+      {
+        "count": 23222,
+        "date": "2026-09-04",
+        "field": "retrieved_at",
+        "generation": "1"
+      },
+      {
+        "count": 23209,
+        "date": "2026-09-04",
+        "field": "network_timestamp",
+        "generation": "1"
+      },
+      {
+        "count": 9942,
+        "date": "2026-09-03",
+        "field": "network_timestamp",
+        "generation": "1"
+      },
+      {
+        "count": 9900,
+        "date": "2026-09-03",
+        "field": "created_at",
+        "generation": "1"
+      },
+      {
+        "count": 9900,
+        "date": "2026-09-03",
+        "field": "retrieved_at",
+        "generation": "1"
+      },
+      {
+        "count": 1776,
+        "date": "2026-09-05",
+        "field": "created_at",
+        "generation": "0"
+      },
+      {
+        "count": 1776,
+        "date": "2026-09-05",
+        "field": "network_timestamp",
+        "generation": "0"
+      },
+      {
+        "count": 1776,
+        "date": "2026-09-05",
+        "field": "retrieved_at",
+        "generation": "0"
+      },
+      {
+        "count": 805,
+        "date": "2026-09-05",
+        "field": "created_at",
+        "generation": "1"
+      },
+      {
+        "count": 805,
+        "date": "2026-09-05",
+        "field": "retrieved_at",
+        "generation": "1"
+      },
+      {
+        "count": 776,
+        "date": "2026-09-05",
+        "field": "network_timestamp",
+        "generation": "1"
+      },
+      {
+        "count": 1,
+        "date": "2026-09-01",
+        "field": "network_timestamp",
+        "generation": "0"
+      },
+      {
+        "count": 1,
+        "date": "2026-09-02",
+        "field": "network_timestamp",
+        "generation": "0"
+      }
+    ],
+    "migration_times": [
+      [
+        1,
+        "2026-09-05T13:31:26.462699+00:00"
+      ],
+      [
+        2,
+        "2026-09-06T13:24:50.909158+00:00"
+      ],
+      [
+        3,
+        "2026-09-06T14:52:01.315253+00:00"
+      ]
+    ],
+    "timestamp_ranges": {
+      "0:created_at": {
+        "max": "2026-09-05T00:21:52.062664+00:00",
+        "min": "2026-09-03T19:35:36.304976+00:00"
+      },
+      "0:network_timestamp": {
+        "max": "2026-09-05T00:21:51.742024Z",
+        "min": "2026-09-01T20:53:32.400392Z"
+      },
+      "0:retrieved_at": {
+        "max": "2026-09-05T00:21:52.062664+00:00",
+        "min": "2026-09-03T19:35:36.304976+00:00"
+      },
+      "1:created_at": {
+        "max": "2026-09-05T00:21:48.929395+00:00",
+        "min": "2026-09-03T19:35:37.827955+00:00"
+      },
+      "1:network_timestamp": {
+        "max": "2026-09-05T00:21:48.049535Z",
+        "min": "2026-09-03T19:30:10.175237Z"
+      },
+      "1:retrieved_at": {
+        "max": "2026-09-05T00:21:48.929395+00:00",
+        "min": "2026-09-03T19:35:37.827955+00:00"
+      }
+    }
+  },
+  "validation": {
+    "approval_review_note": "Combined final check escalation was rejected over concern about recursive state-file hashing. That command did not execute. Final validation instead used Router state stat metadata and pointer path inventory only, with separate read-only service/process checks; no check remains blocked.",
+    "files_changed_by_this_task": [
+      "docs/router-projection-v2-generation-authority-evidence.md",
+      "docs/router-projection-v2-generation-authority-evidence.json"
+    ],
+    "git_diff_check": "passed",
+    "git_status_short": " M README.md\n M flop_scout.py\n M scout_runtime.py\n M scout_schema.py\n M scout_worker.py\n?? docs/router-projection-v2-benchmark.json\n?? docs/router-projection-v2-generation-authority-evidence.json\n?? docs/router-projection-v2-generation-authority-evidence.md\n?? docs/router-projection-v2-implementation.md\n?? docs/router-projection-v2-production-dry-run.json\n?? docs/router-projection-v2-production-dry-run.md\n?? docs/router-projection-v2-schema.sql\n?? docs/router-projection-v2-source-review.md\n?? scout_projection.py\n?? scout_projection_cli.py\n?? scout_projection_contract.py\n?? scout_projection_model.py\n?? scout_projection_pins.py\n?? scout_projection_publish.py\n?? scout_projection_rules.py\n?? scout_projection_service.py\n?? scout_projection_source.py\n?? scripts/benchmark_projection_v2.py\n?? scripts/projection_audit_stress.py\n?? scripts/projection_fixture_support.py\n?? scripts/projection_v2_fixtures.py\n?? test_scout_projection.py\n",
+    "json_aggregate_assertions_passed": true,
+    "launchd_services": {
+      "com.flop-scout.worker": "not found, unchanged from baseline",
+      "com.flop.scout.poll": "not found, unchanged from baseline",
+      "com.greg.flop-router.worker": "not found, unchanged from baseline"
+    },
+    "network_requests": 0,
+    "new_report_whitespace_checks": {
+      "docs/router-projection-v2-generation-authority-evidence.json": "no whitespace diagnostics",
+      "docs/router-projection-v2-generation-authority-evidence.md": "no whitespace diagnostics"
+    },
+    "privacy_output_check_passed": true,
+    "private_key_accesses": 0,
+    "production_backups_removed": false,
+    "production_database_poll_flock_handles": 0,
+    "production_writes": 0,
+    "reason_no_full_suite": "No runtime changes; documentation/query assertions and isolated synthetic historical reproductions only.",
+    "router_state_file_contents_read": false,
+    "runtime_tests_run": false,
+    "safety": {
+      "checks": {
+        "code_and_review_unchanged": true,
+        "publication_pointer_inventory_unchanged": true,
+        "router_state_metadata_unchanged": true,
+        "source_db_wal_fingerprint_unchanged": true,
+        "source_wal_sha256_unchanged": true,
+        "worker_diagnostics_unchanged": true
+      },
+      "publication_pointer_check": "path inventory only; no pointer contents read",
+      "router_state_check": "stat metadata only; no Router state file contents read"
+    },
+    "scout_worker_service_poll_process_count": 0,
+    "status": "passed",
+    "synthetic_path_assertions_passed": true,
+    "temporary_analysis_artifacts_removed": true
+  }
+}

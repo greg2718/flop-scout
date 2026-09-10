@@ -1,0 +1,19 @@
+{
+  "seconds": 900.054041875,
+  "samples": 892,
+  "writer_hold_p95_ms": 21,
+  "writer_hold_max_ms": 186.8325409999998,
+  "queue_max_ms": 1689.6414159999722,
+  "queue_turn_max_ms": 1689.6414159999722,
+  "queue_page_max_ms": 544.655333000037,
+  "commit_max_ms": 46.466416999976445,
+  "checkpoint_max_ms": 417.07837499996003,
+  "pages": 901,
+  "upstream_get_max_ms": 2751.2247920000023,
+  "event_loop_max_lag_ms": 0,
+  "worker_lifecycle": "RUNNING",
+  "checkpoint_pressure": "HEALTHY",
+  "internal_starvation": false,
+  "max_sample_gap_seconds": 1.3668889999389648,
+  "live_acceptance_passed": true
+}

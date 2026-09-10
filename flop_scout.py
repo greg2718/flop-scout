@@ -5,7 +5,7 @@ import scout_diagnostics as diagnostics
 import argparse
 import scout_evidence as evidence_store
 import scout_coverage as coverage_store
-from contextlib import closing, contextmanager, redirect_stdout
+from contextlib import closing, contextmanager, nullcontext, redirect_stdout
 from contextvars import ContextVar
 from functools import wraps
 import base64
@@ -2140,38 +2140,19 @@ def kibble_export_jobs(output: Path | None = None, db_path: Path = OBSERVER_DB) 
 
 @observation_only
 @diagnostics.timed('evidence_batch')
-def ingest_messages(
-    conn: sqlite3.Connection,
-    room: str,
-    raw_messages: list[dict[str, Any]],
-    *,
-    generation: str | int | None = None,
-    source: str = "room-read",
-    source_endpoint: str | None = None,
-    transport_metadata: dict | None = None,
-    retrieved_at: str | None = None,
-) -> dict[str, int]:
-    now = retrieved_at or utc_now()
-    received = len(raw_messages)
-    inserted = 0
-    signed_writers: set[str] = set()
-    unsigned_writers: set[str] = set()
-
-    raw_ids = []
-    with conn:
-        for raw in raw_messages:
-            raw_ids.append(evidence_store.ingest(conn, room, raw, verify_signed_record_offline,
-                generation=None if (transport_metadata or {}).get("generation_conflict") else generation,
-                reported_generation=str(generation) if (transport_metadata or {}).get("generation_conflict") else None,
-                endpoint=source_endpoint, metadata=transport_metadata, retrieved_at=now, derive_events=False))
-
-    # Preserve the complete raw page even if a derived parser fails. Re-reading
-    # repairs missing events by deterministic raw identity before cursor movement.
-    with conn:
-        for rid in raw_ids:
-            evidence_store.derive(conn, conn.execute(
-                "SELECT * FROM raw_network_records WHERE raw_record_id=?", (rid,)).fetchone())
-
+def prepare_compatibility(room, raw_messages, generation, source, now):
+    """Compile deterministic compatibility inserts without a database connection."""
+    class Commands:
+        total_changes = 0
+        def __init__(self): self.items=[]
+        def execute(self, sql, parameters):
+            # Match SQLite binding failures while still inside the per-record
+            # compatibility error boundary, before writer ownership.
+            for value in parameters:
+                if isinstance(value,str):value.encode('utf-8')
+                if isinstance(value,int) and not -(2**63)<=value<2**63:raise OverflowError('SQLite INTEGER overflow')
+            self.items.append((sql, parameters))
+    conn=Commands();inserted=0;signed_writers=set();unsigned_writers=set()
     for raw in raw_messages:
         if not isinstance(raw, dict) or not isinstance(raw.get("text"), str) or evidence_store.integer(raw.get("seq")) is None:
             continue
@@ -2253,6 +2234,77 @@ def ingest_messages(
             evidence_store.bump(conn, "compatibility_parse_failures")
             continue
 
+    return conn.items,signed_writers,unsigned_writers
+
+
+def ingest_messages(
+    conn: sqlite3.Connection,
+    room: str,
+    raw_messages: list[dict[str, Any]],
+    *,
+    generation: str | int | None = None,
+    source: str = "room-read",
+    source_endpoint: str | None = None,
+    transport_metadata: dict | None = None,
+    retrieved_at: str | None = None,
+    prepared=None,
+) -> dict[str, int]:
+    if prepared is not None:
+        # Preparation has already succeeded. Commit all effects of this bounded
+        # chunk atomically; a restart replays from the unchanged page cursor.
+        with conn:
+            return _ingest_messages(conn,room,raw_messages,generation=generation,source=source,
+                source_endpoint=source_endpoint,transport_metadata=transport_metadata,
+                retrieved_at=retrieved_at,prepared=prepared)
+    return _ingest_messages(conn,room,raw_messages,generation=generation,source=source,
+        source_endpoint=source_endpoint,transport_metadata=transport_metadata,retrieved_at=retrieved_at)
+
+
+def _ingest_messages(
+    conn: sqlite3.Connection,
+    room: str,
+    raw_messages: list[dict[str, Any]],
+    *,
+    generation: str | int | None = None,
+    source: str = "room-read",
+    source_endpoint: str | None = None,
+    transport_metadata: dict | None = None,
+    retrieved_at: str | None = None,
+    prepared=None,
+) -> dict[str, int]:
+    now = retrieved_at or utc_now()
+    received = len(raw_messages)
+    inserted = 0
+    signed_writers: set[str] = set()
+    unsigned_writers: set[str] = set()
+
+    raw_ids = []
+    with (conn if prepared is None else nullcontext()):
+        for index,raw in enumerate(raw_messages):
+            raw_ids.append(evidence_store.ingest(conn, room, raw, verify_signed_record_offline,
+                generation=None if (transport_metadata or {}).get("generation_conflict") else generation,
+                reported_generation=str(generation) if (transport_metadata or {}).get("generation_conflict") else None,
+                endpoint=source_endpoint, metadata=transport_metadata, retrieved_at=now, derive_events=False,
+                prepared=None if prepared is None else prepared[index]["raw"]))
+
+    # Preserve the complete raw page even if a derived parser fails. Re-reading
+    # repairs missing events by deterministic raw identity before cursor movement.
+    with (conn if prepared is None else nullcontext()):
+        for index,rid in enumerate(raw_ids):
+            evidence_store.derive(conn, conn.execute(
+                "SELECT * FROM raw_network_records WHERE raw_record_id=?", (rid,)).fetchone() if prepared is None else prepared[index]["row"],
+                prepared=None if prepared is None else prepared[index]["event"])
+
+    commands, signed_writers, unsigned_writers = prepare_compatibility(
+        room, raw_messages, generation, source, now) if prepared is None else (
+        [command for item in prepared for command in item['compatibility'][0]],
+        set().union(*(item['compatibility'][1] for item in prepared)),
+        set().union(*(item['compatibility'][2] for item in prepared)))
+    for sql, parameters in commands:
+        before=conn.total_changes
+        conn.execute(sql,parameters)
+        if 'INSERT OR IGNORE INTO messages' in sql and conn.total_changes>before:inserted+=1
+
     max_seq = conn.execute(
         "SELECT MAX(seq) FROM messages WHERE room = ?", (room,)
     ).fetchone()[0]
@@ -2266,7 +2318,7 @@ def ingest_messages(
         """,
         (room, now, now, max_seq),
     )
-    conn.commit()
+    if prepared is None:conn.commit()
     return {
         "received": received,
         "inserted": inserted,
@@ -3991,10 +4043,11 @@ def highest_persisted_page_seq(
     room: str,
     generation: str | int | None,
     messages: list[dict[str, Any]],
+    prepared_raw_ids=None,
 ) -> int | None:
     seqs = []
-    for message in messages:
-        rid = evidence_store.raw_identity(
+    for index,message in enumerate(messages):
+        rid = prepared_raw_ids[index] if prepared_raw_ids is not None else evidence_store.raw_identity(
             "technocore_mailbox" if room.startswith("mb-") else "technocore_room",
             room, str(generation) if generation is not None else None, None, message)
         if not conn.execute("SELECT 1 FROM raw_network_records JOIN observed_events USING(raw_record_id,raw_text_sha256) WHERE raw_record_id=?", (rid,)).fetchone():
@@ -4008,7 +4061,7 @@ def highest_persisted_page_seq(
 @observation_only
 @poll_accounting
 def service_poll_room(conn, room, *, page_size=SERVICE_POLL_PAGE_SIZE,
-                      max_pages=SERVICE_POLL_MAX_PAGES_PER_ROOM, response=None, pre_ingested_summary=None):
+                      max_pages=SERVICE_POLL_MAX_PAGES_PER_ROOM, response=None, pre_ingested_summary=None, prepared_raw_ids=None):
     """Observe ONE tail window. since is a filter, never forward pagination."""
     room = valid_room(room)
     cursor = room_cursor(conn,room)
@@ -4030,7 +4083,7 @@ def service_poll_room(conn, room, *, page_size=SERVICE_POLL_PAGE_SIZE,
     dictionaries = [r for r in records if isinstance(r,dict)]
     server = response_latest_seq(obj,dictionaries)
     ambiguous = generation is None or metadata.get('generation_conflict',False)
-    high = None if metadata.get('generation_conflict') else highest_persisted_page_seq(conn,room,generation,records)
+    high = None if metadata.get('generation_conflict') else highest_persisted_page_seq(conn,room,generation,records,prepared_raw_ids)
     old = coverage_store.state(conn,room,generation,seed)
     if generation_changed:
         with conn:
@@ -4997,7 +5050,8 @@ def self_test() -> None:
 
 
 def main() -> None:
-    if not (len(sys.argv) > 2 and sys.argv[1:3] in (["evidence", "schema-status"], ["worker", "diagnostics"])):
+    projection_command = len(sys.argv) > 1 and sys.argv[1] == "projection"
+    if not (projection_command or len(sys.argv) > 2 and sys.argv[1:3] in (["evidence", "schema-status"], ["worker", "diagnostics"])):
         ensure_home()
     p = argparse.ArgumentParser(description="FLOP Scout v0.3.3 - Service Presence")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -5035,6 +5089,9 @@ def main() -> None:
     inbox_reply_parser.add_argument("text")
     inbox_reply_parser.add_argument("--yes", action="store_true")
 
+    import scout_projection_cli
+    scout_projection_cli.add_parser(sub)
+
     worker_parser = sub.add_parser('worker')
     worker_sub = worker_parser.add_subparsers(dest='worker_cmd',required=True)
     worker_diagnostics = worker_sub.add_parser('diagnostics')
@@ -5042,6 +5099,7 @@ def main() -> None:
     worker_run = worker_sub.add_parser('run')
     worker_run.add_argument('--concurrency',type=int,default=4)
     worker_run.add_argument('--config',type=Path)
+    worker_run.add_argument('--projection-config',type=Path,help='Explicit opt-in local V2 producer configuration')
     reassess_parser = sub.add_parser('reassess-gaps')
     reassess_parser.add_argument('room')
     reassess_parser.add_argument('--export-file',type=Path,required=True)
@@ -5194,10 +5252,18 @@ def main() -> None:
             inbox_opportunities(a.limit, include_all=a.all, explain=a.explain)
         elif a.inbox_cmd == "reply":
             inbox_reply(a.id, a.text, yes=a.yes)
+    elif a.cmd == 'projection':
+        print(json.dumps(scout_projection_cli.run(a),indent=2))
     elif a.cmd == 'worker':
         import scout_worker
         if a.worker_cmd=='diagnostics':print(json.dumps(scout_worker.read_diagnostics(a.state_dir),indent=2))
-        else:scout_worker.run(a.config,a.concurrency)
+        else:
+            projection=None
+            if a.projection_config:
+                from scout_projection_contract import loads,require
+                require(a.projection_config.is_absolute(),'Absolute projection config required')
+                projection=loads(a.projection_config.read_bytes())
+            scout_worker.run(a.config,a.concurrency,projection=projection)
     elif a.cmd == 'reassess-gaps':
         endpoint = f'{BASE_URL}/r/{valid_room(a.room)}/export'
         metadata = json.loads(a.metadata_file.read_text())

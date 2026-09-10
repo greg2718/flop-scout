@@ -39,6 +39,10 @@ def test_real_runtime_interleaves_and_preserves_integrity(state,tmp_path):
         threads['write'].add(threading.get_ident());return original(*args,**kwargs)
     r=runtime.Runtime(state,worker.configuration(['lobby','quiet','mb-flop-scout']),reader=read)
     with patch.object(scout,'ingest_messages',side_effect=persist):r.run(once=True)
+    timing=r.diag.snapshot()['tail_page_timing_history']
+    assert {x['room'] for x in timing}=={'lobby','quiet','mb-flop-scout'}
+    assert [x['sequence'] for x in timing]==list(range(1,len(timing)+1))
+    assert all(x['upstream_get_ms']>=0 and x['internal_ms']>=x['writer_ms'] and x['internal_ms']>=x['elapsed_ms'] for x in timing)
     assert len(threads['write'])==1
     assert threading.get_ident() not in threads['write']
     assert not threads['write'] & threads['read']
@@ -394,3 +398,69 @@ def test_budget_reduces_after_cost_change():
     assert b.size==200
     b.observe(200,30)
     assert b.size==1
+
+
+def test_completed_writer_wakes_scheduler_without_timer(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from types import SimpleNamespace
+    r=runtime.Runtime(tmp_path/'unused.sqlite')
+    r.storage=SimpleNamespace(tail=lambda *_: {'records':1})
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        r.write_pool=pool
+        r.submit_write('tail','lobby',('lobby',{},1))
+        assert r.wakeup.wait(1), 'Completed writer must signal the scheduler'
+        assert r.writer_job['future'].result()['records']==1
+
+
+def test_backlogged_fast_turns_recover_batch_size():
+    b=runtime.BatchBudget()
+    for _ in range(8):
+        b.observe(b.size,b.size*.0005,tail_age=60)
+    assert b.size==50
+    b.observe(50,5,tail_age=60)
+    assert b.size==1
+
+
+def test_tail_owner_yields_after_one_bounded_chunk(monkeypatch):
+    from types import SimpleNamespace
+    now=[0.0];calls=[]
+    monkeypatch.setattr(runtime.time,'monotonic',lambda:now[0])
+    storage=runtime.Storage.__new__(runtime.Storage)
+    storage.tail_budgets={};storage.conn=SimpleNamespace(turn_commit_max_ms=0)
+    def batch(room,job,size):
+        count=min(size,200-job['offset']);calls.append(count);now[0]+=count*.001
+        return dict(records=count,offset=job['offset']+count,inserted=job['inserted']+count,done=job['offset']+count==200)
+    storage._tail_batch=batch
+    result=storage.tail('lobby',dict(offset=0,inserted=0),1)
+    assert calls==[1]
+    assert result['records']==1
+    assert now[0]==.001
+    calls.clear()
+    result=storage.tail('lobby',dict(offset=1,inserted=1),200)
+    assert calls==[8] and result['offset']==9
+
+
+def test_tail_priority_has_bounded_backfill_opportunity(tmp_path):
+    from types import SimpleNamespace
+    now=[0.0];r=runtime.Runtime(tmp_path/'unused.sqlite',clock=lambda:now[0])
+    r.tails={'new':dict(queued=1,turn_ready=1),'old':dict(queued=0,turn_ready=0)}
+    r.export=dict(ready=([],{},0,False),room='backfill',stream=SimpleNamespace(snapshot={}),ready_at=0)
+    submitted=[];r.submit_write=lambda kind,room,*args:submitted.append((kind,room))
+    r.choose_write();assert submitted[-1]==('tail','old')
+    now[0]=1.999;r.choose_write();assert submitted[-1]==('tail','old')
+    now[0]=2;r.choose_write();assert submitted[-1]==('export_batch','backfill')
+    r.choose_write();assert submitted[-1]==('tail','old')
+
+
+def test_queue_accounting_clips_competing_work_intervals(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from types import SimpleNamespace
+    r=runtime.Runtime(tmp_path/'unused.sqlite',clock=lambda:10)
+    r.storage=SimpleNamespace(tail=lambda *_:dict(records=1))
+    r.work_intervals.extend([(0,4,'tail'),(4,7,'backfill'),(7,9,'maintenance')])
+    page={}
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        r.write_pool=pool;r.submit_write('tail','lobby',('lobby',page,1),queued=3)
+        r.writer_job['future'].result()
+    assert page['queue_seconds']==7
+    assert page['wait_tail']==1 and page['wait_backfill']==3 and page['wait_maintenance']==2 and page['wait_scheduler']==1

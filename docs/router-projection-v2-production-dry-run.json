@@ -1,0 +1,376 @@
+{
+  "baseline": {
+    "diagnostics_updated_at": 1788787546.8896818,
+    "router_file_count": 19,
+    "source_files": {
+      "/Users/greg/.flop_scout/observer.sqlite": [
+        16777230,
+        124751836,
+        52022870016,
+        1788799782902189387,
+        1788799782902189387
+      ],
+      "/Users/greg/.flop_scout/observer.sqlite-wal": [
+        16777230,
+        131498877,
+        115392,
+        1788799785021535852,
+        1788895498222168356
+      ]
+    },
+    "wal_sha256": "e89edce2ee16fd1a86695b754833886054550704ebacfd328b2556bcc573d76a",
+    "worker_lifecycle": "STOPPED"
+  },
+  "blocker": {
+    "diagnostic_seconds": 460.2659788131714,
+    "evidence_records_generation_mismatches": [
+      {
+        "cache_generation": "0",
+        "n": 127146,
+        "raw_generation": null
+      },
+      {
+        "cache_generation": "1",
+        "n": 33927,
+        "raw_generation": null
+      }
+    ],
+    "first_failure": {
+      "cache_links": [
+        {
+          "cache_rowid": 7803,
+          "generation": null,
+          "raw_record_id": "b40d6a6b0f15025eec30a9fb4bd78d07f3436d9d320a71820f10ede125c35c2b",
+          "raw_text_sha256": "b4672806e8224b692b1d38aaf908b181ed16de463c877699db37790263ae8990",
+          "room": "lobby",
+          "seq": 21594285,
+          "table": "messages"
+        },
+        {
+          "cache_rowid": 9,
+          "generation": "0",
+          "raw_record_id": "b40d6a6b0f15025eec30a9fb4bd78d07f3436d9d320a71820f10ede125c35c2b",
+          "raw_text_sha256": "b4672806e8224b692b1d38aaf908b181ed16de463c877699db37790263ae8990",
+          "room": "lobby",
+          "seq": 21594285,
+          "table": "evidence_records"
+        }
+      ],
+      "event": {
+        "classification": "UNCLASSIFIED",
+        "event_id": 9
+      },
+      "raw": {
+        "created_at": "2026-09-03T19:35:36.304976+00:00",
+        "generation": null,
+        "raw_record_id": "b40d6a6b0f15025eec30a9fb4bd78d07f3436d9d320a71820f10ede125c35c2b",
+        "raw_text_sha256": "b4672806e8224b692b1d38aaf908b181ed16de463c877699db37790263ae8990",
+        "retrieved_at": "2026-09-03T19:35:36.304976+00:00",
+        "room": "lobby",
+        "sender_did": "did:key:z6MknbECNBqfGQpxeuRuSjvjav3ZWG9XxNgxhpn1asVPxy4s",
+        "seq": 21594285,
+        "source": "legacy_evidence"
+      }
+    }
+  },
+  "build": {
+    "bootstrap_only": true,
+    "elapsed_seconds": 110.57310075,
+    "error": "ProjectionError: Compatibility generation mismatch",
+    "evaluated_at": "2026-09-08T21:08:21.530241Z",
+    "existing_pin_exports_found": false,
+    "last_raw_id": "b40d6a6b0f15025eec30a9fb4bd78d07f3436d9d320a71820f10ede125c35c2b",
+    "mapped": 8,
+    "selected_candidates": 8,
+    "source_epoch": "production-copy-2026-09-08T20:58:37.080138+00:00",
+    "source_preparation_seconds": 85.865286083,
+    "success": false,
+    "traceback": "Traceback (most recent call last):\n  File \"/private/tmp/scout-production-build.py\", line 25, in <module>\n    result['bootstrap']=source.bootstrap(p,root/'working-source.sqlite',str(meta['complete_cut']),when)\n  File \"/Users/greg/Dev/flop_scout_v02/scout_projection_source.py\", line 169, in bootstrap\n    mapped=map_raw(source,row[0],projector.config['local_dids'])\n  File \"/private/tmp/scout-production-build.py\", line 14, in mapped\n    last[0]=rid;obj=original(conn,rid,local_dids);counter[0]+=1;counter[1]+=int(obj is not None)\n  File \"/Users/greg/Dev/flop_scout_v02/scout_projection_source.py\", line 55, in map_raw\n    cache=exact_cache(conn,'messages',raw);verified=exact_cache(conn,'evidence_records',raw)\n  File \"/Users/greg/Dev/flop_scout_v02/scout_projection_source.py\", line 34, in exact_cache\n    if 'generation' in item:require(generation(item['generation'])==generation(raw['generation']),'Compatibility generation mismatch')\n  File \"/Users/greg/Dev/flop_scout_v02/scout_projection_contract.py\", line 41, in require\n    raise ProjectionError(message)\nscout_projection_contract.ProjectionError: Compatibility generation mismatch\n"
+  },
+  "fixed_limits": {
+    "memory_bytes": 536870912,
+    "preferred_message_count": 80000,
+    "preferred_seconds": 20,
+    "preparation_seconds": 30,
+    "size_bytes": 4294967296
+  },
+  "heartbeat": "NOT_RUN_NO_ACCEPTED_CONTENT",
+  "partial-state": {
+    "projection.sqlite": {
+      "bytes": 86016,
+      "counts": {
+        "coverage_history": 0,
+        "durable_qualifications": 0,
+        "interactions": 0,
+        "messages": 0,
+        "qualification_events": 0,
+        "selection_membership": 0,
+        "snapshot_meta": 1,
+        "source_provenance": 0,
+        "watermarks": 0
+      },
+      "dbstat": {
+        "coverage_history": 4096,
+        "durable_qualifications": 4096,
+        "interactions": 4096,
+        "messages": 4096,
+        "messages_coverage": 4096,
+        "qualification_events": 4096,
+        "selection_membership": 4096,
+        "snapshot_meta": 4096,
+        "source_provenance": 4096,
+        "sqlite_autoindex_coverage_history_1": 4096,
+        "sqlite_autoindex_durable_qualifications_1": 4096,
+        "sqlite_autoindex_interactions_1": 4096,
+        "sqlite_autoindex_messages_1": 4096,
+        "sqlite_autoindex_qualification_events_1": 4096,
+        "sqlite_autoindex_qualification_events_2": 4096,
+        "sqlite_autoindex_selection_membership_1": 4096,
+        "sqlite_autoindex_source_provenance_1": 4096,
+        "sqlite_autoindex_watermarks_1": 4096,
+        "sqlite_schema": 4096,
+        "watermarks": 4096
+      }
+    },
+    "projection.sqlite.ledger": {
+      "bytes": 237568,
+      "counts": {
+        "audit_history": 0,
+        "configuration": 1,
+        "current_inputs": 0,
+        "dependencies": 0,
+        "dependency_frontier": 0,
+        "dependency_jobs": 0,
+        "evaluation_edges": 0,
+        "evaluation_groups": 0,
+        "evaluation_inputs": 0,
+        "evaluations": 1,
+        "expiry": 0,
+        "input_versions": 0,
+        "local_artifacts": 0,
+        "operations": 0,
+        "permanent": 0,
+        "pin_exports": 0,
+        "pin_members": 0,
+        "pins": 0,
+        "publication_log": 0,
+        "qualification_keys": 0,
+        "rule_manifests": 0,
+        "source_aliases": 0,
+        "state": 4,
+        "workflows": 0
+      },
+      "dbstat": {
+        "audit_history": 4096,
+        "configuration": 4096,
+        "current_inputs": 4096,
+        "dependencies": 4096,
+        "dependency_due": 4096,
+        "dependency_frontier": 4096,
+        "dependency_jobs": 4096,
+        "evaluation_edges": 4096,
+        "evaluation_groups": 4096,
+        "evaluation_inputs": 4096,
+        "evaluations": 4096,
+        "expiry": 4096,
+        "expiry_due": 4096,
+        "input_sender": 4096,
+        "input_template": 4096,
+        "input_template_global": 4096,
+        "input_versions": 4096,
+        "input_workflow": 4096,
+        "local_artifacts": 4096,
+        "operations": 4096,
+        "pending_evaluations": 4096,
+        "permanent": 4096,
+        "pin_exports": 4096,
+        "pin_members": 4096,
+        "pins": 4096,
+        "publication_log": 4096,
+        "qualification_keys": 4096,
+        "rule_manifests": 4096,
+        "source_aliases": 4096,
+        "sqlite_autoindex_audit_history_1": 4096,
+        "sqlite_autoindex_current_inputs_1": 4096,
+        "sqlite_autoindex_dependencies_1": 4096,
+        "sqlite_autoindex_dependency_frontier_1": 4096,
+        "sqlite_autoindex_dependency_jobs_1": 4096,
+        "sqlite_autoindex_evaluation_edges_1": 4096,
+        "sqlite_autoindex_evaluation_groups_1": 4096,
+        "sqlite_autoindex_evaluation_inputs_1": 4096,
+        "sqlite_autoindex_evaluations_1": 4096,
+        "sqlite_autoindex_expiry_1": 4096,
+        "sqlite_autoindex_input_versions_1": 4096,
+        "sqlite_autoindex_local_artifacts_1": 4096,
+        "sqlite_autoindex_operations_1": 4096,
+        "sqlite_autoindex_permanent_1": 4096,
+        "sqlite_autoindex_pin_exports_1": 4096,
+        "sqlite_autoindex_pin_members_1": 4096,
+        "sqlite_autoindex_pins_1": 4096,
+        "sqlite_autoindex_publication_log_1": 4096,
+        "sqlite_autoindex_qualification_keys_1": 4096,
+        "sqlite_autoindex_qualification_keys_2": 4096,
+        "sqlite_autoindex_rule_manifests_1": 4096,
+        "sqlite_autoindex_source_aliases_1": 4096,
+        "sqlite_autoindex_state_1": 4096,
+        "sqlite_autoindex_workflows_1": 4096,
+        "sqlite_schema": 12288,
+        "state": 4096,
+        "workflows": 4096
+      }
+    }
+  },
+  "publication-pointers-before": {},
+  "result": "BLOCKED_SOURCE_CONSISTENCY",
+  "router-code-before": {
+    "projection_bench.py": "afb4b6532619c63bdf9ba64be71c1d6c0f05261fdd88b2e25dbb5fd5be319109",
+    "projection_contract.py": "85cbaeeaa87dce21d6ee9ddb8a1351c05db3d5658994ee1e81c4fe45c602bb99",
+    "projection_routing.py": "5fe3ad426fb0520674e9e562c2b7fb2b590b6cf042bb11c06db16013d0ca28e9",
+    "projection_workflows.py": "0caad4987490f82a42b2bd70157da3434756e745707ad94bd3a3cfeb3a085658",
+    "router.py": "7ef342197174ad0567c19a235c60ed1f8443e0cc05e6ab4199e86948198ff3da",
+    "scout_projection.py": "9a4456351b87a7c1967fda04749d0f9d495110512cc5db317b1e8607f0e9885f"
+  },
+  "router_preparation": "NOT_RUN_NO_VALID_PUBLICATION",
+  "safety-after": {
+    "inventoried_pointer_count": 0,
+    "inventoried_publication_pointers_unchanged": true,
+    "production_health": "Preexisting STOPPED/unloaded; not certified running healthy",
+    "redundant_cross_checks_cancelled_after_full_count": true,
+    "router_candidate_code_unchanged": true,
+    "router_state_file_metadata_unchanged": true,
+    "scout_diagnostics_unchanged": true,
+    "scout_lifecycle_after": "STOPPED",
+    "scout_lifecycle_before": "STOPPED",
+    "services": {
+      "com.flop-scout.worker": {
+        "message": "Bad request.\nCould not find service \"com.flop-scout.worker\" in domain for user gui: 501",
+        "returncode": 113,
+        "unloaded": true
+      },
+      "com.flop.scout.poll": {
+        "message": "Bad request.\nCould not find service \"com.flop.scout.poll\" in domain for user gui: 501",
+        "returncode": 113,
+        "unloaded": true
+      },
+      "com.greg.flop-router.worker": {
+        "message": "Bad request.\nCould not find service \"com.greg.flop-router.worker\" in domain for user gui: 501",
+        "returncode": 113,
+        "unloaded": true
+      }
+    },
+    "source_db_wal_stat_unchanged": true,
+    "source_wal_sha256_unchanged": true,
+    "temporary_root_removed": true
+  },
+  "snapshot": {
+    "clone_seconds": 0.005564212799072266,
+    "complete_cut": 4289850,
+    "method": "APFS clone of quiescent DB + WAL; unchanged inode/size/mtime/ctime, WAL SHA256 and SQLite data_version checked across clone",
+    "quick_check": [
+      "ok"
+    ],
+    "quick_check_seconds": 860.9033787250519,
+    "snapshot_path": "/private/tmp/scout-production-v2-axyr_y2_/source.sqlite",
+    "snapshot_time": "2026-09-08T20:58:37.080138+00:00",
+    "source_bytes": 52022870016,
+    "source_counts": {
+      "compatibility_evidence_links": 9460539,
+      "evidence_records": 4282049,
+      "interactions": 11908,
+      "kibble_events": 323565,
+      "messages": 4289843,
+      "observed_events": 4289850,
+      "raw_network_records": 4289850,
+      "tclk_frames": 383824
+    },
+    "source_wal_bytes": 115392
+  },
+  "source-age": {
+    "evaluated_at": "2026-09-08T21:11:25.799549+00:00",
+    "max_first_observed": "2026-09-07T16:49:42.802203+00:00",
+    "min_first_observed": "2026-08-27T11:31:43.151383+00:00",
+    "records_at_least_14_days_old": 0,
+    "seconds": 85.49191617965698,
+    "source_raw_text_bytes": 486513421
+  },
+  "source-profile": {
+    "event_classes": {
+      "IDENTITY_PRESENCE": 44923,
+      "MALFORMED_UNVERIFIABLE_EVENT": 78065,
+      "PROMOTIONAL_CLAIM": 61,
+      "TCLK_TRANSCRIPT_EVENT": 342706,
+      "UNCLASSIFIED": 3824094,
+      "WORK_RESULT": 1
+    },
+    "retrieval_range": [
+      "2026-08-27T11:31:43.151383+00:00",
+      "2026-09-07T16:48:23.385583+00:00"
+    ],
+    "seconds": 42.4176881313324,
+    "signed_did_candidates": 4284680,
+    "top_senders": [
+      {
+        "raw_records": 38603,
+        "sender": "did:key:z6MkjnoCBXDLiMqWrNvyGBJrFyqxh1bJaNeWcLrnHPZTJrAu"
+      },
+      {
+        "raw_records": 33002,
+        "sender": "did:key:z6MkvudSY2Ezd4suJDfD2DYE8GAVUBCGHgjHjPMowhojvBUG"
+      },
+      {
+        "raw_records": 21865,
+        "sender": "did:key:z6MkkFtZycpRyviGe3JFA9rnAyQPdmNuNNyM4Ak4iM1jjwng"
+      },
+      {
+        "raw_records": 20998,
+        "sender": "did:key:z6MkuqDkBuKQKSDuPH5F4qms2GPNfQeWLswuqPghrxdpcRRm"
+      },
+      {
+        "raw_records": 17158,
+        "sender": "did:key:z6MkptCMeKbxLZKjzBfpWXxVQpvFNk7UqeUWNyhCDEiseaD4"
+      },
+      {
+        "raw_records": 13555,
+        "sender": "did:key:z6MkfYjHKT4SnpawX8U1UYEF9UzSK7ogbXjNokFabknWT4S1"
+      },
+      {
+        "raw_records": 12774,
+        "sender": "did:key:z6Mkw58bFsBqUnux5fCcng8Y5kYkE9Aew1yKQ55kxjnCSifb"
+      },
+      {
+        "raw_records": 12100,
+        "sender": "did:key:z6MkuJApkNbioPB1fJiCxCgZEzfLU54FNp35JNHZYQVhheFa"
+      },
+      {
+        "raw_records": 11721,
+        "sender": "did:key:z6MkjthRmoCQhKPLRuSqjXZr2EVtbiWA1kPDoW9Y5dSS7PqE"
+      },
+      {
+        "raw_records": 11278,
+        "sender": "did:key:z6Mkmr2ZXQadvt5iReZMKknAyFNetvSL7MKtqbDuQHxbJ2nT"
+      },
+      {
+        "raw_records": 10270,
+        "sender": "did:key:z6MktCnTHZjx5bLgMAFb2sX51zR52zLuAJShC6moPsGWBRat"
+      },
+      {
+        "raw_records": 9936,
+        "sender": "did:key:z6MktT8Teho81LkeqxBWDrFWc5ikBWBfVnZk3WMS23bVLd5o"
+      },
+      {
+        "raw_records": 9593,
+        "sender": "did:key:z6Mktn5LpvCmABnsMZwHUeAyoQWNqtLkR6o9NeMVqiS4pxVp"
+      },
+      {
+        "raw_records": 5945,
+        "sender": "did:key:z6MkqLkRScAfhkpYTgVbZUZkeVTTNSCUyhTSJTGg3qyQQqji"
+      },
+      {
+        "raw_records": 4636,
+        "sender": "did:key:z6MkhzytPUPvYdxREFbiuRboW5Xxuc1fcmXfSgsDKpLHL4zb"
+      }
+    ]
+  },
+  "source_warehouse_is_not_projection": true,
+  "valid_projection_created": false
+}

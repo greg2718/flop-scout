@@ -1,0 +1,56 @@
+{
+  "artifacts": {
+    "/private/tmp/scout-lg2-performance-final-20260908/report.json": "52dd163ebfa9506a491a0b62d347012246079f4355b287bac918ac0fad6da6de",
+    "/private/tmp/scout-lg2-router-fixtures-final-20260908/index.json": "11d827186ca737e82853c5e859a5d829608a9ad73b9bf793aba53d18b1b09a70",
+    "/private/tmp/scout-lg2-storage-20260908/report.json": "55655267469f8a96109869eb56f8c820843d7f1f24fe544c1821153837a208d3"
+  },
+  "branch": "feature/tclk-discovery",
+  "commit_or_push": false,
+  "deployed": false,
+  "diff_check": "PASS",
+  "head": "e24636b409d26f74d981619e0521973cae68c870",
+  "lg2_tests": 54,
+  "network_access": false,
+  "normative_ddl_sha256": "b3e39648e0019f490b19bd15a1e36a0e93a05261d7d0c55fce6bdb8e085356e8",
+  "production_access": false,
+  "python_files_compiled": 48,
+  "router_contract_sha256": "3c6ee6bab7fc0bf099d331963917ce926928240d2096342420913d21e723b2f0",
+  "router_modified": false,
+  "schema": "scout-lg2-implementation-evidence/v1",
+  "self_test": "PASS",
+  "services_started": false,
+  "source_code_sha256": {
+    "README.md": "4c27763f28a5bf133b1cc47d192f7cf387219ab4d627ad43451f1e901ce07500",
+    "docs/router-legacy-generation-lg2-schema.sql": "b3e39648e0019f490b19bd15a1e36a0e93a05261d7d0c55fce6bdb8e085356e8",
+    "scout_projection.py": "fa97bdc8c025caacb446a96957e3550905c40e4f81264740165b582d657aa9fe",
+    "scout_projection_cli.py": "246583a430c86561f243bf3177a55fd7c97746cdad80553d6f77160a8aed139c",
+    "scout_projection_compact.py": "01c98f35b5cae55264a397a36de45158a9e026a4ba8a56b86418ffbf4e0e7d9f",
+    "scout_projection_contract.py": "fd231039848f8d469df5c6805ecf391108e93c53c350338907ec495b26147465",
+    "scout_projection_legacy.py": "0ba66f60aafb6627a559fbdfbdb38cb8eb7990e8d555b9a9cbba74fd780328b4",
+    "scout_projection_publish.py": "3cc997fb4ef008553c0093447c05a5e64a99955362ec2b112ecd589598e99bf4",
+    "scout_projection_source.py": "8b177dd01bdd5f0fc2e81a0f0b3a5a5ad8ef684f30013bd7090eb3324a0a8d76",
+    "scout_runtime.py": "d52dd2b4c5b2b73125bbc2d100f06631b3e0da2ef05c06db8cd32253ed08f41e",
+    "scripts/benchmark_projection_lg2.py": "beaa9bbf74b53738835231b008e0a43b6ac4c175eeb178be286f5b17b3d6105d",
+    "scripts/projection_lg2_fixtures.py": "2102e34fb9e8134d788728d1bb5eb612afbc6d3c636f36e7cd39a3d52c69f60d",
+    "test_scout_projection_lg2.py": "2465db00f8ae4db0fe4d31be8e4b0f73aa1cffd6f9cc664b5bddd15f15628e38"
+  },
+  "stored_locator_byte_histograms": {
+    "1000": {
+      "0": 204,
+      "64": 1000
+    },
+    "10000": {
+      "0": 2042,
+      "64": 10000
+    },
+    "100000": {
+      "0": 20419,
+      "64": 100000
+    },
+    "161073": {
+      "0": 32890,
+      "64": 161073
+    }
+  },
+  "tests_passed": 545
+}

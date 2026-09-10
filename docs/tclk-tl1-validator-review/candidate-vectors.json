@@ -1,0 +1,62 @@
+{
+  "status": "REVIEW_CANDIDATE_NOT_APPROVED",
+  "upstream_commit": "5cc4ab93efbc8999a3a7e1471b639deca25998ea",
+  "schema_sha256": "17071a2b3b21e8484cac9da7976088f3700e6fb6c1372268d4756b61ddd60c70",
+  "scope": "Unsigned synthetic structural vectors; no authentication or complete projection claims. Expected results derived by source inspection, not execution of upstream validator.",
+  "vectors": [
+    {
+      "name": "schema-valid-accept",
+      "frame": {
+        "type": "accept",
+        "from": "did:key:z6Mk11111111111111111111111111111111111111111111",
+        "ref": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "statement": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "contract": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "nonce": "12345678"
+      },
+      "schema_valid": true,
+      "proposed_schema_only_mask": 0
+    },
+    {
+      "name": "offer-id-only-accept",
+      "frame": {
+        "type": "accept",
+        "from": "did:key:z6Mk11111111111111111111111111111111111111111111",
+        "statement": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "nonce": "12345678",
+        "offer_id": "0x1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "schema_valid": false,
+      "proposed_schema_only_mask": 15
+    },
+    {
+      "name": "schema-valid-invalid-curve-point",
+      "frame": {
+        "type": "accept",
+        "from": "did:key:z6Mk11111111111111111111111111111111111111111111",
+        "ref": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "statement": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "contract": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "nonce": "12345678",
+        "paymentKey": "0x000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "schema_valid": true,
+      "reference_validateFrame": "reject: invalid secp256k1 point",
+      "proposed_schema_only_mask": 0
+    },
+    {
+      "name": "receipt-array-outcome",
+      "frame": {
+        "type": "receipt",
+        "from": "did:key:z6Mk11111111111111111111111111111111111111111111",
+        "contract": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "outcome": [
+          "claimed"
+        ]
+      },
+      "schema_valid": false,
+      "reference_validateFrame": "accepts via String(frame.outcome)",
+      "proposed_schema_only_mask": 272
+    }
+  ]
+}

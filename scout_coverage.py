@@ -4,6 +4,7 @@ import scout_diagnostics as diagnostics
 import hashlib
 import json
 import sqlite3
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 import scout_evidence as ev
@@ -111,8 +112,39 @@ def event(conn, room, generation, kind, details):
         (room,str(generation),kind,ev.now(),ev.dumps(details)))
 
 
+class CoveragePending(Exception):
+    """A durable page needs another bounded coverage turn before finalization."""
+
+
+COVERAGE_WORK = ContextVar('coverage_work',default=None)
+
+
+def contiguous_step(conn,room,generation,cursor,size=32):
+    # Restrict the position range as well as row count: a distant high water
+    # must not cause an unbounded scan or sort while owning the writer.
+    rows=conn.execute("""SELECT DISTINCT r.seq FROM raw_network_records r
+        JOIN observed_events e USING(raw_record_id,raw_text_sha256)
+        WHERE r.source=? AND r.room=? AND r.generation=? AND r.seq>? AND r.seq<=?
+        AND r.raw_completeness='COMPLETE' ORDER BY r.seq""",
+        (source(room),room,str(generation),cursor,cursor+size)).fetchall()
+    start=cursor
+    for row in rows:
+        if row[0]!=cursor+1:return cursor,True
+        cursor=row[0]
+    return cursor,cursor<start+size
+
+
 @diagnostics.timed('coverage_recompute')
 def contiguous(conn, room, generation, cursor):
+    work=COVERAGE_WORK.get()
+    if work is not None:
+        key=(room,str(generation),cursor)
+        saved,done=work.get(key,(cursor,False))
+        if not done:
+            saved,done=contiguous_step(conn,room,generation,saved)
+            work[key]=(saved,done)
+        if not done:raise CoveragePending()
+        return saved
     # Streaming distinct positions; duplicates/conflicts never imply extra coverage.
     rows = conn.execute('''SELECT DISTINCT r.seq FROM raw_network_records r
         JOIN observed_events e USING(raw_record_id,raw_text_sha256)
@@ -230,6 +262,12 @@ def finish_export(conn,s,seed=0):
     # evidence but cannot prove a retention boundary or complete coverage.
     old = current['coverage_cursor']
     cursor = contiguous(conn,s['room'],s['generation'],old)
+    if s['consecutive'] and s['first_seq'] is not None and (current['origin_unknown'] or s['first_seq']>old+1):
+        coverage_baseline=contiguous(conn,s['room'],s['generation'],s['first_seq']-1)
+    else:coverage_baseline=cursor
+    with conn:
+        conn.execute("UPDATE evidence_export_snapshots SET status='PERSISTED' WHERE snapshot_id=?",(s['snapshot_id'],))
+    reassess(conn,s)
     loss = None
     if s['consecutive'] and s['first_seq'] is not None and s['first_seq']>old+1 and not current['origin_unknown']:
         loss = ev.digest(ev.dumps([s['room'],s['generation'],old,s['first_seq'],'CONFIRMED_UPSTREAM_RETENTION_LOSS']))
@@ -239,17 +277,14 @@ def finish_export(conn,s,seed=0):
         with conn:
             conn.execute('INSERT OR IGNORE INTO evidence_retention_losses VALUES (?,?,?,?,?,?,?,?,?,?)',
                 (loss,s['room'],s['generation'],old,s['first_seq'],s['snapshot_id'],ev.now(),'CONFIRMED_UPSTREAM_RETENTION_LOSS',CONTRACT,raw[0]))
-        cursor = contiguous(conn,s['room'],s['generation'],s['first_seq']-1)
+        cursor = coverage_baseline
     if current['origin_unknown'] and s['consecutive'] and s['first_seq'] is not None:
-        cursor = contiguous(conn,s['room'],s['generation'],s['first_seq']-1)
+        cursor = coverage_baseline
         with conn:
             event(conn,s['room'],s['generation'],'GENERATION_BASELINE_ESTABLISHED',{'snapshot_id':s['snapshot_id'],'first_retained':s['first_seq']})
     high = max(current['observed_high_water'],s['last_seq'] or 0)
     pending = cursor < max(high,current['server_tail_high_water'] or 0)
     status = 'UNRESOLVED' if pending or not s['consecutive'] or not s['record_count'] else ('CONFIRMED_RETENTION_LOSS' if loss else 'CURRENT_AFTER_BACKFILL')
-    with conn:
-        conn.execute("UPDATE evidence_export_snapshots SET status='PERSISTED' WHERE snapshot_id=?",(s['snapshot_id'],))
-    reassess(conn,s)
     with conn:
         conn.execute('''UPDATE source_coverage_state SET coverage_cursor=?,observed_high_water=?,coverage_status=?,
             backfill_required=?,backfill_from_seq=?,backfill_to_seq=?,last_backfill_at=?,last_backfill_result=?,origin_unknown=?
@@ -292,7 +327,13 @@ def reassess(conn, s):
     if s.get('status') != 'PERSISTED':
         stored = conn.execute('SELECT status FROM evidence_export_snapshots WHERE snapshot_id=?',(s['snapshot_id'],)).fetchone()
         if not stored or stored[0]!='PERSISTED': raise ValueError('Reassessment requires persisted export')
-    for gap in conn.execute('SELECT * FROM evidence_source_gaps WHERE room=? AND generation=?',(s['room'],s['generation'])).fetchall():
+    work=COVERAGE_WORK.get()
+    key=(s['room'],str(s['generation']),'reassess',s['snapshot_id'])
+    last,done=work.get(key,('',False)) if work is not None else ('',False)
+    if done:return
+    sql='SELECT * FROM evidence_source_gaps WHERE room=? AND generation=? AND gap_id>? ORDER BY gap_id'
+    rows=conn.execute(sql+(' LIMIT 4' if work is not None else ''),(s['room'],s['generation'],last)).fetchall()
+    for gap in rows:
         assessment = 'UNRESOLVED'
         reason = 'Snapshot cannot establish availability of the entire historical interval'
         if s['consecutive'] and s['first_seq'] is not None:
@@ -307,6 +348,10 @@ def reassess(conn, s):
             conn.execute('INSERT OR IGNORE INTO evidence_gap_reassessments VALUES (?,?,?,?,?,?,?,?,?,?)',
                 (rid,gap['gap_id'],ev.now(),assessment,reason,'technocore_export',s['source_endpoint'],s['sha256'],s['snapshot_id'],
                  ev.dumps({'availability_as_of':s['retrieved_at'],'original_detection_at':gap['detected_at']})))
+    if work is not None:
+        work[key]=(rows[-1]['gap_id'] if rows else last,len(rows)<4)
+        if len(rows)==4:raise CoveragePending()
+
 
 
 def failed(conn, room, generation, error):

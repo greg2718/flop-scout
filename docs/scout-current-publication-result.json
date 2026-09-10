@@ -1,0 +1,50 @@
+{
+  "contract_revision": "A1",
+  "database": "/Users/greg/.flop_scout/router-current/publication/router-projection-v2-1-5d23b03aa1099af7457174ba190f9bc27da77892a150e37f385c2d30aad34da4.sqlite",
+  "generation_seconds": 119.340058208,
+  "latest_evidence_age_seconds": 197.964326,
+  "latest_evidence_at": "2026-09-10T11:14:18.944144+00:00",
+  "pin_count": 0,
+  "publication_root": "/Users/greg/.flop_scout/router-current/publication",
+  "ready": true,
+  "record_count": 13867,
+  "row_counts": {
+    "coverage_history": 10,
+    "durable_qualifications": 2830,
+    "interactions": 0,
+    "messages": 13867,
+    "qualification_events": 0,
+    "selection_membership": 13867,
+    "source_provenance": 13867,
+    "watermarks": 10
+  },
+  "size_bytes": 45113344,
+  "source_selection": {
+    "candidate_rows": 13001,
+    "cutoff": "2026-09-03T11:14:19.007356Z",
+    "evaluated_at": "2026-09-10T11:14:19.007356Z",
+    "excluded_historical": 1,
+    "pins_sha256": "0b203be97736d20d57d98439bbd5bd69e06876fcf1dcf0c6294d7ce2ae955506",
+    "raw_ids_sha256": "6137f4e94383d3f5d592a2fc90ee0998490ea2d0c949e2e50b1273053f7ec9a8",
+    "router_state_sha256": "99c7919ce09159518f9879e01c1d7f82fdc265398db615dbed597bb709b66c6f",
+    "selected": 14083,
+    "source_cut": "5831929",
+    "source_path": "/Users/greg/.flop_scout/observer.sqlite",
+    "source_payload_bytes": 46907997,
+    "source_queries": 129339,
+    "unresolved_interactions": 2000
+  },
+  "time_horizon": "7 days, class-stratified <=25000 ambient records; <=50000 including bounded root/identity/pin reserve",
+  "consumer_validation": {
+    "result": {
+      "messages": 13867,
+      "bench": 1,
+      "operator_relationships": 11
+    },
+    "seconds": 1.1781642920032027,
+    "readiness": "READY"
+  },
+  "generation_end_to_end_seconds": 197.901114,
+  "latest_evidence_age_at_report_seconds": 299.838562,
+  "scope": "Separate current enrollment; full historical V2/TL1 parked; Router not reconfigured"
+}

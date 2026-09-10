@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PYTHONDONTWRITEBYTECODE</key>
+		<string>1</string>
+	</dict>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>Label</key>
+	<string>com.flop-scout.current-publication</string>
+	<key>LowPriorityIO</key>
+	<true/>
+	<key>Nice</key>
+	<integer>10</integer>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/greg/Dev/flop_scout_v02/.venv/bin/python</string>
+		<string>/Users/greg/Dev/flop_scout_v02/scout_current_refresh.py</string>
+		<string>--source</string>
+		<string>/Users/greg/.flop_scout/observer.sqlite</string>
+		<string>--work</string>
+		<string>/Users/greg/.flop_scout/router-current/private</string>
+		<string>--root</string>
+		<string>/Users/greg/.flop_scout/router-current/publication</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/greg/.flop_scout/router-current/private/refresh.stderr.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/greg/.flop_scout/router-current/private/refresh.stdout.log</string>
+	<key>StartInterval</key>
+	<integer>600</integer>
+	<key>ThrottleInterval</key>
+	<integer>60</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/greg/Dev/flop_scout_v02</string>
+</dict>
+</plist>

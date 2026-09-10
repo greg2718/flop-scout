@@ -1,0 +1,2642 @@
+{
+  "production_access": false,
+  "scope": "UNPUBLISHED row-template sizing only; exact producer schema and synthetic cache locator shapes. Scaled raw IDs have no private source originals and these files must not be consumed as Router fixtures.",
+  "sizes": {
+    "1000": {
+      "comparison": {
+        "average_witnesses_per_report": 1.204,
+        "bytes_per_report": 225.28,
+        "lg1_added_bytes": 1048576,
+        "lg1_payload_delta_percent": 75.81407497598984,
+        "lg1_total_delta_percent": 73.98843930635839,
+        "lg2_added_bytes": 233472,
+        "lg2_payload_delta_percent": 14.821360401522178,
+        "lg2_total_delta_percent": 16.473988439306364,
+        "lg2_vs_lg1_delta_percent": -33.056478405315616,
+        "report_table_bytes_per_report": 49.152,
+        "witness_table_bytes_per_witness": 146.28571428571428
+      },
+      "modes": {
+        "A1": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 348160,
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 162,
+              "table": "coverage_history",
+              "unused_bytes": 3921
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "messages": {
+              "bytes": 413696,
+              "kind": "table",
+              "name": "messages",
+              "pages": 101,
+              "payload_bytes": 391872,
+              "table": "messages",
+              "unused_bytes": 14359
+            },
+            "messages_coverage": {
+              "bytes": 45056,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 11,
+              "payload_bytes": 32744,
+              "table": "messages",
+              "unused_bytes": 9184
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 163840,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 40,
+              "payload_bytes": 146000,
+              "table": "selection_membership",
+              "unused_bytes": 11343
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 462848,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 113,
+              "payload_bytes": 431893,
+              "table": "source_provenance",
+              "unused_bytes": 23300
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 90112,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 22,
+              "payload_bytes": 73872,
+              "table": "messages",
+              "unused_bytes": 12980
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 94208,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 23,
+              "payload_bytes": 81872,
+              "table": "selection_membership",
+              "unused_bytes": 9064
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 94208,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 23,
+              "payload_bytes": 81872,
+              "table": "source_provenance",
+              "unused_bytes": 9064
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 1,
+              "payload_bytes": 3763,
+              "table": "sqlite_schema",
+              "unused_bytes": 140
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 34,
+              "table": "watermarks",
+              "unused_bytes": 4050
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 1244265,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "messages": 1000,
+            "qualification_events": 0,
+            "selection_membership": 1000,
+            "snapshot_meta": 1,
+            "source_provenance": 1000,
+            "watermarks": 1
+          },
+          "size_bytes": 1417216
+        },
+        "LG1": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 348160,
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 162,
+              "table": "coverage_history",
+              "unused_bytes": 3921
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "messages": {
+              "bytes": 413696,
+              "kind": "table",
+              "name": "messages",
+              "pages": 101,
+              "payload_bytes": 391872,
+              "table": "messages",
+              "unused_bytes": 14359
+            },
+            "messages_coverage": {
+              "bytes": 45056,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 11,
+              "payload_bytes": 32744,
+              "table": "messages",
+              "unused_bytes": 9184
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 163840,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 40,
+              "payload_bytes": 146000,
+              "table": "selection_membership",
+              "unused_bytes": 11343
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 1511424,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 369,
+              "payload_bytes": 1375221,
+              "table": "source_provenance",
+              "unused_bytes": 124501
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 90112,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 22,
+              "payload_bytes": 73872,
+              "table": "messages",
+              "unused_bytes": 12980
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 94208,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 23,
+              "payload_bytes": 81872,
+              "table": "selection_membership",
+              "unused_bytes": 9064
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 94208,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 23,
+              "payload_bytes": 81872,
+              "table": "source_provenance",
+              "unused_bytes": 9064
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 1,
+              "payload_bytes": 3763,
+              "table": "sqlite_schema",
+              "unused_bytes": 140
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 34,
+              "table": "watermarks",
+              "unused_bytes": 4050
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 2187593,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "messages": 1000,
+            "qualification_events": 0,
+            "selection_membership": 1000,
+            "snapshot_meta": 1,
+            "source_provenance": 1000,
+            "watermarks": 1
+          },
+          "size_bytes": 2465792
+        },
+        "LG2": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 348160,
+          "locator_statistics": {
+            "average_locator_bytes": 64.0,
+            "average_witnesses_per_report": 1.204,
+            "contract_revision": "A1-LG2",
+            "legacy_generation_encoding": "router-legacy-generation-storage/v2",
+            "max_locator_bytes": 64,
+            "max_witnesses_per_report": 2,
+            "non_authoritative_report_counts": {
+              "0": 500,
+              "1": 500
+            },
+            "p50_locator_bytes": 64,
+            "p95_locator_bytes": 64,
+            "report_count": 1000,
+            "witness_count": 1204
+          },
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 162,
+              "table": "coverage_history",
+              "unused_bytes": 3921
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "legacy_generation_reports": {
+              "bytes": 49152,
+              "kind": "table",
+              "name": "legacy_generation_reports",
+              "pages": 12,
+              "payload_bytes": 35000,
+              "table": "legacy_generation_reports",
+              "unused_bytes": 11012
+            },
+            "legacy_generation_witnesses": {
+              "bytes": 176128,
+              "kind": "table",
+              "name": "legacy_generation_witnesses",
+              "pages": 43,
+              "payload_bytes": 148280,
+              "table": "legacy_generation_witnesses",
+              "unused_bytes": 22724
+            },
+            "messages": {
+              "bytes": 413696,
+              "kind": "table",
+              "name": "messages",
+              "pages": 101,
+              "payload_bytes": 391872,
+              "table": "messages",
+              "unused_bytes": 14359
+            },
+            "messages_coverage": {
+              "bytes": 45056,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 11,
+              "payload_bytes": 32744,
+              "table": "messages",
+              "unused_bytes": 9184
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 163840,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 40,
+              "payload_bytes": 146000,
+              "table": "selection_membership",
+              "unused_bytes": 11343
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 462848,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 113,
+              "payload_bytes": 431893,
+              "table": "source_provenance",
+              "unused_bytes": 23300
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 90112,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 22,
+              "payload_bytes": 73872,
+              "table": "messages",
+              "unused_bytes": 12980
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 94208,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 23,
+              "payload_bytes": 81872,
+              "table": "selection_membership",
+              "unused_bytes": 9064
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 94208,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 23,
+              "payload_bytes": 81872,
+              "table": "source_provenance",
+              "unused_bytes": 9064
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 12288,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 3,
+              "payload_bytes": 4900,
+              "table": "sqlite_schema",
+              "unused_bytes": 7158
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 34,
+              "table": "watermarks",
+              "unused_bytes": 4050
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 1428682,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "legacy_generation_reports": 1000,
+            "legacy_generation_witnesses": 1204,
+            "messages": 1000,
+            "qualification_events": 0,
+            "selection_membership": 1000,
+            "snapshot_meta": 1,
+            "source_provenance": 1000,
+            "watermarks": 1
+          },
+          "size_bytes": 1650688
+        }
+      }
+    },
+    "10000": {
+      "comparison": {
+        "average_witnesses_per_report": 1.2042,
+        "bytes_per_report": 220.3648,
+        "lg1_added_bytes": 10514432,
+        "lg1_payload_delta_percent": 75.94221537358803,
+        "lg1_total_delta_percent": 77.38920711486284,
+        "lg2_added_bytes": 2211840,
+        "lg2_payload_delta_percent": 14.764431867744587,
+        "lg2_total_delta_percent": 16.279770877298773,
+        "lg2_vs_lg1_delta_percent": -34.449354180829374,
+        "report_table_bytes_per_report": 44.6464,
+        "witness_table_bytes_per_witness": 145.9212755356253
+      },
+      "modes": {
+        "A1": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 3297280,
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 162,
+              "table": "coverage_history",
+              "unused_bytes": 3921
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "messages": {
+              "bytes": 4108288,
+              "kind": "table",
+              "name": "messages",
+              "pages": 1003,
+              "payload_bytes": 3919872,
+              "table": "messages",
+              "unused_bytes": 112527
+            },
+            "messages_coverage": {
+              "bytes": 413696,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 101,
+              "payload_bytes": 329744,
+              "table": "messages",
+              "unused_bytes": 52744
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 1581056,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 386,
+              "payload_bytes": 1460000,
+              "table": "selection_membership",
+              "unused_bytes": 55023
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 4571136,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 1116,
+              "payload_bytes": 4328894,
+              "table": "source_provenance",
+              "unused_bytes": 164551
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 884736,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 216,
+              "payload_bytes": 739872,
+              "table": "messages",
+              "unused_bytes": 112276
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 987136,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 241,
+              "payload_bytes": 819872,
+              "table": "selection_membership",
+              "unused_bytes": 134376
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 987136,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 241,
+              "payload_bytes": 819872,
+              "table": "source_provenance",
+              "unused_bytes": 134376
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 1,
+              "payload_bytes": 3763,
+              "table": "sqlite_schema",
+              "unused_bytes": 140
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 34,
+              "table": "watermarks",
+              "unused_bytes": 4050
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 12422266,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "messages": 10000,
+            "qualification_events": 0,
+            "selection_membership": 10000,
+            "snapshot_meta": 1,
+            "source_provenance": 10000,
+            "watermarks": 1
+          },
+          "size_bytes": 13586432
+        },
+        "LG1": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 3297280,
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 162,
+              "table": "coverage_history",
+              "unused_bytes": 3921
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "messages": {
+              "bytes": 4108288,
+              "kind": "table",
+              "name": "messages",
+              "pages": 1003,
+              "payload_bytes": 3919872,
+              "table": "messages",
+              "unused_bytes": 112527
+            },
+            "messages_coverage": {
+              "bytes": 413696,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 101,
+              "payload_bytes": 329744,
+              "table": "messages",
+              "unused_bytes": 52744
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 1581056,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 386,
+              "payload_bytes": 1460000,
+              "table": "selection_membership",
+              "unused_bytes": 55023
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 15085568,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 3683,
+              "payload_bytes": 13762638,
+              "table": "source_provenance",
+              "unused_bytes": 1204236
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 884736,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 216,
+              "payload_bytes": 739872,
+              "table": "messages",
+              "unused_bytes": 112276
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 987136,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 241,
+              "payload_bytes": 819872,
+              "table": "selection_membership",
+              "unused_bytes": 134376
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 987136,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 241,
+              "payload_bytes": 819872,
+              "table": "source_provenance",
+              "unused_bytes": 134376
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 1,
+              "payload_bytes": 3763,
+              "table": "sqlite_schema",
+              "unused_bytes": 140
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 34,
+              "table": "watermarks",
+              "unused_bytes": 4050
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 21856010,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "messages": 10000,
+            "qualification_events": 0,
+            "selection_membership": 10000,
+            "snapshot_meta": 1,
+            "source_provenance": 10000,
+            "watermarks": 1
+          },
+          "size_bytes": 24100864
+        },
+        "LG2": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 3297280,
+          "locator_statistics": {
+            "average_locator_bytes": 64.0,
+            "average_witnesses_per_report": 1.2042,
+            "contract_revision": "A1-LG2",
+            "legacy_generation_encoding": "router-legacy-generation-storage/v2",
+            "max_locator_bytes": 64,
+            "max_witnesses_per_report": 2,
+            "non_authoritative_report_counts": {
+              "0": 5000,
+              "1": 5000
+            },
+            "p50_locator_bytes": 64,
+            "p95_locator_bytes": 64,
+            "report_count": 10000,
+            "witness_count": 12042
+          },
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 162,
+              "table": "coverage_history",
+              "unused_bytes": 3921
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "legacy_generation_reports": {
+              "bytes": 446464,
+              "kind": "table",
+              "name": "legacy_generation_reports",
+              "pages": 109,
+              "payload_bytes": 350000,
+              "table": "legacy_generation_reports",
+              "unused_bytes": 65160
+            },
+            "legacy_generation_witnesses": {
+              "bytes": 1757184,
+              "kind": "table",
+              "name": "legacy_generation_witnesses",
+              "pages": 429,
+              "payload_bytes": 1482940,
+              "table": "legacy_generation_witnesses",
+              "unused_bytes": 222974
+            },
+            "messages": {
+              "bytes": 4108288,
+              "kind": "table",
+              "name": "messages",
+              "pages": 1003,
+              "payload_bytes": 3919872,
+              "table": "messages",
+              "unused_bytes": 112527
+            },
+            "messages_coverage": {
+              "bytes": 413696,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 101,
+              "payload_bytes": 329744,
+              "table": "messages",
+              "unused_bytes": 52744
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 1581056,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 386,
+              "payload_bytes": 1460000,
+              "table": "selection_membership",
+              "unused_bytes": 55023
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 4571136,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 1116,
+              "payload_bytes": 4328894,
+              "table": "source_provenance",
+              "unused_bytes": 164551
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 884736,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 216,
+              "payload_bytes": 739872,
+              "table": "messages",
+              "unused_bytes": 112276
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 987136,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 241,
+              "payload_bytes": 819872,
+              "table": "selection_membership",
+              "unused_bytes": 134376
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 987136,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 241,
+              "payload_bytes": 819872,
+              "table": "source_provenance",
+              "unused_bytes": 134376
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 12288,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 3,
+              "payload_bytes": 4900,
+              "table": "sqlite_schema",
+              "unused_bytes": 7158
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 34,
+              "table": "watermarks",
+              "unused_bytes": 4050
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 14256343,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "legacy_generation_reports": 10000,
+            "legacy_generation_witnesses": 12042,
+            "messages": 10000,
+            "qualification_events": 0,
+            "selection_membership": 10000,
+            "snapshot_meta": 1,
+            "source_provenance": 10000,
+            "watermarks": 1
+          },
+          "size_bytes": 15798272
+        }
+      }
+    },
+    "100000": {
+      "comparison": {
+        "average_witnesses_per_report": 1.20419,
+        "bytes_per_report": 219.99616,
+        "lg1_added_bytes": 105218048,
+        "lg1_payload_delta_percent": 75.65395776218946,
+        "lg1_total_delta_percent": 77.69879918937721,
+        "lg2_added_bytes": 22007808,
+        "lg2_payload_delta_percent": 14.700163441122903,
+        "lg2_total_delta_percent": 16.25177701823901,
+        "lg2_vs_lg1_delta_percent": -34.57931198828916,
+        "report_table_bytes_per_report": 42.55744,
+        "witness_table_bytes_per_witness": 147.351099079049
+      },
+      "modes": {
+        "A1": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 32894976,
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 163,
+              "table": "coverage_history",
+              "unused_bytes": 3920
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "messages": {
+              "bytes": 41066496,
+              "kind": "table",
+              "name": "messages",
+              "pages": 10026,
+              "payload_bytes": 39267105,
+              "table": "messages",
+              "unused_bytes": 947248
+            },
+            "messages_coverage": {
+              "bytes": 4292608,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 1048,
+              "payload_bytes": 3434210,
+              "table": "messages",
+              "unused_bytes": 545826
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 15798272,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 3857,
+              "payload_bytes": 14600000,
+              "table": "selection_membership",
+              "unused_bytes": 449910
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 45629440,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 11140,
+              "payload_bytes": 43388895,
+              "table": "source_provenance",
+              "unused_bytes": 1369658
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 8867840,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 2165,
+              "payload_bytes": 7467105,
+              "table": "messages",
+              "unused_bytes": 1074759
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 9854976,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 2406,
+              "payload_bytes": 8267105,
+              "table": "selection_membership",
+              "unused_bytes": 1259003
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 9854976,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 2406,
+              "payload_bytes": 8267105,
+              "table": "source_provenance",
+              "unused_bytes": 1259003
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 1,
+              "payload_bytes": 3763,
+              "table": "sqlite_schema",
+              "unused_bytes": 140
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 36,
+              "table": "watermarks",
+              "unused_bytes": 4048
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 124695668,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "messages": 100000,
+            "qualification_events": 0,
+            "selection_membership": 100000,
+            "snapshot_meta": 1,
+            "source_provenance": 100000,
+            "watermarks": 1
+          },
+          "size_bytes": 135417856
+        },
+        "LG1": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 32894976,
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 163,
+              "table": "coverage_history",
+              "unused_bytes": 3920
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "messages": {
+              "bytes": 41066496,
+              "kind": "table",
+              "name": "messages",
+              "pages": 10026,
+              "payload_bytes": 39267105,
+              "table": "messages",
+              "unused_bytes": 947248
+            },
+            "messages_coverage": {
+              "bytes": 4292608,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 1048,
+              "payload_bytes": 3434210,
+              "table": "messages",
+              "unused_bytes": 545826
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 15798272,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 3857,
+              "payload_bytes": 14600000,
+              "table": "selection_membership",
+              "unused_bytes": 449910
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 150847488,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 36828,
+              "payload_bytes": 137726103,
+              "table": "source_provenance",
+              "unused_bytes": 11820537
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 8867840,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 2165,
+              "payload_bytes": 7467105,
+              "table": "messages",
+              "unused_bytes": 1074759
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 9854976,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 2406,
+              "payload_bytes": 8267105,
+              "table": "selection_membership",
+              "unused_bytes": 1259003
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 9854976,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 2406,
+              "payload_bytes": 8267105,
+              "table": "source_provenance",
+              "unused_bytes": 1259003
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 1,
+              "payload_bytes": 3763,
+              "table": "sqlite_schema",
+              "unused_bytes": 140
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 36,
+              "table": "watermarks",
+              "unused_bytes": 4048
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 219032876,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "messages": 100000,
+            "qualification_events": 0,
+            "selection_membership": 100000,
+            "snapshot_meta": 1,
+            "source_provenance": 100000,
+            "watermarks": 1
+          },
+          "size_bytes": 240635904
+        },
+        "LG2": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 32894976,
+          "locator_statistics": {
+            "average_locator_bytes": 64.0,
+            "average_witnesses_per_report": 1.20419,
+            "contract_revision": "A1-LG2",
+            "legacy_generation_encoding": "router-legacy-generation-storage/v2",
+            "max_locator_bytes": 64,
+            "max_witnesses_per_report": 2,
+            "non_authoritative_report_counts": {
+              "0": 50000,
+              "1": 50000
+            },
+            "p50_locator_bytes": 64,
+            "p95_locator_bytes": 64,
+            "report_count": 100000,
+            "witness_count": 120419
+          },
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 163,
+              "table": "coverage_history",
+              "unused_bytes": 3920
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "legacy_generation_reports": {
+              "bytes": 4255744,
+              "kind": "table",
+              "name": "legacy_generation_reports",
+              "pages": 1039,
+              "payload_bytes": 3500000,
+              "table": "legacy_generation_reports",
+              "unused_bytes": 443280
+            },
+            "legacy_generation_witnesses": {
+              "bytes": 17743872,
+              "kind": "table",
+              "name": "legacy_generation_witnesses",
+              "pages": 4332,
+              "payload_bytes": 14829330,
+              "table": "legacy_generation_witnesses",
+              "unused_bytes": 2401305
+            },
+            "messages": {
+              "bytes": 41066496,
+              "kind": "table",
+              "name": "messages",
+              "pages": 10026,
+              "payload_bytes": 39267105,
+              "table": "messages",
+              "unused_bytes": 947248
+            },
+            "messages_coverage": {
+              "bytes": 4292608,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 1048,
+              "payload_bytes": 3434210,
+              "table": "messages",
+              "unused_bytes": 545826
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 15798272,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 3857,
+              "payload_bytes": 14600000,
+              "table": "selection_membership",
+              "unused_bytes": 449910
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 45629440,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 11140,
+              "payload_bytes": 43388895,
+              "table": "source_provenance",
+              "unused_bytes": 1369658
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 8867840,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 2165,
+              "payload_bytes": 7467105,
+              "table": "messages",
+              "unused_bytes": 1074759
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 9854976,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 2406,
+              "payload_bytes": 8267105,
+              "table": "selection_membership",
+              "unused_bytes": 1259003
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 9854976,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 2406,
+              "payload_bytes": 8267105,
+              "table": "source_provenance",
+              "unused_bytes": 1259003
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 12288,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 3,
+              "payload_bytes": 4900,
+              "table": "sqlite_schema",
+              "unused_bytes": 7158
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 36,
+              "table": "watermarks",
+              "unused_bytes": 4048
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 143026135,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "legacy_generation_reports": 100000,
+            "legacy_generation_witnesses": 120419,
+            "messages": 100000,
+            "qualification_events": 0,
+            "selection_membership": 100000,
+            "snapshot_meta": 1,
+            "source_provenance": 100000,
+            "watermarks": 1
+          },
+          "size_bytes": 157425664
+        }
+      }
+    },
+    "161073": {
+      "comparison": {
+        "average_witnesses_per_report": 1.2041931298231237,
+        "bytes_per_report": 219.9902901169035,
+        "lg1_added_bytes": 169480192,
+        "lg1_payload_delta_percent": 75.58407157833568,
+        "lg1_total_delta_percent": 77.73540241977905,
+        "lg2_added_bytes": 35442688,
+        "lg2_payload_delta_percent": 14.686244841855366,
+        "lg2_total_delta_percent": 16.256481551063338,
+        "lg2_vs_lg1_delta_percent": -34.590137941969246,
+        "report_table_bytes_per_report": 42.49263377474809,
+        "witness_table_bytes_per_witness": 147.3996586977929
+      },
+      "modes": {
+        "A1": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 52912128,
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 163,
+              "table": "coverage_history",
+              "unused_bytes": 3920
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "messages": {
+              "bytes": 66146304,
+              "kind": "table",
+              "name": "messages",
+              "pages": 16149,
+              "payload_bytes": 63268794,
+              "table": "messages",
+              "unused_bytes": 1493840
+            },
+            "messages_coverage": {
+              "bytes": 6955008,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 1698,
+              "payload_bytes": 5571765,
+              "table": "messages",
+              "unused_bytes": 879652
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 25440256,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 6211,
+              "payload_bytes": 23516658,
+              "table": "selection_membership",
+              "unused_bytes": 707732
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 73494528,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 17943,
+              "payload_bytes": 69955650,
+              "table": "source_provenance",
+              "unused_bytes": 2124919
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 14286848,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 3488,
+              "payload_bytes": 12047580,
+              "table": "messages",
+              "unused_bytes": 1714197
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 15822848,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 3863,
+              "payload_bytes": 13336164,
+              "table": "selection_membership",
+              "unused_bytes": 1957113
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 15822848,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 3863,
+              "payload_bytes": 13336164,
+              "table": "source_provenance",
+              "unused_bytes": 1957113
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 1,
+              "payload_bytes": 3763,
+              "table": "sqlite_schema",
+              "unused_bytes": 140
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 36,
+              "table": "watermarks",
+              "unused_bytes": 4048
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 201036918,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "messages": 161073,
+            "qualification_events": 0,
+            "selection_membership": 161073,
+            "snapshot_meta": 1,
+            "source_provenance": 161073,
+            "watermarks": 1
+          },
+          "size_bytes": 218021888
+        },
+        "LG1": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 52912128,
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 163,
+              "table": "coverage_history",
+              "unused_bytes": 3920
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "messages": {
+              "bytes": 66146304,
+              "kind": "table",
+              "name": "messages",
+              "pages": 16149,
+              "payload_bytes": 63268794,
+              "table": "messages",
+              "unused_bytes": 1493840
+            },
+            "messages_coverage": {
+              "bytes": 6955008,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 1698,
+              "payload_bytes": 5571765,
+              "table": "messages",
+              "unused_bytes": 879652
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 25440256,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 6211,
+              "payload_bytes": 23516658,
+              "table": "selection_membership",
+              "unused_bytes": 707732
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 242974720,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 59320,
+              "payload_bytes": 221907538,
+              "table": "source_provenance",
+              "unused_bytes": 18956739
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 14286848,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 3488,
+              "payload_bytes": 12047580,
+              "table": "messages",
+              "unused_bytes": 1714197
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 15822848,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 3863,
+              "payload_bytes": 13336164,
+              "table": "selection_membership",
+              "unused_bytes": 1957113
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 15822848,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 3863,
+              "payload_bytes": 13336164,
+              "table": "source_provenance",
+              "unused_bytes": 1957113
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 1,
+              "payload_bytes": 3763,
+              "table": "sqlite_schema",
+              "unused_bytes": 140
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 36,
+              "table": "watermarks",
+              "unused_bytes": 4048
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 352988806,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "messages": 161073,
+            "qualification_events": 0,
+            "selection_membership": 161073,
+            "snapshot_meta": 1,
+            "source_provenance": 161073,
+            "watermarks": 1
+          },
+          "size_bytes": 387502080
+        },
+        "LG2": {
+          "auto_vacuum": 0,
+          "freelist_bytes": 0,
+          "index_bytes": 52912128,
+          "locator_statistics": {
+            "average_locator_bytes": 64.0,
+            "average_witnesses_per_report": 1.2041931298231237,
+            "contract_revision": "A1-LG2",
+            "legacy_generation_encoding": "router-legacy-generation-storage/v2",
+            "max_locator_bytes": 64,
+            "max_witnesses_per_report": 2,
+            "non_authoritative_report_counts": {
+              "0": 80537,
+              "1": 80536
+            },
+            "p50_locator_bytes": 64,
+            "p95_locator_bytes": 64,
+            "report_count": 161073,
+            "witness_count": 193963
+          },
+          "non_dbstat_bytes": 0,
+          "objects": {
+            "coverage_history": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "coverage_history",
+              "pages": 1,
+              "payload_bytes": 163,
+              "table": "coverage_history",
+              "unused_bytes": 3920
+            },
+            "durable_qualifications": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "durable_qualifications",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "interactions": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "interactions",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "legacy_generation_reports": {
+              "bytes": 6844416,
+              "kind": "table",
+              "name": "legacy_generation_reports",
+              "pages": 1671,
+              "payload_bytes": 5637555,
+              "table": "legacy_generation_reports",
+              "unused_bytes": 703594
+            },
+            "legacy_generation_witnesses": {
+              "bytes": 28590080,
+              "kind": "table",
+              "name": "legacy_generation_witnesses",
+              "pages": 6980,
+              "payload_bytes": 23886082,
+              "table": "legacy_generation_witnesses",
+              "unused_bytes": 3877280
+            },
+            "messages": {
+              "bytes": 66146304,
+              "kind": "table",
+              "name": "messages",
+              "pages": 16149,
+              "payload_bytes": 63268794,
+              "table": "messages",
+              "unused_bytes": 1493840
+            },
+            "messages_coverage": {
+              "bytes": 6955008,
+              "kind": "index",
+              "name": "messages_coverage",
+              "pages": 1698,
+              "payload_bytes": 5571765,
+              "table": "messages",
+              "unused_bytes": 879652
+            },
+            "qualification_events": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "qualification_events",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "selection_membership": {
+              "bytes": 25440256,
+              "kind": "table",
+              "name": "selection_membership",
+              "pages": 6211,
+              "payload_bytes": 23516658,
+              "table": "selection_membership",
+              "unused_bytes": 707732
+            },
+            "snapshot_meta": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "snapshot_meta",
+              "pages": 1,
+              "payload_bytes": 125,
+              "table": "snapshot_meta",
+              "unused_bytes": 3959
+            },
+            "source_provenance": {
+              "bytes": 73494528,
+              "kind": "table",
+              "name": "source_provenance",
+              "pages": 17943,
+              "payload_bytes": 69955650,
+              "table": "source_provenance",
+              "unused_bytes": 2124919
+            },
+            "sqlite_autoindex_coverage_history_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_coverage_history_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "coverage_history",
+              "unused_bytes": 4057
+            },
+            "sqlite_autoindex_durable_qualifications_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_durable_qualifications_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "durable_qualifications",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_interactions_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_interactions_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "interactions",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_messages_1": {
+              "bytes": 14286848,
+              "kind": "index",
+              "name": "sqlite_autoindex_messages_1",
+              "pages": 3488,
+              "payload_bytes": 12047580,
+              "table": "messages",
+              "unused_bytes": 1714197
+            },
+            "sqlite_autoindex_qualification_events_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_1",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_qualification_events_2": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_qualification_events_2",
+              "pages": 1,
+              "payload_bytes": 0,
+              "table": "qualification_events",
+              "unused_bytes": 4088
+            },
+            "sqlite_autoindex_selection_membership_1": {
+              "bytes": 15822848,
+              "kind": "index",
+              "name": "sqlite_autoindex_selection_membership_1",
+              "pages": 3863,
+              "payload_bytes": 13336164,
+              "table": "selection_membership",
+              "unused_bytes": 1957113
+            },
+            "sqlite_autoindex_source_provenance_1": {
+              "bytes": 15822848,
+              "kind": "index",
+              "name": "sqlite_autoindex_source_provenance_1",
+              "pages": 3863,
+              "payload_bytes": 13336164,
+              "table": "source_provenance",
+              "unused_bytes": 1957113
+            },
+            "sqlite_autoindex_watermarks_1": {
+              "bytes": 4096,
+              "kind": "index",
+              "name": "sqlite_autoindex_watermarks_1",
+              "pages": 1,
+              "payload_bytes": 28,
+              "table": "watermarks",
+              "unused_bytes": 4057
+            },
+            "sqlite_schema": {
+              "bytes": 12288,
+              "kind": "table",
+              "name": "sqlite_schema",
+              "pages": 3,
+              "payload_bytes": 4900,
+              "table": "sqlite_schema",
+              "unused_bytes": 7158
+            },
+            "watermarks": {
+              "bytes": 4096,
+              "kind": "table",
+              "name": "watermarks",
+              "pages": 1,
+              "payload_bytes": 36,
+              "table": "watermarks",
+              "unused_bytes": 4048
+            }
+          },
+          "page_size": 4096,
+          "payload_floor_bytes": 230561692,
+          "row_counts": {
+            "coverage_history": 1,
+            "durable_qualifications": 0,
+            "interactions": 0,
+            "legacy_generation_reports": 161073,
+            "legacy_generation_witnesses": 193963,
+            "messages": 161073,
+            "qualification_events": 0,
+            "selection_membership": 161073,
+            "snapshot_meta": 1,
+            "source_provenance": 161073,
+            "watermarks": 1
+          },
+          "size_bytes": 253464576
+        }
+      }
+    }
+  }
+}

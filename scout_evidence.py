@@ -374,9 +374,9 @@ def raw_identity(source, room, generation, reported_generation, raw):
     return digest(json.dumps([source,room,generation,reported_generation,raw], sort_keys=True, ensure_ascii=True, separators=(',', ':'), allow_nan=False))
 
 
-@diagnostics.timed('raw_evidence')
-def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None,
-           source=None, endpoint=None, retrieved_at=None, metadata=None, legacy=False, derive_events=True):
+@diagnostics.timed('raw_preparation')
+def prepare_record(room, raw, verify, *, generation=None, reported_generation=None,
+           source=None, endpoint=None, retrieved_at=None, metadata=None, legacy=False):
     source = source or ('technocore_mailbox' if room.startswith('mb-') else 'technocore_room')
     retrieved_at = retrieved_at if retrieved_at is not None else ("" if legacy else now())
     generation = str(generation) if generation is not None else None
@@ -426,21 +426,31 @@ def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None
     metadata = dict(metadata or {})
     metadata['envelope_serialization'] = 'reconstructed JSON; signed text unchanged'
     metadata['hash_basis'] = 'raw_text_utf8' if text is not None else 'raw_record_json_ascii'
-    cur = conn.execute('''INSERT OR IGNORE INTO raw_network_records VALUES
-        (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-        (rid,source,endpoint,room,generation,reported_generation,integer(data.get('seq')),
+    return (rid,source,endpoint,room,generation,reported_generation,integer(data.get('seq')),
          scalar_text(data.get('ts',data.get('timestamp',data.get('time')))),retrieved_at,
          scalar_text(nonce),sender,sig,text,text_hash,dumps(raw),status,error,int(mismatch),dumps(metadata),
-         SCHEMA,VERSION,now(),int(legacy),'PARTIAL' if legacy or endpoint is None else 'COMPLETE'))
+         SCHEMA,VERSION,now(),int(legacy),'PARTIAL' if legacy or endpoint is None else 'COMPLETE')
+
+
+@diagnostics.timed('raw_evidence')
+def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None,
+           source=None, endpoint=None, retrieved_at=None, metadata=None, legacy=False, derive_events=True, prepared=None):
+    values = prepared if prepared is not None else prepare_record(room, raw, verify,
+        generation=generation, reported_generation=reported_generation, source=source,
+        endpoint=endpoint, retrieved_at=retrieved_at, metadata=metadata, legacy=legacy)
+    rid=values[0];retrieved_at=values[8];endpoint=values[2]
+    cur = conn.execute('''INSERT OR IGNORE INTO raw_network_records VALUES
+        (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+        values)
     inserted = cur.rowcount == 1
     if inserted:
         bump(conn, 'records_ingested')
     if not inserted:
         bump(conn, 'exact_duplicate_suppression')
-        conn.execute('INSERT INTO evidence_retrievals(raw_record_id,retrieved_at,source_endpoint,transport_metadata_json) VALUES (?,?,?,?)', (rid,retrieved_at,endpoint,dumps(metadata)))
+        conn.execute('INSERT INTO evidence_retrievals(raw_record_id,retrieved_at,source_endpoint,transport_metadata_json) VALUES (?,?,?,?)', (rid,retrieved_at,endpoint,values[18]))
     # Always repair missing derived rows, including recovery after raw-only persistence.
-    stored = conn.execute('SELECT * FROM raw_network_records WHERE raw_record_id=?',(rid,)).fetchone()
     if derive_events:
+        stored = conn.execute('SELECT * FROM raw_network_records WHERE raw_record_id=?',(rid,)).fetchone()
         derive(conn, stored)
     conn.execute('''INSERT OR IGNORE INTO raw_record_watch_membership
         SELECT ?,s.collection FROM watch_collection_sources s JOIN watch_collections c
@@ -448,10 +458,7 @@ def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None
     return rid
 
 
-@diagnostics.timed('event_derivation')
-def derive(conn, row):
-    if conn.execute('SELECT 1 FROM observed_events WHERE raw_record_id=?',(row['raw_record_id'],)).fetchone():
-        return
+def prepare_event(row):
     raw = json.loads(row['raw_record_json'])
     cls, parse, reason, payload = classify(raw, row['signature_status'])
     if row['seq'] is None and row['room'] != '':
@@ -459,6 +466,14 @@ def derive(conn, row):
     if row['did_mismatch']:
         cls, parse, reason = 'MALFORMED_UNVERIFIABLE_EVENT','UNVERIFIABLE','DID binding mismatch'
     th = template(row['raw_text'], cls) if row['raw_text'] is not None else None
+    return cls,parse,reason,dumps(payload),th
+
+
+@diagnostics.timed('event_derivation')
+def derive(conn, row, prepared=None):
+    if conn.execute('SELECT 1 FROM observed_events WHERE raw_record_id=?',(row['raw_record_id'],)).fetchone():
+        return
+    cls,parse,reason,payload_json,th = prepared if prepared is not None else prepare_event(row)
     prior = conn.execute('SELECT event_id FROM observed_events WHERE raw_text_sha256=? LIMIT 1',(row['raw_text_sha256'],)).fetchone()
     near = conn.execute('SELECT event_id FROM observed_events WHERE normalized_template_hash=? LIMIT 1',(th,)).fetchone() if th else None
     kind = 'EXACT_DUPLICATE' if prior else ('TEMPLATE_VARIANT' if near else 'UNIQUE')
@@ -470,7 +485,7 @@ def derive(conn, row):
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
         (row['raw_record_id'],row['raw_text_sha256'],cls,row['source'],row['room'],row['seq'],
          row['sender_did'],row['network_timestamp'],now(),VERSION,VERSION,reason,row['signature_status'],parse,
-         dumps(payload),th,group,kind,'exact content hash' if prior else ('promotional variable fields only' if near else None)))
+         payload_json,th,group,kind,'exact content hash' if prior else ('promotional variable fields only' if near else None)))
 
 
 def repair(conn):

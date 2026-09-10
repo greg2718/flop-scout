@@ -69,8 +69,8 @@ def test_writes_during_checkpoint_remain_pending(store):
 def test_commit_budget_shrink_and_cautious_recovery():
  b=BatchBudget();b.size=100;b.observe(100,.001,commit_ms=11000);assert b.size==25
  b.observe(25,.001,checkpoint_ms=5000);assert b.size==6
- b.observe(6,.001,tail_age=30);assert b.size==1
- b.observe(1,.001);assert b.size==2
+ b.observe(6,.001,tail_age=30);assert b.size==12
+ b.observe(12,.001);assert b.size==24
 
 def test_commit_instrumentation_counts_real_commit_once(tmp_path):
  d=dg.Diagnostics();c=sqlite3.connect(tmp_path/'db',factory=dg.TimedConnection);c.diagnostic_path=tmp_path/'db';c.execute('CREATE TABLE t(x)')
@@ -146,13 +146,13 @@ def test_high_watermark_drains_admitted_tail_before_maintenance(tmp_path):
  from scout_runtime import Runtime
  r=Runtime(tmp_path/'db',{})
  r.checkpointer=SimpleNamespace(blocks_writes=True,future=None,concurrent=True,pressure=True)
- r.tails={'lobby':{'turn_ready':0}};submitted=[]
+ r.tails={'lobby':{'turn_ready':0,'queued':0}};submitted=[]
  r.submit_write=lambda kind,*args:submitted.append(kind)
  r.turns=16;r.export={'ready':True}  # export fairness must not bypass WAL pressure
  r.choose_write();assert submitted==['tail']
  r.tails.clear();submitted.clear();r.export={'ready':True}
  r.choose_write();assert not submitted  # no unbounded export/status work
- r.checkpointer.future=Future();r.checkpointer.concurrent=False;r.tails={'lobby':{'turn_ready':0}}
+ r.checkpointer.future=Future();r.checkpointer.concurrent=False;r.tails={'lobby':{'turn_ready':0,'queued':0}}
  r.choose_write();assert not submitted  # old SQLite must still serialize
 
 def test_high_watermark_checkpoint_holds_writer_gap_even_when_patched(store):

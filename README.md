@@ -5,6 +5,27 @@ consumers. See [the evidence feed and operations guide](docs/evidence-feed.md)
 for schema, migration, watch collections, daily reports, safety, and future soak
 commands. Existing publishing commands remain explicitly human-approved.
 
+The opt-in Router V2/A1-LG2 projection producer is a development candidate. See
+[the LG2 implementation and measurement report](docs/router-projection-v2-lg2-implementation.md)
+for normalized audit storage, archived LG1 migration, temporary fixtures, and
+performance limits. The [LG2 optimization report](docs/router-projection-v2-lg2-optimization.md)
+records the subsequent throughput work, synthetic scale measurements, and validation.
+Captured legacy generation stays `UNKNOWN_LEGACY`; reported
+`0`/`1` remains audit metadata. New `projection init` commands default to LG2;
+existing A1/LG1 state requires explicit migration and never upgrades on open.
+The [LG1 report](docs/router-projection-v2-lg1-implementation.md) and
+[original A1 review](docs/router-projection-v2-implementation.md) describe the
+preserved authority rules and underlying qualification/publication model.
+The producer uses a dedicated projection database and private replay ledger;
+ordinary workers do not enable it automatically. LG2 is not production-qualified.
+
+The explicit `A1-LG2-TL1` revision adds authenticated legacy TCLK audit records,
+an immutable historical cohort, and indefinite domain holds with hard capacity
+limits. It uses the approved bundled structural schema; `offer_id` remains an
+audit claim. See [the TL1 implementation report](docs/router-projection-v2-tl1-implementation.md)
+for activation, temporary fixtures, tests and qualification limits. Existing
+LG2 state does not upgrade automatically, and the default remains LG2.
+
 Signature verification proves authorship/integrity, not correctness, capability,
 independence, or reputation.
 

@@ -1,0 +1,702 @@
+{
+  "schema": "scout-production-shaped-lg2-dry-run/v1",
+  "generated_at": "2026-09-09T13:43:54.351891+00:00",
+  "status": "BLOCKED_TCLK_SOURCE_LINKAGE",
+  "SCOUT_PRODUCTION_SHAPED_LG2_PROJECTION_VALID": "NO",
+  "ROUTER_PRODUCTION_SHAPED_HANDOFF_READY": "NO",
+  "temporary_root": "/private/tmp/scout-lg2-production-fc53izqd",
+  "publication_created": false,
+  "qualification_stopped_at_first_failure": true,
+  "network_requests": false,
+  "signing_identity_files_accessed": false,
+  "runtime_modified": false,
+  "router_modified": false,
+  "services_started": false,
+  "deployed": false,
+  "committed_or_pushed": false,
+  "unavailable_completed_metrics": {
+    "projected_message_count": null,
+    "projected_relational_row_count": null,
+    "projection_database_bytes": null,
+    "table_index_size_breakdown": null,
+    "lg2_report_count": null,
+    "lg2_witness_count": null,
+    "lg2_locator_distribution": null,
+    "retention_reason_breakdown": null,
+    "durable_qualification_count": null,
+    "pin_dependency_count": null,
+    "complete_bootstrap_seconds": null,
+    "complete_records_per_second": null,
+    "projection_update_seconds": null,
+    "expiry_seconds": null,
+    "publication_backup_seconds": null,
+    "publication_validation_seconds": null,
+    "publication_sha256_seconds": null,
+    "commit_only_percentiles": null,
+    "publication_root": null,
+    "publication_id": null,
+    "database_content_id": null,
+    "router_envelope_preclassification": null
+  },
+  "evidence": {
+    "baseline": {
+      "created_at": "2026-09-09T13:19:32.674011+00:00",
+      "source_files": {
+        "/Users/greg/.flop_scout/observer.sqlite": {
+          "device": 16777230,
+          "inode": 124751836,
+          "size_bytes": 52022870016,
+          "allocated_bytes": 52022870016,
+          "mtime_ns": 1788799782902189387,
+          "ctime_ns": 1788799782902189387
+        },
+        "/Users/greg/.flop_scout/observer.sqlite-wal": {
+          "device": 16777230,
+          "inode": 131498877,
+          "size_bytes": 115392,
+          "allocated_bytes": 118784,
+          "mtime_ns": 1788799785021535852,
+          "ctime_ns": 1788895498222168356
+        },
+        "/Users/greg/.flop_scout/observer.sqlite-shm": {
+          "device": 16777230,
+          "inode": 131498878,
+          "size_bytes": 32768,
+          "allocated_bytes": 32768,
+          "mtime_ns": 1788918025531753198,
+          "ctime_ns": 1788918055508269690
+        },
+        "/Users/greg/.flop_scout/observer.sqlite-journal": null
+      },
+      "sidecar_sha256": {
+        "/Users/greg/.flop_scout/observer.sqlite-wal": "e89edce2ee16fd1a86695b754833886054550704ebacfd328b2556bcc573d76a",
+        "/Users/greg/.flop_scout/observer.sqlite-shm": "a2459e24aac95051147bff181eeea610d7a560bf565e8eaeae11e98bbfae71f5",
+        "/Users/greg/.flop_scout/observer.sqlite-journal": null
+      },
+      "services": {
+        "com.flop-scout.worker": {
+          "returncode": 113,
+          "unloaded": true
+        },
+        "com.greg.flop-router.worker": {
+          "returncode": 113,
+          "unloaded": true
+        },
+        "com.flop.scout.poll": {
+          "returncode": 113,
+          "unloaded": true
+        }
+      },
+      "pointers": {},
+      "live_projection": null,
+      "free_bytes": 22241341440,
+      "scout_code_sha256": {
+        "/Users/greg/Dev/flop_scout_v02/scout_schema.py": "446b3bee239edd56cce99aea94d96da0d2404cd3984967ee16a3c41dfb7acad5",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection_source.py": "a2e0ceb6652a89e410f46a96941c1b2f7547d2066be74db15bcc1922e3c08046",
+        "/Users/greg/Dev/flop_scout_v02/scout_runtime.py": "d52dd2b4c5b2b73125bbc2d100f06631b3e0da2ef05c06db8cd32253ed08f41e",
+        "/Users/greg/Dev/flop_scout_v02/conftest.py": "115cd6c6128b4877d30e7b006840a52d4e454870fee93b33e43e6568c57435e8",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection.py": "87be849e6815a09ae76067814e16840a74240797f409ec8991ce49817313f095",
+        "/Users/greg/Dev/flop_scout_v02/test_scheduler_fairness.py": "c44e3f5c3721b080bf39341bb7582c3604461a02035c62c33527bbf99c5c9f5e",
+        "/Users/greg/Dev/flop_scout_v02/coverage_test_support.py": "76dd016aa0c8e5ee1d7c2feb28232f490818d86ef59e245545f2e8105fbc3b91",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection_publish.py": "3cc997fb4ef008553c0093447c05a5e64a99955362ec2b112ecd589598e99bf4",
+        "/Users/greg/Dev/flop_scout_v02/test_flop_scout.py": "4f51963d45e9c890ea0b7ab3f0d55987ab6756c34f441029afc65f2cbaabd52a",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection_pins.py": "d6b4b470c4dfc47597479f19e0f03b060e4f3433ba3c4df2b54f354d4a97bf74",
+        "/Users/greg/Dev/flop_scout_v02/scout_preparation.py": "3b6750c7325096db97e37934156762474c8e38ac76aba9b03c48505e182f1765",
+        "/Users/greg/Dev/flop_scout_v02/test_schema_reconciliation.py": "820cf6b25414c866ec7921871078fe4b767550e945dc3cd03cc6a52a7cd0f21e",
+        "/Users/greg/Dev/flop_scout_v02/test_global_stalls.py": "39bad7cd29ab6eb0df09ff06334a72b4350e4eb4d99b79313165cb8501a1ef0f",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection_model.py": "b143927ae9b1a06730dfcd4c673a589763878791b1e3da1d3b8b16ed23a61ddd",
+        "/Users/greg/Dev/flop_scout_v02/scout_evidence.py": "244d6a3b5033a4f1d4378fabc121b64df437776ad11a995724259e6a44955af1",
+        "/Users/greg/Dev/flop_scout_v02/test_scout_projection_lg1.py": "076f2301369190d05a4c9fc1483f086b15deec854cd2d6e8fa0c00182fbff289",
+        "/Users/greg/Dev/flop_scout_v02/flop_scout.py": "764c014bae16450a070991d4d32b473822c1a662f7b9e60054a183e742d7ef32",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection_rules.py": "b478633542c1080237fc92f524180066282a772f8b45aeececd07c524ff3e150",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection_cli.py": "246583a430c86561f243bf3177a55fd7c97746cdad80553d6f77160a8aed139c",
+        "/Users/greg/Dev/flop_scout_v02/test_poll_recovery.py": "41c6aff0998c202b69d56c289f6df24ebaec55d8fd2ae3af008443efd1ecee8c",
+        "/Users/greg/Dev/flop_scout_v02/test_scout_projection_lg2.py": "2465db00f8ae4db0fe4d31be8e4b0f73aa1cffd6f9cc664b5bddd15f15628e38",
+        "/Users/greg/Dev/flop_scout_v02/test_scout_evidence.py": "38266526e46c8fe0d6d36ceda68a92f2288471181e0b5040dcda9e3a86403c25",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection_service.py": "b2cde043b0d81dc43b3c9c2f607ee948dd3b2243399b30046856319e1c568f6e",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection_batch.py": "bf3a7b88ef8f42592984b6a18cac534a7baf84d4d2cd5cfed566eb7512ad66db",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection_legacy.py": "5534d8b6ec599aa4ded0103511f2b61ccec538de79d7dbd32b0193487ecddcfb",
+        "/Users/greg/Dev/flop_scout_v02/test_coverage_backfill.py": "e3ded8477897bd1462350a098604b9e5a446b872e240911229e05d6c8b6022bc",
+        "/Users/greg/Dev/flop_scout_v02/scout_diagnostics.py": "f6c927876490fb0fec530ecec0d3f8c261f9d61825974d187f37dbda6dbb4227",
+        "/Users/greg/Dev/flop_scout_v02/test_scout_projection.py": "c813892f77e5d96a86e03c85e2e3ad5357e7b7f8d4f1e37c2659eb4353e89a26",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection_compact.py": "b9d23cd1d73663f216a201de36fb3a5f7fc385bfe4416e198d08123598d55a11",
+        "/Users/greg/Dev/flop_scout_v02/test_evidence_time.py": "ace9083336cd4c22717363f88645d228ba06ff11d02a35e45c8257f73e0a2f6b",
+        "/Users/greg/Dev/flop_scout_v02/test_sqlite_checkpoints.py": "c525cb8481236f7476eb0aa1e4c780517a2c142955c93a31065a58d7e4eecc7d",
+        "/Users/greg/Dev/flop_scout_v02/test_scout_projection_lg2_optimization.py": "434d17c786fabb379cc3f8eca9a1726bae9be049a5ed080d48027ddc2848a443",
+        "/Users/greg/Dev/flop_scout_v02/scout_checkpoint.py": "9433c7e9f101853de97dd3210a5ddf71de026cdf85974d3a8de78bfdc8d31c7e",
+        "/Users/greg/Dev/flop_scout_v02/scout_projection_contract.py": "fd231039848f8d469df5c6805ecf391108e93c53c350338907ec495b26147465",
+        "/Users/greg/Dev/flop_scout_v02/scout_worker.py": "f6fec511b813f63da2106b5469d81783fe8d695281785f74f6e3a8bb6ea89e23",
+        "/Users/greg/Dev/flop_scout_v02/scout_coverage.py": "736f42512428c2803e8a20f64dbfae9a8d373497d55b233afcb331d68fcbc19b",
+        "/Users/greg/Dev/flop_scout_v02/scripts/projection_lg2_fixtures.py": "2102e34fb9e8134d788728d1bb5eb612afbc6d3c636f36e7cd39a3d52c69f60d",
+        "/Users/greg/Dev/flop_scout_v02/scripts/scout-recover-legacy-lock.py": "17febecae689b2d7f8e54beefe62f94b1fef71b285722503b164a074219523d5",
+        "/Users/greg/Dev/flop_scout_v02/scripts/audit_projection_lg2_optimization.py": "763e7f2bdcd5b322268ba703dfa9d7ecbab3b0cdd2eb1f7b34bbc4a493093b05",
+        "/Users/greg/Dev/flop_scout_v02/scripts/benchmark_projection_v2.py": "17068656aa04be20ef4eed814487fcfc0f74d9742fda206a5800e405ad005644",
+        "/Users/greg/Dev/flop_scout_v02/scripts/benchmark_sqlite_latency.py": "b471c27332a7013fc114b79563ee204cdd7ce094d3af5e0662f6d56574318a49",
+        "/Users/greg/Dev/flop_scout_v02/scripts/benchmark_projection_lg2.py": "f8f665783a65b15da71916932c9d9bc6e2773cde88149dcbeca060aeb9498892",
+        "/Users/greg/Dev/flop_scout_v02/scripts/analyze_lg1_storage.py": "0e159dac6ba3e4a4ed37c37a4d8a54db8f434828b5d4d5764c31e5fe57d992bb",
+        "/Users/greg/Dev/flop_scout_v02/scripts/profile_projection_lg2.py": "22bcfaad96cc21cbaed7f18b9485f9c9b621ab95e3b2e061c6a8eb012761bc43",
+        "/Users/greg/Dev/flop_scout_v02/scripts/benchmark_projection_lg2_optimization.py": "58ec97b72fc50a043091070023d8da6b15d46669e3eee8eb7f80e6a4c1a83f17",
+        "/Users/greg/Dev/flop_scout_v02/scripts/profile_projection_lg2_locators.py": "666f4960467725591408f403f7e4db2c2e96768180a462cdb55e277d3d6f9b30",
+        "/Users/greg/Dev/flop_scout_v02/scripts/projection_lg1_fixtures.py": "7c7d7deefc88e4285ea1300b17dab9eb5395deb3d1ba2df467866eb1a42daa11",
+        "/Users/greg/Dev/flop_scout_v02/scripts/projection_v2_fixtures.py": "bd24da65ea58ab5315c48ab2dfbc74d75d3bda4b52d1b0a18025c5c9011968d0",
+        "/Users/greg/Dev/flop_scout_v02/scripts/projection_lg1_support.py": "3a0ca1076dc2c4cad163d796948e69403baa9dd804b8b8c4476cd8a1af255d64",
+        "/Users/greg/Dev/flop_scout_v02/scripts/profile_lg1_diagnostics.py": "f98401368865ae1d595604d90e2747a39271ba3a1e8b7e1523e90dbd31a9fda4",
+        "/Users/greg/Dev/flop_scout_v02/scripts/benchmark_projection_lg1.py": "22cf622055642766bde50a44089c181811ac9265871507b507a3ebb1ee6da2ab",
+        "/Users/greg/Dev/flop_scout_v02/scripts/profile_projection_lg2_memory.py": "c62d5dbef816fc27356a36d1cb525877339f9e39f3d53f41adde29a3310edee3",
+        "/Users/greg/Dev/flop_scout_v02/scripts/projection_audit_stress.py": "c30d43e78d304f1c8c1329bb3732e853fab3b3bdd2696b77219fc437b8a6d0ea",
+        "/Users/greg/Dev/flop_scout_v02/scripts/benchmark_worker_persistence.py": "44626081ca8d5c3dcd19c250952a9cca859acf9ce7abf8421dc29ef8bd5c8377",
+        "/Users/greg/Dev/flop_scout_v02/scripts/projection_fixture_support.py": "a712c11cd6168a73b297f1594bdc8e83311199e99571a6a3b485355852ff2216"
+      },
+      "router_code_sha256": {
+        "/Users/greg/Dev/flop-router/scout_projection.py": "760dd21eaa3f18684adac960636400bb295ad8053b288f02b0d78b810d6b741c",
+        "/Users/greg/Dev/flop-router/test_projection_legacy.py": "9f1ce5ab73e61c668362340b0c77e7c55e3c4eb8ec0d3951a4c77f6510532cc4",
+        "/Users/greg/Dev/flop-router/test_worker_readiness.py": "d56a32053660da641dbeefd68c1f1fc573f18a9a596e7bbac780bc6e9d676259",
+        "/Users/greg/Dev/flop-router/test_router.py": "36c8eb920c2bdf85d1b2e512e051acc0747dc7c0f2f32949fbef110b902eef31",
+        "/Users/greg/Dev/flop-router/scout_snapshot.py": "b110952d9cc23408d193f9fa38eabab65ae99b6bbbfc7ca782508f8fa0a0ec94",
+        "/Users/greg/Dev/flop-router/projection_routing.py": "0bc67645398c83aeb8c7d9b46e6808b2aae94baf306531505ed39985293a39d4",
+        "/Users/greg/Dev/flop-router/projection_contract.py": "85cbaeeaa87dce21d6ee9ddb8a1351c05db3d5658994ee1e81c4fe45c602bb99",
+        "/Users/greg/Dev/flop-router/projection_test_support.py": "779b274805926e14e5795d67387e3f95322dd728c9919f1fe99a6cc0431b6a86",
+        "/Users/greg/Dev/flop-router/projection_legacy.py": "0a2f7133f90f6e700e58e31e259b8987f350d19fe9b89152d08a17f20c7e7bb1",
+        "/Users/greg/Dev/flop-router/test_scout_snapshot.py": "3a34915d433fed577ede838ef803e6e134960c0db8e982a6bcd8652b9a69b422",
+        "/Users/greg/Dev/flop-router/test_projection_performance.py": "b4cae6af2b4c17d172b12d9a69a9c8d47ba6be38f6890db5c4666ab06facbfc9",
+        "/Users/greg/Dev/flop-router/router.py": "0aeb5e80530d6efff50c4c1a4a49e44be40ad943356a15ebb4cb5b3ca85c1711",
+        "/Users/greg/Dev/flop-router/test_scout_projection.py": "ab4122c220b4035e06599bf2200977723020aa58b05078215217aef3bdab87e1",
+        "/Users/greg/Dev/flop-router/projection_bench.py": "afb4b6532619c63bdf9ba64be71c1d6c0f05261fdd88b2e25dbb5fd5be319109",
+        "/Users/greg/Dev/flop-router/projection_workflows.py": "0caad4987490f82a42b2bd70157da3434756e745707ad94bd3a3cfeb3a085658"
+      }
+    },
+    "preflight": {
+      "branch": "feature/tclk-discovery",
+      "head": "e24636b409d26f74d981619e0521973cae68c870",
+      "status": " M README.md\n M flop_scout.py\n M scout_runtime.py\n M scout_schema.py\n M scout_worker.py\n?? docs/router-legacy-generation-lg2-schema.sql\n?? docs/router-projection-v2-benchmark.json\n?? docs/router-projection-v2-generation-authority-evidence.json\n?? docs/router-projection-v2-generation-authority-evidence.md\n?? docs/router-projection-v2-implementation.md\n?? docs/router-projection-v2-lg1-benchmark.json\n?? docs/router-projection-v2-lg1-implementation.md\n?? docs/router-projection-v2-lg1-optimization-diagnostics.json\n?? docs/router-projection-v2-lg1-optimization-review.md\n?? docs/router-projection-v2-lg2-benchmark.json\n?? docs/router-projection-v2-lg2-evidence.json\n?? docs/router-projection-v2-lg2-implementation.md\n?? docs/router-projection-v2-lg2-optimization-evidence.json\n?? docs/router-projection-v2-lg2-optimization.md\n?? docs/router-projection-v2-lg2-storage.json\n?? docs/router-projection-v2-production-dry-run.json\n?? docs/router-projection-v2-production-dry-run.md\n?? docs/router-projection-v2-schema.sql\n?? docs/router-projection-v2-source-review.md\n?? scout_projection.py\n?? scout_projection_batch.py\n?? scout_projection_cli.py\n?? scout_projection_compact.py\n?? scout_projection_contract.py\n?? scout_projection_legacy.py\n?? scout_projection_model.py\n?? scout_projection_pins.py\n?? scout_projection_publish.py\n?? scout_projection_rules.py\n?? scout_projection_service.py\n?? scout_projection_source.py\n?? scripts/analyze_lg1_storage.py\n?? scripts/audit_projection_lg2_optimization.py\n?? scripts/benchmark_projection_lg1.py\n?? scripts/benchmark_projection_lg2.py\n?? scripts/benchmark_projection_lg2_optimization.py\n?? scripts/benchmark_projection_v2.py\n?? scripts/profile_lg1_diagnostics.py\n?? scripts/profile_projection_lg2.py\n?? scripts/profile_projection_lg2_locators.py\n?? scripts/profile_projection_lg2_memory.py\n?? scripts/projection_audit_stress.py\n?? scripts/projection_fixture_support.py\n?? scripts/projection_lg1_fixtures.py\n?? scripts/projection_lg1_support.py\n?? scripts/projection_lg2_fixtures.py\n?? scripts/projection_v2_fixtures.py\n?? test_scout_projection.py\n?? test_scout_projection_lg1.py\n?? test_scout_projection_lg2.py\n?? test_scout_projection_lg2_optimization.py\n",
+      "review_sha256": {
+        "AGENTS.md": "0f9b6e678e765dcca43eb5f3203b25a264b3979207e3702c07c0278b42f51455",
+        "README.md": "471a16536e4b5e9a7d26325dd3982704522e2569f8a54a570f047e351fa00190",
+        "docs/router-projection-v2-lg2-implementation.md": "5559c102afe17f6db770f8dd7fc734fd1b9cd4497934e43025f492a261c5f23e",
+        "docs/router-projection-v2-lg2-optimization.md": "25b436e65fc37649f92640f40229f3ed06587498921e4917173af56cdf5872dc",
+        "docs/router-projection-v2-production-dry-run.md": "09fd1671e4e719a56112c0c68cfeee6ceeea8a962d5065fbcb1bc0b6f3cac8a9",
+        "docs/router-projection-v2-generation-authority-evidence.md": "1b32c93367c20f075ac93bbbdac1164bddf656bbfa99391ee344d406c6b5e035",
+        "/Users/greg/Dev/flop-router/docs/SCOUT_ROUTER_SNAPSHOT_V2.md": "e071f82e9fc3dfcd12bc323cf8cce29eaab97f642a93282daedf0755ed76a9b2",
+        "/Users/greg/Dev/flop-router/docs/router-legacy-generation-lg2-schema.sql": "b3e39648e0019f490b19bd15a1e36a0e93a05261d7d0c55fce6bdb8e085356e8",
+        "/Users/greg/Dev/flop-router/docs/ROUTER_A1_LG2_CONSUMER_REVIEW.md": "f5bfff05a0e9bea95832daf378ac140be214b29a575684091dc67ac9002bc819"
+      },
+      "matches_qualified_code": {
+        "scout_projection.py": true,
+        "scout_projection_batch.py": true,
+        "scout_projection_compact.py": true,
+        "scout_projection_legacy.py": true,
+        "scout_projection_source.py": true,
+        "scripts/audit_projection_lg2_optimization.py": true,
+        "scripts/benchmark_projection_lg2.py": true,
+        "scripts/benchmark_projection_lg2_optimization.py": true,
+        "scripts/profile_projection_lg2.py": true,
+        "scripts/profile_projection_lg2_locators.py": true,
+        "scripts/profile_projection_lg2_memory.py": true,
+        "scripts/projection_lg2_fixtures.py": true,
+        "test_scout_projection_lg2_optimization.py": true
+      }
+    },
+    "capture": {
+      "method": "Quiescent APFS clone of DB and every present sidecar; no live SQLite connection or lock; unchanged file fingerprints and sidecar SHA-256 before/after",
+      "source": "/Users/greg/.flop_scout/observer.sqlite",
+      "clone_seconds": 0.0015819579999999944,
+      "source_bytes": 52022870016,
+      "source_allocated_bytes": 52022870016,
+      "frozen": "/private/tmp/scout-lg2-production-fc53izqd/frozen.sqlite",
+      "source_unchanged": true
+    },
+    "warehouse-validation": {
+      "checkpoint_on_clone": [
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "quick_check": {
+        "result": [
+          "ok"
+        ],
+        "complete": true,
+        "seconds": 817.282019833
+      },
+      "integrity_check": {
+        "result": "TIME_BUDGET_EXCEEDED",
+        "complete": false,
+        "seconds": 60.04899766599999
+      }
+    },
+    "warehouse-counts": {
+      "counts": {
+        "raw_network_records": 4289850,
+        "observed_events": 4289850,
+        "interactions": 11908,
+        "messages": 4289843,
+        "evidence_records": 4282049,
+        "compatibility_evidence_links": 9460539,
+        "tclk_frames": 383824,
+        "kibble_events": 323565
+      },
+      "complete_cut": 4289850
+    },
+    "configuration": {
+      "epoch": "scout-lg2-production-fc53izqd",
+      "source_id": "scout-observer",
+      "router_source_id": "router-dry-run",
+      "router_epoch": "scout-lg2-production-fc53izqd",
+      "router_did": "did:key:z6MkpGs1L6fYEsaXsDfyDfrTxbKVeZ3evuPaBj2x38KzupPd",
+      "local_dids": [
+        "did:key:z6MkfJnczowbivU9SEDcZ77MEpKUfQTVbcD3i1gcwsfo4yL1",
+        "did:key:z6MkpGs1L6fYEsaXsDfyDfrTxbKVeZ3evuPaBj2x38KzupPd",
+        "did:key:z6MkqqqEMxujBTEAvoanSx6pVBMMZzLP7gMUcmNVdYHS3BVk"
+      ],
+      "policy": {
+        "schema": "flop-router-projection-selection/v1",
+        "version": "router-evidence-horizons/2",
+        "classifier_version": "router-evidence-classes/2",
+        "qualification_policy_version": "router-durable-qualification/v1",
+        "parameters": {
+          "context_seconds": 2592000,
+          "capability_signal_seconds": 7776000,
+          "closed_work_seconds": 7776000,
+          "closed_tclk_seconds": 7776000
+        },
+        "cutoff_semantics": "trusted-first-observed-strict-before-expiry/v1",
+        "pinned_record_rules": "transitive-local-evidence-dependencies-no-implicit-unpin/v1"
+      },
+      "policy_sha256": "219730642f738fb6c94b21b4a722aa7e078a60ae7cf5c1e0e115dfe5e9c53c5f",
+      "schema": "scout-router-projection/v2",
+      "contract_revision": "A1-LG2",
+      "ledger_schema_sha256": "2238fd5c3e94ebf2b666e400f4bd8c2b5df93c5a7da023d73bc76e2bed5d7f6b",
+      "legacy_generation_policy": {
+        "schema": "router-legacy-generation-authority/v1",
+        "migration_class": "scout-legacy-evidence-v1-service-poll",
+        "allowed_reported_generations": [
+          "0",
+          "1"
+        ],
+        "authority": "LEGACY_REPORTED_ONLY",
+        "match_status": "UNRESOLVED_LEGACY",
+        "watermark_domain": "CAPTURED"
+      },
+      "legacy_generation_encoding": "router-legacy-generation-storage/v2"
+    },
+    "build": {
+      "valid": false,
+      "phase": "bootstrap_mapping",
+      "runtime_modified": false,
+      "contract_revision": "A1-LG2",
+      "local_did_basis": "Public Scout/Router README, three documented local-family DIDs; no identity files opened",
+      "history_basis": "Fresh experimental bootstrap; no unavailable historical qualifications or pins invented",
+      "failure_class": "ProjectionError",
+      "failure_message": "Authenticated TCLK transition lacks resolvable linkage",
+      "last_attempt": {
+        "event_id": 214
+      },
+      "stack": [
+        {
+          "file": "scout-lg2-production-build.py",
+          "line": 99,
+          "function": "<module>"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 392,
+          "function": "bootstrap"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 215,
+          "function": "_bootstrap"
+        },
+        {
+          "file": "scout-lg2-production-build.py",
+          "line": 42,
+          "function": "wrapped"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 123,
+          "function": "map_batch"
+        },
+        {
+          "file": "scout-lg2-production-build.py",
+          "line": 53,
+          "function": "map_tracked"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 100,
+          "function": "map_raw"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 134,
+          "function": "workflow_from_source"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 167,
+          "function": "tclk_workflow"
+        },
+        {
+          "file": "scout_projection_contract.py",
+          "line": 56,
+          "function": "require"
+        }
+      ],
+      "metrics": {
+        "source_preparation_seconds": 147.850828584,
+        "lg2_encoding_seconds": 0.0028070420002848095,
+        "scalar_mapping_seconds": 84.55727995899997,
+        "lg2_source_admission_seconds": 0.035625501999930975,
+        "mapping_seconds": 84.78585391700003,
+        "lg2_decode_validation_seconds": 0.005517083999961869,
+        "staging_seconds": 0.04790854199998762,
+        "bootstrap_seconds": 113.74670350000002
+      },
+      "calls": {
+        "mapping": 2,
+        "lg2_encoding": 213,
+        "mapped_raws": 213,
+        "mapped_bundles": 213,
+        "lg2_source_admission": 218,
+        "lg2_decode_validation": 200,
+        "staged_bundles": 200
+      },
+      "commits": {
+        "setup": {
+          "count": 2,
+          "total_seconds": 0.000565374999999993,
+          "p50_ms": 0.2,
+          "p95_ms": 0.5,
+          "max_ms": 0.40554199999999485,
+          "percentile_resolution_ms": 0.1
+        },
+        "source_preparation": {
+          "count": 2,
+          "total_seconds": 0.00042775000000006,
+          "p50_ms": 0.2,
+          "p95_ms": 0.3,
+          "max_ms": 0.22966699998505646,
+          "percentile_resolution_ms": 0.1
+        },
+        "bootstrap_mapping": {
+          "count": 4,
+          "total_seconds": 0.0018667089999553355,
+          "p50_ms": 0.3,
+          "p95_ms": 1.4,
+          "max_ms": 1.3282919999824117,
+          "percentile_resolution_ms": 0.1
+        }
+      },
+      "peak_rss_bytes": 104235008,
+      "total_seconds": 261.70215025,
+      "projection_path": "/private/tmp/scout-lg2-production-fc53izqd/producer/projection.sqlite",
+      "source_working_path": "/private/tmp/scout-lg2-production-fc53izqd/source-working.sqlite",
+      "transaction_timing_note": "The diagnostic field named commits includes connection-context finalizations, including rollback of the failed source read transaction, and omits implicit DDL commits. It is not a commit-only latency distribution and is not used as one in this report."
+    },
+    "blocker": {
+      "event_id": 214,
+      "room": "tclk-offers",
+      "seq": 15269,
+      "raw_source": "legacy_evidence",
+      "captured_generation": null,
+      "reported_generation": "1",
+      "signature_status": "VERIFIED_OFFLINE",
+      "did_mismatch": 0,
+      "parsed_top_level_field_types": {
+        "type": "str",
+        "offer_id": "str",
+        "from": "str",
+        "to": "str",
+        "status": "str",
+        "timestamp": "str"
+      },
+      "linkage_fields": {
+        "type": {
+          "present": true,
+          "type": "str"
+        },
+        "id": {
+          "present": false,
+          "type": "NoneType"
+        },
+        "ref": {
+          "present": false,
+          "type": "NoneType"
+        },
+        "contract": {
+          "present": false,
+          "type": "NoneType"
+        }
+      },
+      "frame_metadata": [
+        {
+          "frame_type": "accept",
+          "parse_status": "TCLK_PARSEABLE",
+          "transport_binding_status": "SIGNED_TCLK_FRAME",
+          "transport_verification_status": "VERIFIED_OFFLINE"
+        }
+      ],
+      "cache_linkage_presence": [
+        {
+          "offer_id": false,
+          "contract_id": false,
+          "ref": false
+        }
+      ],
+      "first_failure_message": "Authenticated TCLK transition lacks resolvable linkage",
+      "first_failure_stack": [
+        {
+          "file": "scout-lg2-production-build.py",
+          "line": 99,
+          "function": "<module>"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 392,
+          "function": "bootstrap"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 215,
+          "function": "_bootstrap"
+        },
+        {
+          "file": "scout-lg2-production-build.py",
+          "line": 42,
+          "function": "wrapped"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 123,
+          "function": "map_batch"
+        },
+        {
+          "file": "scout-lg2-production-build.py",
+          "line": 53,
+          "function": "map_tracked"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 100,
+          "function": "map_raw"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 134,
+          "function": "workflow_from_source"
+        },
+        {
+          "file": "scout_projection_source.py",
+          "line": 167,
+          "function": "tclk_workflow"
+        },
+        {
+          "file": "scout_projection_contract.py",
+          "line": 56,
+          "function": "require"
+        }
+      ]
+    },
+    "blocker-count": {
+      "scope": "Distinct raw records linked to parseable, signed/bound, offline-verified TCLK cache rows matching the exact missing-initial-link predicate. This aggregate does not rerun full admission or prove every row reaches this check before another failure.",
+      "sql": "SELECT r.raw_record_id,r.generation,r.reported_generation,r.raw_text,t.frame_type FROM tclk_frames t JOIN compatibility_evidence_links l ON l.cache_table='tclk_frames' AND l.cache_rowid=t.rowid JOIN raw_network_records r ON r.raw_record_id=l.raw_record_id WHERE t.parse_status='TCLK_PARSEABLE' AND t.transport_binding_status='SIGNED_TCLK_FRAME' AND t.transport_verification_status='VERIFIED_OFFLINE'",
+      "query_plan": [
+        [
+          6,
+          0,
+          62,
+          "SEARCH l USING INDEX sqlite_autoindex_compatibility_evidence_links_1 (cache_table=?)"
+        ],
+        [
+          11,
+          0,
+          45,
+          "SEARCH t USING INTEGER PRIMARY KEY (rowid=?)"
+        ],
+        [
+          20,
+          0,
+          46,
+          "SEARCH r USING INDEX sqlite_autoindex_raw_network_records_1 (raw_record_id=?)"
+        ]
+      ],
+      "scanned_link_pairs": 342582,
+      "strict_json_failures": 0,
+      "affected_distinct_raws": 2505,
+      "groups": [
+        {
+          "frame_type": "accept",
+          "captured_generation": null,
+          "reported_generation": "1",
+          "has_offer_id": 1,
+          "has_ref": 0,
+          "has_contract": 0,
+          "count": 2373
+        },
+        {
+          "frame_type": "receipt",
+          "captured_generation": null,
+          "reported_generation": "0",
+          "has_offer_id": 0,
+          "has_ref": 0,
+          "has_contract": 0,
+          "count": 49
+        },
+        {
+          "frame_type": "receipt",
+          "captured_generation": "0",
+          "reported_generation": null,
+          "has_offer_id": 0,
+          "has_ref": 0,
+          "has_contract": 0,
+          "count": 83
+        }
+      ],
+      "seconds": 46.989909833
+    },
+    "blocker-reproduction": {
+      "reproduced": true,
+      "error_class": "ProjectionError",
+      "message": "Authenticated TCLK transition lacks resolvable linkage",
+      "seconds": 0.011858875000000001,
+      "unmodified_scalar_mapper": true
+    },
+    "partial-state": {
+      "public": {
+        "bytes": 102400,
+        "counts": {
+          "snapshot_meta": 1,
+          "messages": 0,
+          "interactions": 0,
+          "source_provenance": 0,
+          "watermarks": 0,
+          "selection_membership": 0,
+          "coverage_history": 0,
+          "durable_qualifications": 0,
+          "qualification_events": 0,
+          "legacy_generation_reports": 0,
+          "legacy_generation_witnesses": 0
+        }
+      },
+      "private": {
+        "bytes": 1945600,
+        "counts": {
+          "operations": 0,
+          "configuration": 1,
+          "state": 5,
+          "input_versions": 200,
+          "source_aliases": 0,
+          "current_inputs": 0,
+          "evaluation_groups": 0,
+          "evaluations": 1,
+          "evaluation_edges": 0,
+          "evaluation_inputs": 200,
+          "rule_manifests": 0,
+          "qualification_keys": 0,
+          "audit_history": 0,
+          "dependency_jobs": 0,
+          "dependency_frontier": 0,
+          "dependencies": 0,
+          "permanent": 0,
+          "expiry": 0,
+          "workflows": 0,
+          "pins": 0,
+          "pin_exports": 0,
+          "pin_members": 0,
+          "local_artifacts": 0,
+          "publication_log": 0
+        },
+        "evaluations": [
+          {
+            "number": 1,
+            "status": "STAGING"
+          }
+        ]
+      },
+      "scope": "Incomplete STAGING diagnostics only; not valid projection counts or capacity"
+    },
+    "temporary-files": {
+      "frozen": {
+        "journal_mode": "delete",
+        "wal_present": false,
+        "logical_bytes": 52022874112,
+        "allocated_bytes": 52037431296
+      },
+      "source_working": {
+        "journal_mode": "delete",
+        "wal_present": false,
+        "logical_bytes": 55047733248,
+        "allocated_bytes": 55059550208
+      },
+      "projection": {
+        "journal_mode": "delete",
+        "wal_present": false,
+        "logical_bytes": 102400,
+        "allocated_bytes": 102400
+      },
+      "ledger": {
+        "journal_mode": "delete",
+        "wal_present": false,
+        "logical_bytes": 1945600,
+        "allocated_bytes": 2138112
+      }
+    },
+    "safety-after": {
+      "checks": {
+        "source_file_fingerprints_unchanged": true,
+        "source_sidecar_hashes_unchanged": true,
+        "live_projection_unchanged": true,
+        "inventoried_pointers_unchanged": true,
+        "services_unchanged": true,
+        "old_poller_unloaded": true,
+        "scout_runtime_unchanged": true,
+        "router_runtime_unchanged": true,
+        "reviewed_files_unchanged": true,
+        "no_live_db_or_poller_handles_reported": true
+      },
+      "services": {
+        "com.flop-scout.worker": {
+          "returncode": 113,
+          "unloaded": true
+        },
+        "com.greg.flop-router.worker": {
+          "returncode": 113,
+          "unloaded": true
+        },
+        "com.flop.scout.poll": {
+          "returncode": 113,
+          "unloaded": true
+        }
+      },
+      "pointer_inventory": {},
+      "source_integrity_basis": "No live SQLite connection; unchanged DB/WAL/SHM file identity,size,mtime,ctime and sidecar SHA-256. No full live DB SHA-256 claimed.",
+      "live_projection_present": false,
+      "temporary_root_preserved": "/private/tmp/scout-lg2-production-fc53izqd"
+    }
+  },
+  "diagnostic_scripts": {
+    "scout-lg2-production-capture.py": {
+      "sha256": "ca7d73b2756d4cafb348a582c2aca082b2bccbbbacfd84fc7ce98b318ede06a1",
+      "source": "import os,sys,json,time,hashlib,ctypes,sqlite3,subprocess,tempfile,stat\nfrom pathlib import Path\nfrom datetime import datetime,timezone\nrepo=Path('/Users/greg/Dev/flop_scout_v02');os.chdir(repo)\nroot=Path(tempfile.mkdtemp(prefix='scout-lg2-production-',dir='/private/tmp'));os.chmod(root,0o700)\nPath('/private/tmp/scout-lg2-production-active.txt').write_text(str(root))\ndef save(name,data):\n (root/(name+'.json')).write_text(json.dumps(data,indent=2)+'\\n')\ndef fingerprint(p):\n if not p.exists():return None\n s=p.lstat();assert stat.S_ISREG(s.st_mode),str(p)\n return dict(device=s.st_dev,inode=s.st_ino,size_bytes=s.st_size,allocated_bytes=s.st_blocks*512,mtime_ns=s.st_mtime_ns,ctime_ns=s.st_ctime_ns)\ndef digest(p):return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None\ndef services():\n out={}\n for name in ['com.flop-scout.worker','com.greg.flop-router.worker','com.flop.scout.poll']:\n  r=subprocess.run(['launchctl','print',f'gui/{os.getuid()}/{name}'],capture_output=True,text=True)\n  out[name]=dict(returncode=r.returncode,unloaded=r.returncode==113)\n return out\ndef pointers():\n out={}\n for base in ['/Users/greg/.flop_scout','/Users/greg/.flop_agents/router']:\n  for path,dirs,files in os.walk(base,followlinks=False):\n   dirs[:]=[d for d in dirs if d not in ['backups','.git','exports','soaks']]\n   if 'current.json' in files:\n    p=Path(path)/'current.json';out[str(p)]=dict(stat=fingerprint(p),sha256=digest(p))\n return out\nsource=Path('/Users/greg/.flop_scout/observer.sqlite');paths=[Path(str(source)+s) for s in ('','-wal','-shm','-journal')]\nbefore={str(p):fingerprint(p) for p in paths};hashes={str(p):digest(p) for p in paths[1:]}\nbase=dict(created_at=datetime.now(timezone.utc).isoformat(),source_files=before,sidecar_sha256=hashes,services=services(),pointers=pointers(),live_projection=fingerprint(source.parent/'router_projection.sqlite'),free_bytes=os.statvfs(root).f_bavail*os.statvfs(root).f_frsize,\n scout_code_sha256={str(p):digest(p) for p in list(repo.glob('*.py'))+list((repo/'scripts').glob('*.py'))},router_code_sha256={str(p):digest(p) for p in Path('/Users/greg/Dev/flop-router').glob('*.py')})\nsave('baseline',base);assert all(v['unloaded'] for v in base['services'].values()),'A service is loaded; capture requires separate quiescence review'\nr=subprocess.run(['lsof',*[str(p) for p in paths if p.exists()]],capture_output=True,text=True);assert r.returncode==1 and not r.stdout.strip(),'Source file handle detected or handle check failed'\nassert not paths[3].exists() or paths[3].stat().st_size==0,'Rollback journal requires explicit consistency review'\nlib=ctypes.CDLL('/usr/lib/libSystem.B.dylib',use_errno=True);lib.clonefile.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int];lib.clonefile.restype=ctypes.c_int\nstart=time.perf_counter()\nfor p in paths:\n if p.exists():\n  dest=root/('frozen.sqlite'+str(p)[len(str(source)):]);rc=lib.clonefile(os.fsencode(p),os.fsencode(dest),0)\n  if rc:raise OSError(ctypes.get_errno(),'APFS clone failed')\nclone_seconds=time.perf_counter()-start\nassert before=={str(p):fingerprint(p) for p in paths},'Source changed during clone'\nassert hashes=={str(p):digest(p) for p in paths[1:]},'Sidecar changed during clone'\nsave('capture',dict(method='Quiescent APFS clone of DB and every present sidecar; no live SQLite connection or lock; unchanged file fingerprints and sidecar SHA-256 before/after',source=str(source),clone_seconds=clone_seconds,source_bytes=before[str(source)]['size_bytes'],source_allocated_bytes=before[str(source)]['allocated_bytes'],frozen=str(root/'frozen.sqlite'),source_unchanged=True))\nprint(json.dumps(dict(root=str(root),phase='captured',clone_seconds=clone_seconds)),flush=True)\nc=sqlite3.connect(str(root/'frozen.sqlite'));c.execute('PRAGMA cache_size=-8192');checkpoint=list(c.execute('PRAGMA wal_checkpoint(TRUNCATE)'));c.execute('PRAGMA journal_mode=DELETE');c.close()\nc=sqlite3.connect('file:'+str(root/'frozen.sqlite')+'?mode=ro',uri=True);c.execute('PRAGMA query_only=ON');c.execute('PRAGMA cache_size=-8192')\nvalidation=dict(checkpoint_on_clone=checkpoint)\nfor kind,budget in [('quick_check',1800),('integrity_check',60)]:\n start=time.perf_counter();c.set_progress_handler(lambda: int(time.perf_counter()-start>budget),10000)\n print(json.dumps(dict(phase=kind,budget_seconds=budget)),flush=True)\n try:rows=[r[0] for r in c.execute('PRAGMA '+kind)];validation[kind]=dict(result=rows,complete=True,seconds=time.perf_counter()-start);assert rows==['ok'],'SQLite validation failed'\n except sqlite3.OperationalError as e:\n  if str(e)!='interrupted':raise\n  validation[kind]=dict(result='TIME_BUDGET_EXCEEDED',complete=False,seconds=time.perf_counter()-start)\n finally:c.set_progress_handler(None,0);save('warehouse-validation',validation)\n if kind=='quick_check':assert validation[kind]['complete'],'Quick check did not complete; do not bootstrap'\n print(json.dumps(dict(phase=kind,result=validation[kind])),flush=True)\ncounts={}\nfor table in ['raw_network_records','observed_events','interactions','messages','evidence_records','compatibility_evidence_links','tclk_frames','kibble_events']:\n start=time.perf_counter();counts[table]=c.execute('SELECT count(*) FROM '+table).fetchone()[0]\n print(json.dumps(dict(phase='count',table=table,count=counts[table],seconds=time.perf_counter()-start)),flush=True)\nsave('warehouse-counts',dict(counts=counts,complete_cut=c.execute('SELECT max(event_id) FROM observed_events').fetchone()[0]));c.close();os.chmod(root/'frozen.sqlite',0o400)\nprint(json.dumps(dict(phase='capture_validation_complete',root=str(root))),flush=True)\n"
+    },
+    "scout-lg2-production-build.py": {
+      "sha256": "bf84d46e80734e1f0d8ec7a67f157c7525861cdd842e8ac89688026833319917",
+      "source": "import os,sys,json,time,sqlite3,ctypes,resource,traceback,math\nfrom pathlib import Path\nfrom collections import Counter,defaultdict\nrepo=Path('/Users/greg/Dev/flop_scout_v02');sys.path.insert(0,str(repo));os.chdir(repo)\nroot=Path(Path('/private/tmp/scout-lg2-production-active.txt').read_text());assert root.is_relative_to(Path('/private/tmp'))\nos.environ['FLOP_SCOUT_STATE_DIR']=str(root/'state')\nvalidation=json.loads((root/'warehouse-validation.json').read_text());assert validation['quick_check']['result']==['ok']\ncensus=json.loads((root/'warehouse-counts.json').read_text())\ndef save(name,d):(root/(name+'.json')).write_text(json.dumps(d,indent=2)+'\\n')\nphase='setup';metrics=defaultdict(float);calls=Counter();commits=defaultdict(Counter);commit_totals=defaultdict(float);commit_max=defaultdict(float);last={};started=time.perf_counter()\nclass Meter(sqlite3.Connection):\n depth=0\n def finish(self,fn,*a):\n  outer=self.depth==0 and self.in_transaction;t=time.perf_counter();self.depth+=1\n  try:return fn(*a)\n  finally:\n   if outer:\n    v=time.perf_counter()-t;commits[phase][math.ceil(v*10000)]+=1;commit_totals[phase]+=v;commit_max[phase]=max(commit_max[phase],v)\n   self.depth-=1\n def commit(self):return self.finish(super().commit)\n def __exit__(self,*a):return self.finish(super().__exit__,*a)\n def backup(self,*a,**kw):\n  t=time.perf_counter()\n  try:return super().backup(*a,**kw)\n  finally:metrics['publication_backup_seconds']+=time.perf_counter()-t\noriginal_connect=sqlite3.connect\ndef safe_connect(path,*a,**kw):\n value=str(path);plain=value.removeprefix('file:').split('?')[0]\n assert plain==':memory:' or Path(plain).resolve().is_relative_to(root),'Non-temporary SQLite path rejected'\n kw.setdefault('factory',Meter);return original_connect(path,*a,**kw)\nsqlite3.connect=safe_connect\nfrom scout_projection import initialize,Projector\nimport scout_projection_source as source\nimport scout_projection_compact as compact\nimport scout_projection_legacy as legacy\nfrom scout_projection_contract import LG2_REVISION,connect,utc,ProjectionError\n\ndef timed(module,name,key):\n original=getattr(module,name)\n def wrapped(*a,**kw):\n  t=time.perf_counter();calls[key]+=1\n  try:return original(*a,**kw)\n  finally:metrics[key+'_seconds']+=time.perf_counter()-t\n setattr(module,name,wrapped)\nfor module,name,key in [(legacy,'source_proof','lg2_source_admission'),(compact,'encode','lg2_encoding'),(compact,'decode','lg2_decode_validation')]:timed(module,name,key)\noriginal_map=source.map_raw\ndef map_tracked(c,rid,*a,**kw):\n last.clear();last.update(raw_id=rid)\n prepared=kw.get('_prepared');event=prepared.events.get(rid) if prepared else c.execute('SELECT event_id FROM observed_events WHERE raw_record_id=?',(rid,)).fetchone()\n if event:last['event_id']=event['event_id']\n t=time.perf_counter()\n try:\n  result=original_map(c,rid,*a,**kw);calls['mapped_raws']+=1\n  if result is not None:calls['mapped_bundles']+=1\n  return result\n finally:metrics['scalar_mapping_seconds']+=time.perf_counter()-t\nsource.map_raw=map_tracked\ntimed(source,'map_batch','mapping');original_stage=Projector.stage\nlast_log=time.perf_counter()\ndef stage_tracked(self,number,bundles):\n global last_log\n t=time.perf_counter()\n try:result=original_stage(self,number,bundles);calls['staged_bundles']+=len(bundles);return result\n finally:\n  metrics['staging_seconds']+=time.perf_counter()-t\n  if time.perf_counter()-last_log>=30:\n   print(json.dumps(dict(phase=phase,counts=dict(calls),elapsed=time.perf_counter()-started)),flush=True);last_log=time.perf_counter()\nProjector.stage=stage_tracked\noriginal_seal=Projector.seal\ndef seal_tracked(self,*a,**kw):\n global phase\n phase='complete_evaluation';print(json.dumps(dict(phase=phase,counts=dict(calls))),flush=True);t=time.perf_counter()\n try:return original_seal(self,*a,**kw)\n finally:metrics['complete_evaluation_seconds']+=time.perf_counter()-t\nProjector.seal=seal_tracked\noriginal_check=Projector.check;check_n=0\ndef check(self):\n global check_n\n original_check(self);check_n+=1\n if check_n%1000==0:\n  s=os.statvfs(root)\n  if s.f_bavail*s.f_frsize<2*1024**3:raise ProjectionError('TEMP_DISK_RESERVE_REACHED')\nProjector.check=check\nlib=ctypes.CDLL('/usr/lib/libSystem.B.dylib',use_errno=True);lib.clonefile.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int]\nworking=root/'source-working.sqlite';assert not working.exists();rc=lib.clonefile(os.fsencode(root/'frozen.sqlite'),os.fsencode(working),0)\nif rc:raise OSError(ctypes.get_errno(),'Clone failed')\nos.chmod(working,0o600)\nlocal=['did:key:z6MkfJnczowbivU9SEDcZ77MEpKUfQTVbcD3i1gcwsfo4yL1','did:key:z6MkqqqEMxujBTEAvoanSx6pVBMMZzLP7gMUcmNVdYHS3BVk','did:key:z6MkpGs1L6fYEsaXsDfyDfrTxbKVeZ3evuPaBj2x38KzupPd']\nprojection=root/'producer'/'projection.sqlite'\nconfig=initialize(projection,epoch=root.name,router_source_id='router-dry-run',router_epoch=root.name,router_did=local[2],local_dids=local,contract_revision=LG2_REVISION)\nsave('configuration',config)\nresult=dict(valid=False,phase='source_preparation',runtime_modified=False,contract_revision=LG2_REVISION,local_did_basis='Public Scout/Router README, three documented local-family DIDs; no identity files opened',history_basis='Fresh experimental bootstrap; no unavailable historical qualifications or pins invented')\ntry:\n phase='source_preparation';print(json.dumps(dict(phase=phase)),flush=True);t=time.perf_counter()\n with connect(working) as c:source.Outbox(c,local,epoch=config['epoch'],source_id=config['source_id'],install=True,revision=LG2_REVISION)\n metrics['source_preparation_seconds']=time.perf_counter()-t\n with Projector(projection) as p:\n  phase='bootstrap_mapping';t=time.perf_counter();print(json.dumps(dict(phase=phase)),flush=True)\n  try:status=source.bootstrap(p,working,str(census['complete_cut']),utc())\n  finally:metrics['bootstrap_seconds']=time.perf_counter()-t\n  result.update(valid=True,phase='bootstrap_complete',source_cut=json.loads(p.get('source_cut')))\n  result['public_counts']={r[0]:p.conn.execute('SELECT count(*) FROM projection.'+r[0]).fetchone()[0] for r in p.conn.execute(\"SELECT name FROM projection.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'\").fetchall()}\n  result['private_counts']={r[0]:p.conn.execute('SELECT count(*) FROM main.'+r[0]).fetchone()[0] for r in p.conn.execute(\"SELECT name FROM main.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'\").fetchall()}\nexcept Exception as e:\n result.update(valid=False,phase=phase,failure_class=type(e).__name__,failure_message=str(e) if isinstance(e,ProjectionError) else 'Non-projection exception; inspect sanitized stack',last_attempt=last,stack=[dict(file=Path(f.filename).name,line=f.lineno,function=f.name) for f in traceback.extract_tb(e.__traceback__)])\nfinally:\n summary={}\n for name,h in commits.items():\n  n=sum(h.values())\n  def percentile(q):\n   target=math.ceil(n*q);seen=0\n   for bucket,count in sorted(h.items()):\n    seen+=count\n    if seen>=target:return bucket/10\n  summary[name]=dict(count=n,total_seconds=commit_totals[name],p50_ms=percentile(.5),p95_ms=percentile(.95),max_ms=commit_max[name]*1000,percentile_resolution_ms=.1)\n result.update(metrics=dict(metrics),calls=dict(calls),commits=summary,peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,total_seconds=time.perf_counter()-started,projection_path=str(projection),source_working_path=str(working))\n save('build',result);print(json.dumps({k:result.get(k) for k in ['valid','phase','failure_class','failure_message','metrics','calls','peak_rss_bytes']}),flush=True)\n"
+    },
+    "scout-lg2-production-blocker.py": {
+      "sha256": "1d47f89608859665e50c52f0dfd90e0714d3cd179e425a0ddeef06f6ea8d0aaf",
+      "source": "import json,sqlite3,time\nfrom pathlib import Path\nroot=Path(Path('/private/tmp/scout-lg2-production-active.txt').read_text());build=json.loads((root/'build.json').read_text());assert not build['valid']\nc=sqlite3.connect('file:'+build['source_working_path']+'?mode=ro',uri=True);c.row_factory=sqlite3.Row;c.execute('PRAGMA query_only=ON');rid=build['last_attempt']['raw_id']\nr=dict(c.execute('SELECT * FROM raw_network_records WHERE raw_record_id=?',(rid,)).fetchone());text=r['raw_text'];obj=json.loads(text[6:]) if text.startswith('tclk1 ') else None\nframes=[dict(v) for v in c.execute(\"SELECT t.* FROM compatibility_evidence_links l JOIN tclk_frames t ON t.rowid=l.cache_rowid WHERE l.cache_table='tclk_frames' AND l.raw_record_id=?\",(rid,))]\nshape={k:type(v).__name__ for k,v in obj.items()} if isinstance(obj,dict) else type(obj).__name__\nout=dict(event_id=build['last_attempt'].get('event_id'),room=r['room'],seq=r['seq'],raw_source=r['source'],captured_generation=r['generation'],reported_generation=r['reported_generation'],signature_status=r['signature_status'],did_mismatch=r['did_mismatch'],parsed_top_level_field_types=shape,linkage_fields={k:dict(present=k in obj,type=type(obj.get(k)).__name__) for k in ['type','id','ref','contract']},frame_metadata=[{k:f[k] for k in ['frame_type','parse_status','transport_binding_status','transport_verification_status']} for f in frames],cache_linkage_presence=[{k:f[k] is not None for k in ['offer_id','contract_id','ref']} for f in frames],first_failure_message=build['failure_message'],first_failure_stack=build['stack'])\n(root/'blocker.json').write_text(json.dumps(out,indent=2)+'\\n');print(json.dumps(out,indent=2));c.close()\n"
+    },
+    "scout-lg2-production-blocker-count.py": {
+      "sha256": "72e14753530894d6e4d1d6fc7a86008fe80541e5e1857e94107f77d724c55491",
+      "source": "import sys,json,sqlite3,time\nfrom pathlib import Path\nfrom collections import Counter\nsys.path.insert(0,'/Users/greg/Dev/flop_scout_v02')\nfrom scout_projection_contract import loads,ProjectionError\nroot=Path(Path('/private/tmp/scout-lg2-production-active.txt').read_text());build=json.loads((root/'build.json').read_text());assert not build['valid']\nc=sqlite3.connect('file:'+build['source_working_path']+'?mode=ro',uri=True);c.row_factory=sqlite3.Row;c.execute('PRAGMA query_only=ON');c.execute('PRAGMA cache_size=-8192')\na=sqlite3.connect(str(root/'blocker-count.sqlite'));a.execute('CREATE TABLE affected(raw_id TEXT PRIMARY KEY,frame_type TEXT,captured_generation TEXT,reported_generation TEXT,has_offer_id INTEGER,has_ref INTEGER,has_contract INTEGER) WITHOUT ROWID')\nq=\"\"\"SELECT r.raw_record_id,r.generation,r.reported_generation,r.raw_text,t.frame_type FROM tclk_frames t JOIN compatibility_evidence_links l ON l.cache_table='tclk_frames' AND l.cache_rowid=t.rowid JOIN raw_network_records r ON r.raw_record_id=l.raw_record_id WHERE t.parse_status='TCLK_PARSEABLE' AND t.transport_binding_status='SIGNED_TCLK_FRAME' AND t.transport_verification_status='VERIFIED_OFFLINE'\"\"\"\nplans=[list(r) for r in c.execute('EXPLAIN QUERY PLAN '+q)];start=time.perf_counter();scanned=0;batch=[];invalid_json=0\nfor r in c.execute(q):\n scanned+=1;text=r['raw_text']\n if not isinstance(text,str) or not text.startswith('tclk1 '):continue\n try:obj=loads(text[6:],max(65536,len(text.encode('utf8'))))\n except ProjectionError:obj={};invalid_json+=1\n if not isinstance(obj,dict):obj={}\n kind=obj.get('type');initial=obj.get('id') if kind=='offer' else obj.get('ref') or obj.get('contract')\n if not isinstance(initial,str) and kind!='offer':\n  batch.append((r['raw_record_id'],r['frame_type'],r['generation'],r['reported_generation'],int(isinstance(obj.get('offer_id'),str)),int('ref' in obj),int('contract' in obj)))\n if len(batch)>=500:\n  with a:a.executemany('INSERT OR IGNORE INTO affected VALUES(?,?,?,?,?,?,?)',batch)\n  batch=[]\n if scanned%50000==0:print(json.dumps(dict(scanned_links=scanned,seconds=time.perf_counter()-start)),flush=True)\nwith a:a.executemany('INSERT OR IGNORE INTO affected VALUES(?,?,?,?,?,?,?)',batch)\na.row_factory=sqlite3.Row\nout=dict(scope='Distinct raw records linked to parseable, signed/bound, offline-verified TCLK cache rows matching the exact missing-initial-link predicate. This aggregate does not rerun full admission or prove every row reaches this check before another failure.',sql=q,query_plan=plans,scanned_link_pairs=scanned,strict_json_failures=invalid_json,affected_distinct_raws=a.execute('SELECT count(*) FROM affected').fetchone()[0],groups=[dict(r) for r in a.execute('SELECT frame_type,captured_generation,reported_generation,has_offer_id,has_ref,has_contract,count(*) count FROM affected GROUP BY 1,2,3,4,5,6 ORDER BY 1,2,3,4,5,6')],seconds=time.perf_counter()-start)\n(root/'blocker-count.json').write_text(json.dumps(out,indent=2)+'\\n');print(json.dumps(out,indent=2));a.close();c.close()\n"
+    },
+    "scout-lg2-production-safety.py": {
+      "sha256": "3089b75e56d824092b27c1d75b41031ab5d8f5c19a251c890cea5d821523d22a",
+      "source": "import os,json,hashlib,subprocess,stat\nfrom pathlib import Path\nroot=Path(Path('/private/tmp/scout-lg2-production-active.txt').read_text());base=json.loads((root/'baseline.json').read_text());pre=json.loads((root/'preflight.json').read_text())\ndef fp(p):\n p=Path(p)\n if not p.exists():return None\n s=p.lstat();assert stat.S_ISREG(s.st_mode)\n return dict(device=s.st_dev,inode=s.st_ino,size_bytes=s.st_size,allocated_bytes=s.st_blocks*512,mtime_ns=s.st_mtime_ns,ctime_ns=s.st_ctime_ns)\ndef sha(p):\n p=Path(p);return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None\nservices={}\nfor name in base['services']:\n r=subprocess.run(['launchctl','print',f'gui/{os.getuid()}/{name}'],capture_output=True,text=True);services[name]=dict(returncode=r.returncode,unloaded=r.returncode==113)\npointers={}\nfor parent in ['/Users/greg/.flop_scout','/Users/greg/.flop_agents/router']:\n for path,dirs,files in os.walk(parent,followlinks=False):\n  dirs[:]=[d for d in dirs if d not in ['backups','.git','exports','soaks']]\n  if 'current.json' in files:\n   p=Path(path)/'current.json';pointers[str(p)]=dict(stat=fp(p),sha256=sha(p))\nchecks=dict(source_file_fingerprints_unchanged=base['source_files']=={p:fp(p) for p in base['source_files']},source_sidecar_hashes_unchanged=base['sidecar_sha256']=={p:sha(p) for p in base['sidecar_sha256']},live_projection_unchanged=base['live_projection']==fp('/Users/greg/.flop_scout/router_projection.sqlite'),inventoried_pointers_unchanged=base['pointers']==pointers,services_unchanged=base['services']==services,old_poller_unloaded=services['com.flop.scout.poll']['unloaded'],scout_runtime_unchanged=all(sha(p)==h for p,h in base['scout_code_sha256'].items()),router_runtime_unchanged=all(sha(p)==h for p,h in base['router_code_sha256'].items()),reviewed_files_unchanged=all(sha(p)==h for p,h in pre['review_sha256'].items()))\nlsof=subprocess.run(['lsof','/Users/greg/.flop_scout/observer.sqlite','/Users/greg/.flop_scout/observer.sqlite-wal','/Users/greg/.flop_scout/run/service-poll.flock'],capture_output=True,text=True)\nchecks['no_live_db_or_poller_handles_reported']=lsof.returncode==1 and not lsof.stdout.strip()\nout=dict(checks=checks,services=services,pointer_inventory=pointers,source_integrity_basis='No live SQLite connection; unchanged DB/WAL/SHM file identity,size,mtime,ctime and sidecar SHA-256. No full live DB SHA-256 claimed.',live_projection_present=base['live_projection'] is not None,temporary_root_preserved=str(root))\n(root/'safety-after.json').write_text(json.dumps(out,indent=2)+'\\n');print(json.dumps(out,indent=2));assert all(checks.values()),'Safety comparison changed; investigate before reporting'\n"
+    }
+  }
+}
