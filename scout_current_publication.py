@@ -23,7 +23,7 @@ LOCAL_DIDS = (
  'did:key:z6MkpGs1L6fYEsaXsDfyDfrTxbKVeZ3evuPaBj2x38KzupPd')
 TABLES=('raw_network_records','observed_events','messages','evidence_records',
  'tclk_frames','kibble_events','compatibility_evidence_links','evidence_export_snapshots',
- 'evidence_retrievals','interactions')
+ 'evidence_retrieval_batches','evidence_retrieval_links','interactions')
 CLASSES=('IDENTITY_PRESENCE','CAPABILITY_CLAIM','VERIFICATION_REQUEST','VERIFICATION_RESULT',
  'WORK_REQUEST','WORK_ACCEPTANCE','WORK_RESULT','TCLK_TRANSCRIPT_EVENT','KIBBLE_JOB',
  'KIBBLE_CLAIM','KIBBLE_RESULT','KIBBLE_ATTESTATION','OFFICIAL_NETWORK_ANNOUNCEMENT',
@@ -137,6 +137,10 @@ def copy_records(source,dst,chosen,cut,required=(),pins=None):
             excluded+=1;continue
         copied_bytes+=len(canonical(raw))+len(canonical(event));require(copied_bytes<=128*1024**2,'Source payload byte budget exceeded')
         insert_rows(dst,'raw_network_records',[raw]);insert_rows(dst,'observed_events',[event]);kept.append(rid)
+        retrieval_links=source.rows('SELECT * FROM evidence_retrieval_links WHERE raw_record_id=?',(rid,))
+        for retrieval_link in retrieval_links:
+            insert_rows(dst,'evidence_retrieval_batches',source.rows('SELECT * FROM evidence_retrieval_batches WHERE id=?',(retrieval_link['retrieval_batch_id'],)))
+        insert_rows(dst,'evidence_retrieval_links',retrieval_links)
         # Legacy reserve keeps exact original raw evidence as UNKNOWN_LEGACY.
         # Do not borrow a reported cache generation or activate LG1/LG2/TL1.
         for table in (() if raw['legacy_record'] else ('messages','evidence_records','tclk_frames','kibble_events')):
@@ -148,7 +152,8 @@ def copy_records(source,dst,chosen,cut,required=(),pins=None):
                 link=source.rows('SELECT * FROM compatibility_evidence_links WHERE cache_table=? AND cache_rowid=? AND raw_record_id=?',(table,cache['rowid'],rid))
                 if link:
                     insert_rows(dst,table,[cache]);insert_rows(dst,'compatibility_evidence_links',link)
-        metadata=json.loads(raw['transport_metadata_json'])
+        from scout_evidence import transport_metadata
+        metadata=transport_metadata(source,raw)
         if metadata.get('snapshot_id'):
             insert_rows(dst,'evidence_export_snapshots',source.rows('SELECT * FROM evidence_export_snapshots WHERE snapshot_id=?',(metadata['snapshot_id'],)))
         if len(kept)%50==0:dst.commit()

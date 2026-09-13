@@ -70,7 +70,8 @@ def map_raw(conn,raw_id,local_dids=(),revision=REVISION,*,_prepared=None):
     cache=exact_cache(conn,'messages',raw,revision,legacy,_prepared);verified=exact_cache(conn,'evidence_records',raw,revision,legacy,_prepared)
     for table in ('tclk_frames','kibble_events'):exact_cache(conn,table,raw,revision,legacy,_prepared)
     msg=dict(projection_row_id='sm1:'+raw_id,room=raw['room'],generation=generation(raw['generation']),seq=raw['seq'],timestamp=raw['network_timestamp'],sender=raw['sender_did'],signed=cache['signed'] if cache else int(isinstance(raw['sender_did'],str) and raw['sender_did'].startswith('did:key:z6Mk')),text=raw['raw_text'],normalized_text=cache['normalized_text'] if cache else None,template_normalized_hash=cache['template_normalized_hash'] if cache else None,nonce=raw['nonce'],sig=raw['signature'],message_hash=verified['message_hash'] if verified else text_hash(raw['raw_text']),verification_status=verified['verification_status'] if verified else None,source_export_hash=None,source_export_path=None,evidence_id=verified['evidence_id'] if verified else None)
-    meta=loads(raw['transport_metadata_json'])
+    from scout_evidence import transport_metadata
+    meta=_prepared.transport_metadata.get(raw_id) if _prepared is not None else transport_metadata(conn,raw)
     # Only the exact supplying export is an export provenance witness.
     if meta.get('snapshot_id'):
         snapshot=conn.execute('SELECT * FROM evidence_export_snapshots WHERE snapshot_id=?',(meta['snapshot_id'],)).fetchone()
@@ -321,8 +322,8 @@ def resolve_interaction(conn,row):
 
 OUTBOX_SQL="""
 CREATE TABLE IF NOT EXISTS router_projection_source(singleton INTEGER PRIMARY KEY CHECK(singleton=1),source_id TEXT NOT NULL,epoch TEXT NOT NULL);
-CREATE INDEX IF NOT EXISTS router_projection_retrieval_raw ON evidence_retrievals(raw_record_id);
-CREATE TRIGGER IF NOT EXISTS router_projection_retrieval AFTER INSERT ON evidence_retrievals BEGIN INSERT OR IGNORE INTO router_projection_pending VALUES(NEW.raw_record_id); END;
+CREATE INDEX IF NOT EXISTS router_projection_retrieval_raw ON evidence_retrieval_links(raw_record_id);
+CREATE TRIGGER IF NOT EXISTS router_projection_retrieval AFTER INSERT ON evidence_retrieval_links WHEN NEW.relationship_kind='REREAD' BEGIN INSERT OR IGNORE INTO router_projection_pending VALUES(NEW.raw_record_id); END;
 CREATE TRIGGER IF NOT EXISTS router_projection_alternate_raw AFTER INSERT ON raw_network_records BEGIN INSERT OR IGNORE INTO router_projection_pending SELECT raw_record_id FROM raw_network_records WHERE room=NEW.room AND seq=NEW.seq AND raw_text_sha256=NEW.raw_text_sha256 AND (generation IS NULL OR generation='UNKNOWN_LEGACY'); END;
 CREATE INDEX IF NOT EXISTS router_projection_raw_links ON compatibility_evidence_links(raw_record_id,raw_text_sha256,cache_table,cache_rowid);
 CREATE INDEX IF NOT EXISTS router_projection_tclk_offer ON tclk_frames(offer_id,frame_type,room,generation);

@@ -2280,12 +2280,14 @@ def _ingest_messages(
 
     raw_ids = []
     with (conn if prepared is None else nullcontext()):
+        retrieval_batch_id = evidence_store.create_retrieval_batch(conn, now, source_endpoint, transport_metadata)
         for index,raw in enumerate(raw_messages):
             raw_ids.append(evidence_store.ingest(conn, room, raw, verify_signed_record_offline,
                 generation=None if (transport_metadata or {}).get("generation_conflict") else generation,
                 reported_generation=str(generation) if (transport_metadata or {}).get("generation_conflict") else None,
                 endpoint=source_endpoint, metadata=transport_metadata, retrieved_at=now, derive_events=False,
-                prepared=None if prepared is None else prepared[index]["raw"]))
+                prepared=None if prepared is None else prepared[index]["raw"],
+                retrieval_batch_id=retrieval_batch_id))
 
     # Preserve the complete raw page even if a derived parser fails. Re-reading
     # repairs missing events by deterministic raw identity before cursor movement.

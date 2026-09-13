@@ -37,6 +37,13 @@ class SourceInputs:
                 for row in conn.execute('SELECT rowid AS projection_cache_rowid,* FROM '+table+' WHERE rowid IN ('+','.join('?' for _ in batch)+')',batch):
                     item=dict(row);rowid=item.pop('projection_cache_rowid');self.records[table,rowid]=item
         self.alternates=set();self.retrievals=set()
+        self.transport_metadata={}
+        for row in conn.execute('''SELECT l.raw_record_id,b.transport_metadata_json,b.envelope_serialization,b.hash_basis
+            FROM evidence_retrieval_links l JOIN evidence_retrieval_batches b ON b.id=l.retrieval_batch_id
+            WHERE l.relationship_kind='INITIAL' AND l.raw_record_id IN ('''+marks+')',ids):
+            import json
+            metadata=json.loads(row[1]);metadata['envelope_serialization']=row[2];metadata['hash_basis']=row[3]
+            self.transport_metadata[row[0]]=metadata
         if candidates:
             self.alternates={r[0] for r in conn.execute('SELECT r.raw_record_id FROM raw_network_records r WHERE r.raw_record_id IN ('+candidate_marks+') AND EXISTS (SELECT 1 FROM raw_network_records a WHERE a.room=r.room AND a.seq=r.seq AND a.raw_text_sha256=r.raw_text_sha256 AND a.raw_record_id<>r.raw_record_id)',candidates)}
             self.retrievals={r[0] for r in conn.execute('SELECT DISTINCT raw_record_id FROM evidence_retrievals WHERE raw_record_id IN ('+candidate_marks+')',candidates)}

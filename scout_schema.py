@@ -72,7 +72,7 @@ def status(conn):
     expected, actual = dict(contract()), structure(conn)
     optional=projection_outbox_contract() if any(name.startswith('router_projection_') for name in actual) else {}
     expected.update(optional)
-    result = dict(declared_schema_version=None, expected_schema_version=3,
+    result = dict(declared_schema_version=None, expected_schema_version=4,
                   missing_tables=[], missing_columns=[], missing_indexes=[],
                   missing_triggers=[], incompatible_objects=[])
     if 'evidence_schema' in actual:
@@ -120,9 +120,12 @@ def status(conn):
     if optional and any(name in optional for key in ('missing_tables','missing_indexes','missing_triggers') for name in result[key]):
         result['incompatible_objects'].append('projection outbox: incomplete feed schema requires explicit recovery')
     version = result['declared_schema_version']
-    if version != 3:
-        result['incompatible_objects'].append('requires declared schema version 3; use normal initialization for older schemas')
-    if version == 3 and {r[0] for r in conn.execute('SELECT version FROM evidence_schema')} != {1, 2, 3}:
+    # Fresh creation installs the physical v4 objects before coverage writes its
+    # historical v3 marker; accept that short in-transaction bootstrap state.
+    bootstrap_v4 = version == 3 and {'evidence_retrieval_batches','evidence_retrieval_links'}.issubset(actual)
+    if version != 4 and not bootstrap_v4:
+        result['incompatible_objects'].append('requires a fresh schema version 4 database')
+    if version == 4 and {r[0] for r in conn.execute('SELECT version FROM evidence_schema')} != {1, 2, 3, 4}:
         result['incompatible_objects'].append('incomplete version history')
     # Missing historical tables cannot safely be reconstructed as empty evidence.
     if result['missing_tables']:

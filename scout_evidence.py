@@ -11,6 +11,7 @@ from pathlib import Path
 
 SCHEMA = 'flop-scout-evidence/v1'
 VERSION = '1'
+RETRIEVAL_SCHEMA_VERSION = 4
 SAFETY_KEYS = ('network_writes', 'url_follows', 'wallet_accesses', 'faucet_claims',
                'tclk_actions', 'kibble_claims', 'private_key_accesses')
 DEFAULT_COLLECTIONS = {
@@ -140,8 +141,22 @@ CREATE TABLE IF NOT EXISTS raw_record_watch_membership(raw_record_id TEXT REFERE
 CREATE TABLE IF NOT EXISTS evidence_settings(name TEXT PRIMARY KEY,value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS evidence_metrics(name TEXT PRIMARY KEY,value INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS evidence_poll_cycles(id INTEGER PRIMARY KEY AUTOINCREMENT,started_at TEXT NOT NULL,finished_at TEXT,status TEXT NOT NULL,details_json TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS evidence_retrievals(id INTEGER PRIMARY KEY AUTOINCREMENT,raw_record_id TEXT NOT NULL REFERENCES raw_network_records(raw_record_id),retrieved_at TEXT NOT NULL,source_endpoint TEXT,transport_metadata_json TEXT NOT NULL);
-CREATE INDEX IF NOT EXISTS retrieval_time ON evidence_retrievals(retrieved_at);
+CREATE TABLE IF NOT EXISTS evidence_retrieval_batches(
+ id INTEGER PRIMARY KEY AUTOINCREMENT, retrieved_at TEXT NOT NULL, source_endpoint TEXT,
+ transport_metadata_json TEXT NOT NULL, envelope_serialization TEXT NOT NULL,
+ hash_basis TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS retrieval_batch_time ON evidence_retrieval_batches(retrieved_at);
+CREATE TABLE IF NOT EXISTS evidence_retrieval_links(
+ id INTEGER PRIMARY KEY AUTOINCREMENT, raw_record_id TEXT NOT NULL REFERENCES raw_network_records(raw_record_id),
+ retrieval_batch_id INTEGER NOT NULL REFERENCES evidence_retrieval_batches(id),
+ relationship_kind TEXT NOT NULL CHECK(relationship_kind IN ('INITIAL','REREAD')),
+ UNIQUE(raw_record_id,retrieval_batch_id,relationship_kind));
+CREATE INDEX IF NOT EXISTS retrieval_link_raw ON evidence_retrieval_links(raw_record_id);
+CREATE VIEW IF NOT EXISTS evidence_retrievals AS
+ SELECT l.id,l.raw_record_id,b.retrieved_at,b.source_endpoint,
+ json_patch(b.transport_metadata_json,json_object('envelope_serialization',b.envelope_serialization,'hash_basis',b.hash_basis)) AS transport_metadata_json
+ FROM evidence_retrieval_links l JOIN evidence_retrieval_batches b ON b.id=l.retrieval_batch_id
+ WHERE l.relationship_kind='REREAD';
 '''
 
 
@@ -185,6 +200,38 @@ def initialize_gaps(conn):
                 conn.execute(statement)
                 statement = ''
         conn.execute('INSERT OR IGNORE INTO evidence_schema VALUES (2,?)', (now(),))
+
+
+def retrieval_metadata(metadata):
+    """Split immutable protocol constants from page transport metadata."""
+    metadata = dict(metadata or {})
+    envelope = metadata.pop('envelope_serialization', 'reconstructed JSON; signed text unchanged')
+    basis = metadata.pop('hash_basis', 'raw_text_utf8')
+    return dumps(metadata), envelope, basis
+
+
+def create_retrieval_batch(conn, retrieved_at, endpoint, metadata):
+    body, envelope, basis = retrieval_metadata(metadata)
+    cur = conn.execute('''INSERT INTO evidence_retrieval_batches
+        (retrieved_at,source_endpoint,transport_metadata_json,envelope_serialization,hash_basis)
+        VALUES (?,?,?,?,?)''', (retrieved_at, endpoint, body, envelope, basis))
+    return cur.lastrowid
+
+
+def transport_metadata(conn, raw):
+    """Return the original transport envelope for both v3 and normalized stores."""
+    value = json.loads(raw['transport_metadata_json'])
+    if value:
+        return value
+    sql = '''SELECT b.transport_metadata_json,b.envelope_serialization,b.hash_basis
+        FROM evidence_retrieval_links l JOIN evidence_retrieval_batches b ON b.id=l.retrieval_batch_id
+        WHERE l.raw_record_id=? AND l.relationship_kind='INITIAL' ORDER BY l.id LIMIT 1'''
+    args = (raw['raw_record_id'],)
+    row = conn.execute(sql, args).fetchone() if hasattr(conn, 'execute') else next(iter(conn.rows(sql, args)), None)
+    if row is None:
+        return value
+    value = json.loads(row[0]); value['envelope_serialization'] = row[1]; value['hash_basis'] = row[2]
+    return value
 
 
 def gap_identity(source, room, generation, last, first):
@@ -239,8 +286,17 @@ def initialize(conn, verify):
             declared = conn.execute('SELECT max(version) FROM evidence_schema').fetchone()[0]
         except sqlite3.Error as exc:
             raise scout_schema.SchemaDrift('SCHEMA_DRIFT: invalid version metadata') from exc
-        if declared is not None and declared >= 3:
+        if declared is not None and declared >= RETRIEVAL_SCHEMA_VERSION:
+            if not conn.execute('SELECT 1 FROM evidence_schema WHERE version=3').fetchone():
+                # Coverage v3 is independently repairable and must be restored
+                # before validating a fresh v4 retrieval layout.
+                import scout_coverage
+                scout_coverage.initialize(conn)
             scout_schema.reconcile(conn)
+            return
+        # v3 is intentionally left untouched. Retrieval normalization is an
+        # explicit local maintenance operation, never an application-open write.
+        if declared == 3:
             return
     conn.execute('PRAGMA foreign_keys=ON')
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='evidence_schema'").fetchone():
@@ -292,6 +348,8 @@ def initialize(conn, verify):
     initialize_gaps(conn)
     import scout_coverage
     scout_coverage.initialize(conn)
+    with conn:
+        conn.execute('INSERT OR IGNORE INTO evidence_schema VALUES (?,?)', (RETRIEVAL_SCHEMA_VERSION, now()))
 
 
 CLASSES = {x: x for x in ('IDENTITY_PRESENCE','PROMOTIONAL_CLAIM','WORK_REQUEST',
@@ -423,22 +481,23 @@ def prepare_record(room, raw, verify, *, generation=None, reported_generation=No
             pass
     sig = data.get('sig')
     sig = safe_utf8(sig)
-    metadata = dict(metadata or {})
-    metadata['envelope_serialization'] = 'reconstructed JSON; signed text unchanged'
-    metadata['hash_basis'] = 'raw_text_utf8' if text is not None else 'raw_record_json_ascii'
+    # Page transport provenance is stored once in evidence_retrieval_batches.
+    # This immutable raw row intentionally retains no repeated header envelope.
     return (rid,source,endpoint,room,generation,reported_generation,integer(data.get('seq')),
          scalar_text(data.get('ts',data.get('timestamp',data.get('time')))),retrieved_at,
-         scalar_text(nonce),sender,sig,text,text_hash,dumps(raw),status,error,int(mismatch),dumps(metadata),
+         scalar_text(nonce),sender,sig,text,text_hash,dumps(raw),status,error,int(mismatch),'{}',
          SCHEMA,VERSION,now(),int(legacy),'PARTIAL' if legacy or endpoint is None else 'COMPLETE')
 
 
 @diagnostics.timed('raw_evidence')
 def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None,
-           source=None, endpoint=None, retrieved_at=None, metadata=None, legacy=False, derive_events=True, prepared=None):
+           source=None, endpoint=None, retrieved_at=None, metadata=None, legacy=False, derive_events=True, prepared=None,
+           retrieval_batch_id=None):
     values = prepared if prepared is not None else prepare_record(room, raw, verify,
         generation=generation, reported_generation=reported_generation, source=source,
         endpoint=endpoint, retrieved_at=retrieved_at, metadata=metadata, legacy=legacy)
     rid=values[0];retrieved_at=values[8];endpoint=values[2]
+    retrieval_batch_id = retrieval_batch_id or create_retrieval_batch(conn, retrieved_at, endpoint, metadata)
     cur = conn.execute('''INSERT OR IGNORE INTO raw_network_records VALUES
         (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
         values)
@@ -447,7 +506,8 @@ def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None
         bump(conn, 'records_ingested')
     if not inserted:
         bump(conn, 'exact_duplicate_suppression')
-        conn.execute('INSERT INTO evidence_retrievals(raw_record_id,retrieved_at,source_endpoint,transport_metadata_json) VALUES (?,?,?,?)', (rid,retrieved_at,endpoint,values[18]))
+    conn.execute('INSERT OR IGNORE INTO evidence_retrieval_links(raw_record_id,retrieval_batch_id,relationship_kind) VALUES (?,?,?)',
+                 (rid, retrieval_batch_id, 'INITIAL' if inserted else 'REREAD'))
     # Always repair missing derived rows, including recovery after raw-only persistence.
     if derive_events:
         stored = conn.execute('SELECT * FROM raw_network_records WHERE raw_record_id=?',(rid,)).fetchone()

@@ -1,0 +1,4 @@
+-rw-r--r--@ 1 greg  staff    80G Sep 11 07:27 /Users/greg/.flop_scout/observer.sqlite
+-rw-r--r--@ 1 greg  staff    32K Sep 13 08:49 /Users/greg/.flop_scout/observer.sqlite-shm
+-rw-r--r--@ 1 greg  staff     0B Sep 11 07:27 /Users/greg/.flop_scout/observer.sqlite-wal
+-rw-r--r--@ 1 greg  staff   561M Sep  5 09:21 /Users/greg/.flop_scout/observer.sqlite.pre-evidence-hardening-20260905-092113

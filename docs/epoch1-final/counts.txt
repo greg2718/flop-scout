@@ -1,0 +1,5 @@
+raw_network_records|8342892
+observed_events|8342892
+messages|8342885
+evidence_retrievals|27246321
+interactions|11908
