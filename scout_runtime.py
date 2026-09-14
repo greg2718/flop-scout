@@ -14,6 +14,8 @@ import scout_coverage as coverage
 import scout_evidence as evidence
 import scout_checkpoint as checkpoint
 
+EXPORT_FETCH_TIMEOUT_SECONDS = 45
+
 
 class BatchBudget:
     """Conservative first turn; adapt towards 25ms, never exceed 200 records."""
@@ -95,6 +97,8 @@ class Storage:
             cursor=scout.room_cursor(self.conn,room)
             row=self.conn.execute('SELECT * FROM source_coverage_state WHERE room=? AND generation=?',(room,cursor['generation'])).fetchone()
             saved=self.conn.execute('SELECT * FROM evidence_export_snapshots WHERE room=? AND generation=? ORDER BY retrieved_at DESC LIMIT 1',(room,cursor['generation'])).fetchone()
+            if saved:
+                saved=coverage.recover_validated_snapshot(self.conn,dict(saved))
             result[room]=dict(cursor=cursor,coverage=dict(row) if row else None,snapshot=dict(saved) if saved else None,
                               poll=dict(self.co.polls[room]),due=self.co.due[room],failures=self.co.failures[room],
                               backfill_due=self.co.backfill_due.get(room,0),backfill_failures=self.co.backfill_failures[room])
@@ -209,6 +213,27 @@ class Storage:
         self.exports.pop(room,None);self.co.export_finished(room,error)
         return dict(done=True,metadata=self.metadata())
 
+    def finalize_export(self,room,snapshot):
+        """Metadata-only completion for an already durable snapshot."""
+        import flop_scout as scout
+        saved=self.conn.execute('SELECT * FROM evidence_export_snapshots WHERE snapshot_id=?',(snapshot['snapshot_id'],)).fetchone()
+        if saved is None: raise ValueError('Finalization snapshot metadata missing')
+        saved=dict(saved)
+        if saved['processed_records'] != saved['record_count'] or saved['status'] != 'PERSISTED':
+            raise ValueError('Finalization requires a fully persisted snapshot')
+        coverage_token=coverage.COVERAGE_WORK.set(self.export_coverage_work)
+        try:
+            try:result=coverage.finish_export(self.conn,saved)
+            except coverage.CoveragePending:return dict(finalizing=True,records=0,metadata_only=True)
+        finally:coverage.COVERAGE_WORK.reset(coverage_token)
+        self.export_coverage_work={k:v for k,v in self.export_coverage_work.items() if k[0]!=room}
+        if scout.room_cursor(self.conn,room)['generation']==saved['generation']:
+            scout.update_room_cursor(self.conn,room,saved['generation'],result['coverage_cursor'])
+            scout.set_state(self.conn,f'cursor:{room}:continuity',result['coverage_status'])
+        error=RuntimeError('Export coverage unresolved') if result['backfill_required'] else None
+        self.co.export_finished(room,error);self.exports.pop(room,None)
+        return dict(done=True,records=0,error=error,metadata=self.metadata(),metadata_only=True)
+
     def save_status(self,snapshot):
         with self.conn:
             self.conn.execute("INSERT INTO evidence_settings VALUES ('worker_scheduler_v1',?) ON CONFLICT(name) DO UPDATE SET value=excluded.value",(json.dumps(snapshot),))
@@ -289,15 +314,17 @@ class Runtime:
         self.discover()
         if maintenance and maintenance.pressure:return
         if self.export is None and self.cleanup is None:
-            for room in self.backfills:
+            for room in sorted(self.backfills,key=lambda r:not coverage.resumable_snapshot(self.data[r]['snapshot'],self.data[r]['coverage'])):
                 info=self.data[room]
                 if room in self.export_blocked or info['backfill_due']>self.clock():continue
-                if info['failures']:continue
                 row=info['coverage'];saved=info['snapshot']
-                resumable=saved and (saved['processed_records']<saved['record_count'] or saved['status']=='VALIDATED'
-                    or (row['coverage_status']=='BACKFILLING' and (saved['last_seq'] or 0)>=row['observed_high_water']))
+                resumable=coverage.resumable_snapshot(saved,row)
+                # A retained, fully local snapshot needs no network read; do
+                # not let a stale tail-read failure suppress its finalizer.
+                if info['failures'] and not resumable:continue
                 future=self.export_pool.submit(self.call,'export_open',room,self.open_export,room,info['cursor'],saved if resumable else None)
-                self.export=dict(room=room,generation=info['cursor']['generation'],future=future,stream=None,ready=None,queued=self.backfills[room])
+                self.export=dict(room=room,generation=info['cursor']['generation'],future=future,stream=None,ready=None,
+                                 queued=self.backfills[room],started=self.clock())
                 self.export_done.add(room);break
 
     def finish_export(self,error=None):
@@ -323,6 +350,17 @@ class Runtime:
                 self.tails[room]=job
             except BaseException as error:
                 self.critical.append(('tail_failed',room,(room,job,error)))
+        job=self.export
+        if (job and job['future'] and job['stream'] is None and not job['future'].done()
+                and self.clock()-job['started'] >= EXPORT_FETCH_TIMEOUT_SECONDS):
+            # urlopen's socket timeout does not bound a read which never
+            # returns.  Do not let that uncooperative reader retain logical
+            # admission; the spare executor workers isolate its eventual exit.
+            error=TimeoutError(f'Export fetch deadline exceeded ({EXPORT_FETCH_TIMEOUT_SECONDS}s)')
+            job['future'].cancel()
+            self.export_blocked.add(job['room'])
+            self.critical.append(('export_failed',job['room'],(job['room'],job['generation'],error)))
+            self.finish_export(error)
         job=self.export
         if job and job['future'] and job['future'].done():
             try:
@@ -433,7 +471,7 @@ class Runtime:
             else:self.tails[room].update(offset=result['offset'],inserted=result['inserted'],turn_ready=self.clock())
         elif kind=='tail_failed':self.active.discard(room);self.tail_done.add(room)
         elif kind=='export_failed':self.export_blocked.discard(room)
-        elif kind=='export_batch':
+        elif kind in ('export_batch','finalize_export'):
             self.export_budget.observe(result.get('records',0),result.get('_write_seconds',self.clock()-job['started']),**pressure)
             if result.get('done'):self.finish_export(result.get('error'))
             elif result.get('finalizing'):
@@ -445,16 +483,18 @@ class Runtime:
     def choose_write(self):
         if self.writer_job:return
         cp=getattr(self,'checkpointer',None)
+        metadata_ready=(self.export and self.export['ready'] is not None
+                        and not self.export['ready'][0] and self.export['ready'][3])
         if cp and cp.blocks_writes:
             if cp.future is not None and getattr(cp,'serial_turn',not cp.concurrent):return
             # At the high watermark, drain only the finite work already
             # admitted. Otherwise urgent pages and maintenance would deadlock.
             # New reads/exports are paused; no status/export writes can grow WAL
             # indefinitely behind a pinned reader.
-            if not (self.tails or self.critical):return
+            if not (self.tails or self.critical or metadata_ready):return
         if self.critical:
             kind,room,args=self.critical.pop(0);self.submit_write(kind,room,args);return
-        ready=self.export and self.export['ready'] is not None and not (cp and getattr(cp,'pressure',False))
+        ready=self.export and self.export['ready'] is not None and (metadata_ready or not (cp and getattr(cp,'pressure',False)))
         if self.tails and (not ready or self.clock()-self.last_export_turn<2):
             # Oldest runnable chunk first; rotate after each durable chunk. One bounded backfill turn at least
             # every two seconds of runnable contention prevents starvation.
@@ -465,7 +505,9 @@ class Runtime:
         elif ready:
             job=self.export;records,prepared,position,done=job['ready']
             with self.diag.lock:self.diag.values['sqlite_batch_size']=len(records)
-            self.submit_write('export_batch',job['room'],(job['room'],job['stream'].snapshot,records,prepared,position,done),job['ready_at']);self.turns=0
+            if metadata_ready:self.submit_write('finalize_export',job['room'],(job['room'],job['stream'].snapshot),job['ready_at'])
+            else:self.submit_write('export_batch',job['room'],(job['room'],job['stream'].snapshot,records,prepared,position,done),job['ready_at'])
+            self.turns=0
             self.last_export_turn=self.clock()
         elif self.clock()-self.last_status>=1:
             self.submit_write('save_status',None,(self.scheduler_snapshot(),));self.last_status=self.clock()
@@ -516,7 +558,7 @@ class Runtime:
 
     def run(self,once=False):
         self.once=once;self.diag.start()
-        with ThreadPoolExecutor(max_workers=1,thread_name_prefix='scout-sqlite') as self.write_pool, ThreadPoolExecutor(max_workers=self.concurrency,thread_name_prefix='scout-tail') as self.tail_pool, ThreadPoolExecutor(max_workers=1,thread_name_prefix='scout-export') as self.export_pool:
+        with ThreadPoolExecutor(max_workers=1,thread_name_prefix='scout-sqlite') as self.write_pool, ThreadPoolExecutor(max_workers=self.concurrency,thread_name_prefix='scout-tail') as self.tail_pool, ThreadPoolExecutor(max_workers=self.concurrency+1,thread_name_prefix='scout-export') as self.export_pool:
             opened=self.write_pool.submit(self.call,'writer_startup',None,Storage,self.path,self.settings,self.config,self.diag,self.clock,self.wall,self.projection)
             try:
                 while not opened.done():self.diag.tick();self.stop.wait(0.01)

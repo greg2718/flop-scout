@@ -141,7 +141,7 @@ class Coordinator:
                 cursor=scout.room_cursor(self.conn,room)
                 row=self.conn.execute('SELECT * FROM source_coverage_state WHERE room=? AND generation=?',(room,cursor['generation'])).fetchone()
                 resumable=self.conn.execute('SELECT * FROM evidence_export_snapshots WHERE room=? AND generation=? ORDER BY retrieved_at DESC LIMIT 1',(room,cursor['generation'])).fetchone()
-                if resumable and (resumable['processed_records']<resumable['record_count'] or resumable['status']=='VALIDATED' or (row['coverage_status']=='BACKFILLING' and (resumable['last_seq'] or 0)>=row['observed_high_water'])):
+                if coverage.resumable_snapshot(resumable,row):
                     future=export_pool.submit(lambda snapshot=dict(resumable):snapshot)
                 else:
                     future=export_pool.submit(self.reader,room,'export',cursor['generation'],cursor['last_seq'])

@@ -326,6 +326,20 @@ def test_export_retry_scheduled_without_sleep(state,tmp_path):
     assert r.data['quiet']['poll']['polls_completed']==1
 
 
+def test_hung_export_deadline_releases_slot_for_next_room(tmp_path):
+    now=[runtime.EXPORT_FETCH_TIMEOUT_SECONDS+1]
+    rooms=['lobby','technocore'];model=SimulationStorage(rooms,now)
+    r=runtime.Runtime(tmp_path/'model.sqlite',model.settings,clock=lambda:now[0],wall=lambda:1700000000+now[0])
+    r.data=model.metadata();r.tail_pool=SimulationPool(now,r.diag);r.export_pool=SimulationPool(now,r.diag)
+    stuck=Future()
+    r.export=dict(room='lobby',generation='g1',future=stuck,stream=None,ready=None,queued=0,started=0)
+    r.harvest_reads()
+    assert r.export is None and 'lobby' in r.export_blocked
+    assert r.critical[0][0]=='export_failed'
+    r.schedule_reads()
+    assert r.export['room']=='technocore'
+
+
 def test_runtime_failure_accounting_is_not_doubled(state):
     r=runtime.Runtime(state,worker.configuration(['lobby']),reader=lambda *_:({'messages':messages(101,101),
                       '_scout_transport':{'generation_conflict':True}},'g1'))

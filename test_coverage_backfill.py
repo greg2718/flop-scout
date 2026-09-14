@@ -53,6 +53,7 @@ def test_backfill_recovers_missing_and_deduplicates(db,tmp_path):
     r=scout.backfill_room(db,'technocore',snapshot)
     assert r['coverage_cursor']==r['observed_high_water']==200
     assert r['coverage_status']=='CURRENT_AFTER_BACKFILL'
+    assert r['backfill_required'] is False
     assert check(db)['raw_records']==200
     assert ev.metrics(db)['confirmed_retention_losses']==0
     assert ev.metrics(db)['backfill_records_recovered']==149 # includes retained pre-checkpoint evidence

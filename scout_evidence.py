@@ -506,8 +506,9 @@ def ingest(conn, room, raw, verify, *, generation=None, reported_generation=None
         bump(conn, 'records_ingested')
     if not inserted:
         bump(conn, 'exact_duplicate_suppression')
-    conn.execute('INSERT OR IGNORE INTO evidence_retrieval_links(raw_record_id,retrieval_batch_id,relationship_kind) VALUES (?,?,?)',
-                 (rid, retrieval_batch_id, 'INITIAL' if inserted else 'REREAD'))
+    # v5 aggregates rereads forever; v4 retains the historical link behavior.
+    import scout_storage_v5
+    scout_storage_v5.record_observation(conn,rid,values[13],retrieval_batch_id,retrieved_at,inserted)
     # Always repair missing derived rows, including recovery after raw-only persistence.
     if derive_events:
         stored = conn.execute('SELECT * FROM raw_network_records WHERE raw_record_id=?',(rid,)).fetchone()

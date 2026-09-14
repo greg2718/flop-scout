@@ -210,6 +210,33 @@ def test_shutdown_preserves_checkpoint_and_restart_resumes(db,tmp_path):
     assert ev.integrity(db)['status']=='PASS'
 
 
+def test_persisted_snapshot_with_pending_coverage_resumes_after_restart(db,tmp_path):
+    snapshot=export_snapshot(tmp_path,messages(101,500))
+    cv.register_snapshot(db,snapshot)
+    db.execute("""UPDATE evidence_export_snapshots
+        SET processed_records=record_count,status='PERSISTED'
+        WHERE room='technocore' AND generation='g1'""")
+    db.commit()
+    saved=db.execute("SELECT * FROM evidence_export_snapshots WHERE room='technocore'").fetchone()
+    row=db.execute("SELECT * FROM source_coverage_state WHERE room='technocore' AND generation='g1'").fetchone()
+    assert cv.resumable_snapshot(saved,row)
+    db.execute("UPDATE source_coverage_state SET coverage_cursor=500 WHERE room='technocore' AND generation='g1'")
+    db.commit()
+    row=db.execute("SELECT * FROM source_coverage_state WHERE room='technocore' AND generation='g1'").fetchone()
+    assert not cv.resumable_snapshot(saved,row)
+
+
+def test_final_persisted_batch_survives_restart_before_finalization(db,tmp_path):
+    snapshot=export_snapshot(tmp_path,messages(101,500))
+    saved=cv.begin_export(db,snapshot,100)
+    cv.persist_batch(db,saved,messages(101,500),saved['record_count'],lambda records,s:None)
+    persisted=db.execute("SELECT * FROM evidence_export_snapshots WHERE snapshot_id=?",(saved['snapshot_id'],)).fetchone()
+    row=db.execute("SELECT * FROM source_coverage_state WHERE room='technocore' AND generation='g1'").fetchone()
+    assert persisted['processed_records']==persisted['record_count']
+    assert persisted['status']=='PERSISTED'
+    assert cv.resumable_snapshot(persisted,row)
+
+
 def test_stalled_export_uses_no_tail_slot_even_at_concurrency_one(db):
     now=[0.0]
     co=worker.Coordinator(db,worker.configuration(ROOMS),concurrency=1,

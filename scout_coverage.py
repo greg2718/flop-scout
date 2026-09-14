@@ -107,6 +107,26 @@ def state(conn, room, generation, seed=0):
     return dict(row)
 
 
+def resumable_snapshot(snapshot, coverage_state):
+    """Whether an existing export must be completed before fetching another.
+
+    A snapshot is marked PERSISTED after its records are durable, but bounded
+    coverage finalization can still need additional writer turns.  Treat that
+    state as resumable while it can advance the outstanding coverage cursor.
+    """
+    if not snapshot:
+        return False
+    if (snapshot['processed_records'] < snapshot['record_count']
+            or snapshot['status'] == 'VALIDATED'):
+        return True
+    last_seq = snapshot['last_seq'] or 0
+    return ((snapshot['status'] == 'PERSISTED'
+             and coverage_state['backfill_required']
+             and last_seq > coverage_state['coverage_cursor'])
+            or (coverage_state['coverage_status'] == 'BACKFILLING'
+                and last_seq >= coverage_state['observed_high_water']))
+
+
 def event(conn, room, generation, kind, details):
     conn.execute('INSERT INTO evidence_coverage_events(room,generation,kind,created_at,details_json) VALUES (?,?,?,?,?)',
         (room,str(generation),kind,ev.now(),ev.dumps(details)))
@@ -235,8 +255,30 @@ def register_snapshot(conn, snapshot):
     return dict(conn.execute('SELECT * FROM evidence_export_snapshots WHERE snapshot_id=?',(snapshot['snapshot_id'],)).fetchone())
 
 
+def recover_validated_snapshot(conn, snapshot):
+    """Promote only a complete, identity-verified legacy checkpoint."""
+    if snapshot['status'] != 'VALIDATED' or snapshot['processed_records'] != snapshot['record_count']:
+        return snapshot
+    checked = inspect_export(snapshot['path'],snapshot['room'],snapshot['generation'],snapshot['source_endpoint'],
+                             snapshot['source_endpoint'],json.loads(snapshot['metadata_json']))
+    if any(checked[key] != snapshot[key] for key in ('snapshot_id','sha256','record_count','first_seq','last_seq','consecutive')):
+        raise ValueError('Validated snapshot integrity mismatch')
+    with Path(snapshot['path']).open('rb') as stream:
+        for line in stream:
+            raw=json.loads(line)
+            raw_id=ev.raw_identity(source(snapshot['room']),snapshot['room'],snapshot['generation'],None,raw)
+            present=conn.execute('''SELECT 1 FROM raw_network_records r JOIN observed_events e
+                USING(raw_record_id,raw_text_sha256) WHERE r.raw_record_id=? AND r.raw_completeness='COMPLETE' ''',(raw_id,)).fetchone()
+            if not present: raise ValueError('Validated snapshot has incomplete durable records')
+    with conn:
+        conn.execute("""UPDATE evidence_export_snapshots SET status='PERSISTED'
+            WHERE snapshot_id=? AND status='VALIDATED' AND processed_records=record_count""",(snapshot['snapshot_id'],))
+    return dict(conn.execute('SELECT * FROM evidence_export_snapshots WHERE snapshot_id=?',(snapshot['snapshot_id'],)).fetchone())
+
+
 def begin_export(conn, snapshot, seed=0):
     s = register_snapshot(conn,snapshot)
+    s = recover_validated_snapshot(conn,s)
     state(conn,s['room'],s['generation'],seed)
     with conn:
         conn.execute("UPDATE source_coverage_state SET coverage_status='BACKFILLING' WHERE room=? AND generation=?",(s['room'],s['generation']))
@@ -250,7 +292,12 @@ def persist_batch(conn,s,batch,position,ingest_batch):
     ingest_batch(batch,s)
     after = conn.execute("SELECT value FROM evidence_metrics WHERE name='records_ingested'").fetchone()[0]
     with conn:
-        conn.execute('UPDATE evidence_export_snapshots SET processed_records=? WHERE snapshot_id=?',(position,s['snapshot_id']))
+        # A restart may occur before finish_export gets its next writer turn.
+        # Once the final record is durable, persist the handoff state here so
+        # restart recovery deterministically resumes coverage finalization.
+        conn.execute('''UPDATE evidence_export_snapshots SET processed_records=?,
+            status=CASE WHEN ?>=record_count THEN 'PERSISTED' ELSE status END
+            WHERE snapshot_id=?''',(position,position,s['snapshot_id']))
         ev.bump(conn,'backfill_records_recovered',after-before)
 
 
