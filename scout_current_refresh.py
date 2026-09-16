@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import sqlite3
 import signal
+import shutil
 import time
 from scout_current_publication import Source,CLASSES,atomic,copy_records,current_bundle
 from scout_projection_contract import require,utc,instant,digest,canonical
@@ -16,6 +17,13 @@ CADENCE=600
 MAX_NEW=256
 MAX_ENROLLED=50000
 MAX_WORK_BYTES=512*1024**2
+# The durable current-source database, current projector and its append-only
+# continuity ledger are not scratch space.  They grow only through accepted
+# refreshes and must not make a future refresh impossible by themselves.
+DURABLE_PRIVATE_NAMES=('current-source.sqlite','projection.sqlite','projection.sqlite.ledger')
+DURABLE_PRIVATE_WARNING_BYTES=512*1024**2
+MIN_FREE_DISK_HEADROOM_BYTES=2*1024**3
+ESTIMATE_FIXED_OVERHEAD_BYTES=8*1024**2
 MAX_CAPTURE_AGE=600
 
 
@@ -27,6 +35,50 @@ def manifest(root):
     import hashlib
     require(hashlib.sha256(raw).hexdigest()==pointer['manifest_sha256'],'Current manifest hash mismatch')
     return json.loads(raw)
+
+
+def capacity_report(work, estimated_next_refresh_bytes=0):
+    """Separate permanent continuity state from next-refresh scratch space."""
+    durable=sum((work/name).stat().st_size for name in DURABLE_PRIVATE_NAMES
+                if (work/name).is_file())
+    transient=0
+    for path in work.iterdir():
+        if not path.is_file() or path.name in DURABLE_PRIVATE_NAMES:
+            continue
+        # SQLite sidecars and atomic staging files are disposable only after
+        # their owner finishes; count them as in-flight capacity, never durable.
+        if '.sqlite' in path.name or path.name.startswith('.') or path.name == 'refresh-pending.json':
+            transient+=path.stat().st_size
+    free=shutil.disk_usage(work).free
+    return dict(durable_private_bytes=durable, transient_work_bytes=transient,
+                estimated_next_refresh_bytes=int(estimated_next_refresh_bytes),
+                available_disk_bytes=free,
+                durable_private_health='WARNING' if durable>=DURABLE_PRIVATE_WARNING_BYTES else 'OK')
+
+
+def estimate_next_refresh_bytes(source, raw_ids):
+    """A bounded conservative estimate before copying any next-refresh input."""
+    payload=0
+    for rid in raw_ids:
+        row=source.rows('SELECT length(raw_record_json),length(raw_text) FROM raw_network_records WHERE raw_record_id=?',(rid,))
+        require(len(row)==1,'Missing selected raw record')
+        payload += sum(v or 0 for v in row[0]) + 512
+    # Covers event/cache rows and SQLite journaling.  Source admission already
+    # enforces a 128 MiB raw payload ceiling; this remains a 512 MiB hard cap.
+    return ESTIMATE_FIXED_OVERHEAD_BYTES + payload*4
+
+
+def require_capacity(work, estimated_next_refresh_bytes):
+    report=capacity_report(work,estimated_next_refresh_bytes)
+    require(report['estimated_next_refresh_bytes']<=MAX_WORK_BYTES,
+            'Estimated next refresh exceeds transient work capacity')
+    require(report['transient_work_bytes']+report['estimated_next_refresh_bytes']<=MAX_WORK_BYTES,
+            'Transient current storage capacity reached; publication not freshened')
+    required_free=max(MIN_FREE_DISK_HEADROOM_BYTES,
+                      report['transient_work_bytes']+report['estimated_next_refresh_bytes']+MIN_FREE_DISK_HEADROOM_BYTES)
+    require(report['available_disk_bytes']>=required_free,
+            'Insufficient free disk headroom for bounded refresh')
+    return report
 
 
 def refresh(source_path,work,root,*,now=None,fail=None):
@@ -46,9 +98,9 @@ def refresh(source_path,work,root,*,now=None,fail=None):
         pending_path=work/'refresh-pending.json'
         with Projector(projection) as p,closing(sqlite3.connect(work/'current-source.sqlite')) as local:
             local.row_factory=sqlite3.Row
+            capacity=capacity_report(work)
             if pending_path.exists():pending=json.loads(pending_path.read_text())
             else:
-                require(sum(f.stat().st_size for f in work.glob('*.sqlite*') if f.is_file())<MAX_WORK_BYTES,'Bounded current storage capacity reached; publication not freshened')
                 previous=int(p.status()['source_cut']['committed_event_id'])
                 src=Source(source_path)
                 try:
@@ -65,6 +117,7 @@ def refresh(source_path,work,root,*,now=None,fail=None):
                     chosen=chosen[:MAX_NEW]
                     count=local.execute('SELECT count(*) FROM raw_network_records').fetchone()[0]
                     require(count+len(chosen)<=MAX_ENROLLED,'Bounded current record capacity reached; publication not freshened')
+                    capacity=require_capacity(work,estimate_next_refresh_bytes(src,chosen))
                     kept,excluded,byte_count=copy_records(src,local,chosen,cut)
                     # Pending plan commits before staging. Replays reuse exactly
                     # these immutable raw inputs and the original capture time.
@@ -121,6 +174,7 @@ def refresh(source_path,work,root,*,now=None,fail=None):
                 source_cut=new['source_checkpoint'],admitted_records=len(pending['raw_ids']),
                 total_records=new['row_counts']['messages'],generation_seconds=time.monotonic()-started,
                 database=new['database'],size_bytes=new['size_bytes'])
+            status.update(capacity_report(work,capacity['estimated_next_refresh_bytes']))
             atomic(work/'refresh-status.json',status)
             pending_path.unlink()
             retain(root,keep=4)
@@ -136,7 +190,10 @@ def main():
     try:result=refresh(args.source,args.work,args.root)
     except BlockingIOError:return # Single owner: the current job will publish.
     except Exception as exc:
-        atomic(args.work/'refresh-status.json',dict(status='DEGRADED',error=str(exc),failed_at=utc(),cadence_seconds=CADENCE))
+        status=dict(status='DEGRADED',error=str(exc),failed_at=utc(),cadence_seconds=CADENCE)
+        try:status.update(capacity_report(args.work))
+        except Exception:pass
+        atomic(args.work/'refresh-status.json',status)
         raise
     print(json.dumps(result,indent=2))
 

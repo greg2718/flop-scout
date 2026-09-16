@@ -55,6 +55,31 @@ def test_capacity_does_not_launder_freshness(tmp_path,monkeypatch):
     assert (root/'current.json').read_bytes()==old
 
 
+def test_capacity_counts_only_transient_work_not_durable_state(tmp_path,monkeypatch):
+    import scout_current_refresh as module
+    work=tmp_path/'work';work.mkdir()
+    for name in module.DURABLE_PRIVATE_NAMES:
+        (work/name).write_bytes(b'x'*1024)
+    monkeypatch.setattr(module,'MAX_WORK_BYTES',1024)
+    monkeypatch.setattr(module,'MIN_FREE_DISK_HEADROOM_BYTES',1)
+    monkeypatch.setattr(module.shutil,'disk_usage',lambda _: type('D',(),{'free':10_000})())
+    report=module.require_capacity(work,512)
+    assert report['durable_private_bytes']==3*1024
+    assert report['transient_work_bytes']==0
+
+
+def test_capacity_blocks_excessive_transient_or_free_disk(tmp_path,monkeypatch):
+    import scout_current_refresh as module
+    work=tmp_path/'work';work.mkdir();(work/'projection.sqlite-wal').write_bytes(b'x'*600)
+    monkeypatch.setattr(module,'MAX_WORK_BYTES',1024)
+    monkeypatch.setattr(module,'MIN_FREE_DISK_HEADROOM_BYTES',100)
+    monkeypatch.setattr(module.shutil,'disk_usage',lambda _: type('D',(),{'free':10_000})())
+    with pytest.raises(ValueError,match='Transient'):module.require_capacity(work,512)
+    (work/'projection.sqlite-wal').unlink()
+    monkeypatch.setattr(module.shutil,'disk_usage',lambda _: type('D',(),{'free':99})())
+    with pytest.raises(ValueError,match='free disk'):module.require_capacity(work,1)
+
+
 def test_pre_capture_timestamp_corrected_before_staging(tmp_path):
     source,work,root=setup(tmp_path);old=manifest(root);add(source,2)
     result=refresh(source,work,root,now=old['produced_at'])
