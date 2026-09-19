@@ -1,7 +1,9 @@
 import json
+import plistlib
 import sqlite3
 import shutil
 from datetime import timedelta
+from pathlib import Path
 import pytest
 import flop_scout as scout
 from scout_current_publication import generate,LOCAL_DIDS
@@ -24,6 +26,14 @@ def add(source,seq):
     c=scout.observer_connect_write(source)
     scout.ingest_messages(c,'technocore',[{'seq':seq,'from':LOCAL_DIDS[0],'text':'hello refresh '+str(seq)}],generation='g1',source_endpoint='/r/technocore')
     c.close()
+
+
+def test_current_publication_launchagent_preserves_refresh_priority():
+    with (Path(__file__).parent/'scripts'/'com.flop-scout.current-publication.plist').open('rb') as stream:
+        config=plistlib.load(stream)
+    assert config['ProcessType']=='Interactive'
+    assert config['StartInterval']==600 and config['RunAtLoad'] is True
+    assert 'LowPriorityIO' not in config and 'Nice' not in config
 
 
 def test_refresh_advances_capture_and_preserves_continuity(tmp_path):

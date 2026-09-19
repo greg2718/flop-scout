@@ -14,12 +14,8 @@
 	</dict>
 	<key>Label</key>
 	<string>com.flop-scout.current-publication</string>
-	<key>LowPriorityIO</key>
-	<true/>
-	<key>Nice</key>
-	<integer>10</integer>
 	<key>ProcessType</key>
-	<string>Background</string>
+	<string>Interactive</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>/Users/greg/Dev/flop_scout_v02/.venv/bin/python</string>

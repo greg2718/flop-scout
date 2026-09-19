@@ -70,8 +70,10 @@ complete plan remain under the separate private working directory.
 
 `scout_current_refresh.py` is invoked by the user LaunchAgent
 `com.flop-scout.current-publication` with a 600-second interval after completion, and at login/load. The
-installed configuration is reproduced in
-`scripts/com.flop-scout.current-publication.plist`. Failed runs retry automatically
+tracked configuration is reproduced in
+`scripts/com.flop-scout.current-publication.plist`: `ProcessType=Interactive`,
+`StartInterval=600`, and `RunAtLoad=true`; it deliberately has neither
+`LowPriorityIO` nor `Nice`. Failed runs retry automatically
 with a 60-second launchd throttle. Scout and Router do not need to restart.
 
 Each run reads an indexed committed source cut, then captures its evaluation
