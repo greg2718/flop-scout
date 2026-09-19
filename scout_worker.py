@@ -9,6 +9,7 @@ import threading
 import time
 import scout_coverage as coverage
 import scout_evidence as evidence
+import scout_adaptive
 
 DEFAULTS = {
     'lobby': {'poll_interval_seconds':1, 'priority':0},
@@ -70,6 +71,8 @@ class Coordinator:
         self.polls={r:dict(target_interval_seconds=v['poll_interval_seconds'],
                           last_poll_started=None,last_poll_completed=None,
                           max_observed_poll_age=0,polls_completed=0) for r,v in settings.items()}
+        self.followers={r:scout_adaptive.RoomFollower(current_poll_interval=v['poll_interval_seconds']) for r,v in settings.items()}
+        self.follower_budget=min(len(settings), max(1, concurrency))
         self.once=False; self.tail_done=set(); self.export_done=set()
         for row in conn.execute('SELECT * FROM evidence_room_health'):
             room=row['room']
@@ -150,10 +153,12 @@ class Coordinator:
                 break
         self.publish_metrics()
 
-    def health(self,room,started,error=None,high=None):
+    def health(self,room,started,error=None,high=None,records=0,gap=False,cursor=0):
         now=self.clock(); settings=self.settings[room]
         self.failures[room]=self.failures[room]+1 if error else 0
-        delay=backoff(self.failures[room],settings['poll_interval_seconds'],error) if error else settings['poll_interval_seconds']
+        follower=self.followers[room]
+        # A follower's interval is entirely derived from locally measured traffic.
+        delay=backoff(self.failures[room],settings['poll_interval_seconds'],error) if error else (follower.current_poll_interval if follower.following else settings['poll_interval_seconds'])
         self.due[room]=now+delay
         info=self.polls[room]
         baseline=datetime.fromisoformat(info['last_poll_completed']).timestamp() if info['last_poll_completed'] else self.started_at
@@ -165,6 +170,12 @@ class Coordinator:
             previous=self.last_observation.get(room)
             if previous and high>=previous[1] and now>previous[0]: rate=(high-previous[1])/(now-previous[0])
             self.last_observation[room]=(now,high)
+        # The exact-window check uses the server's documented maximum read window.
+        # A full page is never promoted to evidence of complete coverage.
+        follower.observe(cursor=cursor,newest_seq=high or 0,records=records,maximum_window=200,
+                         elapsed=max(now-started,.001),base_interval=settings['poll_interval_seconds'],
+                         stamp=self.stamp(),error=error,gap=gap)
+        scout_adaptive.choose_followers(self.followers,self.follower_budget)
         with self.conn:
             self.conn.execute('''INSERT INTO evidence_room_health VALUES (?,?,?,?,?,?,?)
                 ON CONFLICT(room) DO UPDATE SET last_poll_at=excluded.last_poll_at,poll_duration=excluded.poll_duration,
@@ -190,7 +201,12 @@ class Coordinator:
                 persistence_started=True
                 result=scout.service_poll_room(self.conn,room,response=result)
                 if result['continuity']=='READ_FAILED': raise RuntimeError(result['last_read_error'])
-                self.health(room,started,high=result['observed_high_water'])
+                # Older persistence adapters and narrow simulations predate the
+                # adaptive diagnostics fields.  Missing diagnostics are neutral;
+                # they must not turn a successful room poll into a retry/backoff.
+                self.health(room,started,high=result['observed_high_water'],records=result.get('records_fetched',0),
+                            gap=result['continuity'] in ('UNRESOLVED','BACKFILL_REQUIRED') or result.get('page_limit_hit',False),
+                            cursor=result.get('coverage_cursor',scout.room_cursor(self.conn,room)['last_seq']))
                 self.needs_tail_refresh.discard(room)
             else:
                 if result['room']!=room or result['generation']!=str(generation): raise ValueError('Backfill response room/generation mismatch')
@@ -239,7 +255,8 @@ class Coordinator:
         for room,info in self.polls.items():
             snapshot['rooms'][room]=dict(info,next_due=self.stamp(self.due[room]),
                                         backfill_failures=self.backfill_failures[room],
-                                        backfill_next_due=self.stamp(self.backfill_due.get(room,self.clock())))
+                                        backfill_next_due=self.stamp(self.backfill_due.get(room,self.clock())),
+                                        adaptive_follower=self.followers[room].export())
         with self.conn:
             self.conn.execute("INSERT INTO evidence_settings VALUES ('worker_scheduler_v1',?) ON CONFLICT(name) DO UPDATE SET value=excluded.value",(json.dumps(snapshot),))
         self.last_published=self.clock()
