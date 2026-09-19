@@ -4,8 +4,15 @@ No implicit source path. Source reads use existing immutable raw IDs; compatibil
 rows are optional only when their exact raw link and location match.
 """
 from __future__ import annotations
+import time
 from scout_projection_contract import *
 from scout_projection_model import classify, BENCH, KIBBLE
+
+PROFILE={'tclk_records_processed':0,'tclk_correlation_queries':0,'tclk_keys':set(),'tclk_seconds':0.0,'non_tclk_seconds':0.0}
+def reset_profile():
+    PROFILE.update(tclk_records_processed=0,tclk_correlation_queries=0,tclk_keys=set(),tclk_seconds=0.0,non_tclk_seconds=0.0)
+def profile_snapshot():
+    return {**{k:v for k,v in PROFILE.items() if k!='tclk_keys'},'tclk_unique_keys':len(PROFILE['tclk_keys'])}
 
 
 def observed_time(value):
@@ -240,6 +247,7 @@ def migrate_tl1(projector, source_path, cohort, raw_ids, evaluated_at):
 
 
 def tclk_workflow(conn,raw,msg,obj,revision=REVISION):
+    started=time.monotonic();PROFILE['tclk_records_processed']+=1
     if revision == TL1_REVISION:
         from scout_projection_tclk import structural
         if structural(msg['text'])[1]: return None
@@ -255,6 +263,7 @@ def tclk_workflow(conn,raw,msg,obj,revision=REVISION):
         key=frontier.pop(0)
         if key in seen:continue
         seen.add(key);require(len(seen)<=200,'TCLK source linkage exceeds bounded lookup capacity')
+        PROFILE['tclk_correlation_queries']+=1;PROFILE['tclk_keys'].add(key)
         rows=conn.execute("SELECT r.* FROM tclk_frames t JOIN compatibility_evidence_links l ON l.cache_table='tclk_frames' AND l.cache_rowid=t.rowid JOIN raw_network_records r ON r.raw_record_id=l.raw_record_id WHERE (t.offer_id=? OR t.contract_id=?) AND r.room=? AND r.generation IS ? LIMIT 201",(key,key,raw['room'],raw['generation'])).fetchall()
         require(len(rows)<=200,'TCLK reference fanout exceeds bounded lookup capacity')
         for row in rows:
@@ -277,6 +286,7 @@ def tclk_workflow(conn,raw,msg,obj,revision=REVISION):
     deadline=obj.get('expiresMs') if kind=='offer' else None
     if type(deadline) is not int or deadline<0:deadline=None
     root_ids=sorted(candidates)
+    PROFILE['tclk_seconds']+=time.monotonic()-started
     return dict(id=wid,identity=ident,role='ROOT' if kind=='offer' else str(kind).upper(),root_id='sm1:'+root_ids[0] if len(root_ids)==1 else None,result_id=None,authenticated=authenticated,deadline_ms=deadline,terminal=None)
 
 

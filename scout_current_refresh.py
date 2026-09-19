@@ -83,11 +83,13 @@ def require_capacity(work, estimated_next_refresh_bytes):
 
 def refresh(source_path,work,root,*,now=None,fail=None,force_content=False,expected_current_id=None,publication_locked=False,source_binding_path=None):
     from scout_projection import Projector
+    from scout_projection_source import reset_profile,profile_snapshot
     from scout_projection_publish import publish,retain
-    started=time.monotonic();when=now or utc()
-    require(all(p.is_absolute() and not p.is_symlink() for p in (source_path,work,root)),'Explicit nonsymlink paths required')
+    started=time.monotonic();phases={};mark=lambda n,t=[started]:(phases.setdefault(n,time.monotonic()-t[0]),t.__setitem__(0,time.monotonic()))[0];when=now or utc();reset_profile()
+    binding=source_binding_path or source_path
+    require(all(p.is_absolute() and not p.is_symlink() for p in (source_path,binding,work,root)),'Explicit nonsymlink paths required')
     plan=json.loads((work/'plan.json').read_text())
-    require(plan['source_path']==str(source_path),'Changed source binding')
+    require(plan['source_path']==str(binding),'Changed source binding')
     projection=work/'projection.sqlite'
     with closing(sqlite3.connect(projection.with_suffix('.sqlite.ledger').as_uri()+'?mode=ro',uri=True)) as probe:
         config=json.loads(probe.execute('SELECT json FROM configuration').fetchone()[0])
@@ -96,7 +98,9 @@ def refresh(source_path,work,root,*,now=None,fail=None,force_content=False,expec
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         old=manifest(root)
         pending_path=work/'refresh-pending.json'
+        mark('startup_source_open')
         with Projector(projection) as p,closing(sqlite3.connect(work/'current-source.sqlite')) as local:
+            mark('projector_construction');phases['verify_ledger']=p.metrics.get('verify_ledger_seconds',0.0)
             local.row_factory=sqlite3.Row
             capacity=capacity_report(work)
             if pending_path.exists():pending=json.loads(pending_path.read_text())
@@ -118,7 +122,7 @@ def refresh(source_path,work,root,*,now=None,fail=None,force_content=False,expec
                     count=local.execute('SELECT count(*) FROM raw_network_records').fetchone()[0]
                     require(count+len(chosen)<=MAX_ENROLLED,'Bounded current record capacity reached; publication not freshened')
                     capacity=require_capacity(work,estimate_next_refresh_bytes(src,chosen))
-                    kept,excluded,byte_count=copy_records(src,local,chosen,cut)
+                    kept,excluded,byte_count=copy_records(src,local,chosen,cut);mark('capture_copy')
                     # Pending plan commits before staging. Replays reuse exactly
                     # these immutable raw inputs and the original capture time.
                     pending=dict(cut=str(cut),when=when,raw_ids=kept,excluded=excluded,bytes=byte_count,
@@ -145,6 +149,7 @@ def refresh(source_path,work,root,*,now=None,fail=None,force_content=False,expec
             applied=(completed['committed_event_id']==pending['cut'] and p.get('evaluated_at')==pending['when'])
             if not applied:
                 n=evaluation['number'] if evaluation else p.begin(pending['cut'],pending['when'],'SOURCE_BATCH')
+                projection_started=time.monotonic()
                 if evaluation is None or evaluation['status']=='STAGING':
                     batch=[]
                     for rid in pending['raw_ids']:
@@ -154,6 +159,7 @@ def refresh(source_path,work,root,*,now=None,fail=None,force_content=False,expec
                     if batch:p.stage(n,batch)
                     p.seal(n)
                 else:p.resume(n)
+                phases['per_record_projection']=time.monotonic()-projection_started
             if fail:fail('after_apply')
             # Never replace capture time with wall time to disguise old evidence.
             age=(datetime.now(timezone.utc)-instant(pending['when'])).total_seconds()
@@ -164,7 +170,7 @@ def refresh(source_path,work,root,*,now=None,fail=None,force_content=False,expec
                 raise ValueError('Refresh capture exceeded 10-minute deadline; previous publication retained')
             current=manifest(root)
             already=(current['source_checkpoint']==p.status()['source_cut'] and current['selection_evaluated_at']==pending['when'])
-            result=({'manifest':current} if already and not force_content else publish(p,root,checked_cut=p.status()['source_cut'],evaluated_at=pending['when'],force_content=force_content,expected_current_id=expected_current_id,publication_locked=publication_locked))
+            publication_started=time.monotonic();result=({'manifest':current} if already and not force_content else publish(p,root,checked_cut=p.status()['source_cut'],evaluated_at=pending['when'],force_content=force_content,expected_current_id=expected_current_id,publication_locked=publication_locked));phases['publication_finalization']=time.monotonic()-publication_started
             new=result['manifest']
             status=dict(status='READY',automatic=True,completed_at=utc(),cadence_seconds=CADENCE,
                 next_due_at=utc(datetime.now(timezone.utc)+timedelta(seconds=CADENCE)),
@@ -174,7 +180,7 @@ def refresh(source_path,work,root,*,now=None,fail=None,force_content=False,expec
                 source_cut=new['source_checkpoint'],admitted_records=len(pending['raw_ids']),
                 total_records=new['row_counts']['messages'],generation_seconds=time.monotonic()-started,
                 database=new['database'],size_bytes=new['size_bytes'])
-            status.update(capacity_report(work,capacity['estimated_next_refresh_bytes']))
+            phases['total_refresh_wall']=time.monotonic()-started;status.update(phase_timings=phases,projection_metrics=dict(p.metrics),source_profile=profile_snapshot());status.update(capacity_report(work,capacity['estimated_next_refresh_bytes']))
             atomic(work/'refresh-status.json',status)
             pending_path.unlink()
             if not publication_locked:retain(root,keep=4)

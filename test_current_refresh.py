@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import shutil
 from datetime import timedelta
 import pytest
 import flop_scout as scout
@@ -35,6 +36,45 @@ def test_refresh_advances_capture_and_preserves_continuity(tmp_path):
     assert instant(result['new_expiry'])>instant(result['old_expiry'])
     assert new['row_counts']['messages']==2
     assert not (work/'refresh-pending.json').exists()
+
+
+def test_refresh_can_read_an_isolated_snapshot_with_the_original_source_binding(tmp_path):
+    source,work,root=setup(tmp_path);old=manifest(root);add(source,2)
+    snapshot=tmp_path/'source-snapshot.sqlite'
+    source_conn=sqlite3.connect('file:'+str(source)+'?mode=ro',uri=True);snapshot_conn=sqlite3.connect(snapshot)
+    try:
+        source_conn.backup(snapshot_conn)
+        snapshot_conn.execute('PRAGMA journal_mode=DELETE')
+        snapshot_conn.commit()
+    finally:snapshot_conn.close();source_conn.close()
+    result=refresh(snapshot,work,root,source_binding_path=source,now=utc(instant(old['produced_at'])+timedelta(seconds=1)))
+    assert result['new_publication_id']=='2'
+    assert manifest(root)['row_counts']['messages']==2
+
+
+def test_pending_refresh_never_opens_bound_observer_source(tmp_path,monkeypatch):
+    import scout_current_refresh as module
+    from scout_current_publication import atomic
+    source,work,root=setup(tmp_path);old=manifest(root)
+    pending=dict(cut=old['source_checkpoint']['committed_event_id'],when=old['produced_at'],raw_ids=[],excluded=[],bytes=0,
+                 previous_id=old['snapshot_id'],previous_cut=old['source_checkpoint']['committed_event_id'])
+    atomic(work/'refresh-pending.json',pending)
+    monkeypatch.setattr(module,'Source',lambda *_:pytest.fail('pending APPLYING path opened observer source'))
+    assert refresh(source,work,root)['new_publication_id']==old['snapshot_id']
+
+
+def test_synthetic_freshness_changes_only_the_copied_pending_bookkeeping(tmp_path):
+    from scripts.run_isolated_refresh_rehearsal import prepare_synthetic_freshness
+    from scout_current_publication import atomic
+    original=tmp_path/'production-like';isolated=tmp_path/'isolated';original.mkdir();isolated.mkdir()
+    pending=dict(cut='7',when='2026-09-01T00:00:00.000000Z',raw_ids=['raw-1'],excluded=['raw-2'],bytes=123,previous_id='9',previous_cut='6')
+    atomic(original/'refresh-pending.json',pending);shutil.copy2(original/'refresh-pending.json',isolated/'refresh-pending.json')
+    before=(original/'refresh-pending.json').read_bytes()
+    report=prepare_synthetic_freshness(isolated,now='2026-09-19T00:00:00.000000Z')
+    changed=json.loads((isolated/'refresh-pending.json').read_text())
+    assert report['label']=='SYNTHETIC_FRESHNESS_REHEARSAL'
+    assert (original/'refresh-pending.json').read_bytes()==before
+    assert changed['when']==report['adjusted'] and {k:v for k,v in changed.items() if k!='when'}=={k:v for k,v in pending.items() if k!='when'}
 
 
 def test_crash_after_apply_replays_without_duplicate_publication(tmp_path):
