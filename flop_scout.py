@@ -4097,6 +4097,11 @@ def service_poll_room(conn, room, *, page_size=SERVICE_POLL_PAGE_SIZE,
     continuity = 'READ_FAILED' if metadata.get('generation_conflict') or regressed else state['coverage_status']
     if generation_changed and continuity=='CURRENT': continuity='GENERATION_CHANGED'
     set_state(conn,f'cursor:{room}:continuity',continuity)
+    coverage_store.coverage_observation(conn, room, generation, window_start=seed + 1,
+        window_end=server, observed_start=old['coverage_cursor'] + 1,
+        observed_end=state['observed_high_water'],
+        unresolved_ranges=[] if not state['backfill_required'] else [(state['coverage_cursor'] + 1, max(state['observed_high_water'], server or 0))],
+        saturated=len(records) == min(page_size, 200), unknown=ambiguous or regressed)
     return {'room':room,'records_fetched':len(records),'new_messages':summary['inserted'],
         'new_signed_messages':sum(is_signed_sender(message_sender(r)) for r in dictionaries),
         'pages_fetched':1,'generation':generation,'cursor_before':old['coverage_cursor'],

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS source_coverage_state(
  source TEXT NOT NULL, room TEXT NOT NULL, generation TEXT NOT NULL,
  coverage_cursor INTEGER NOT NULL, observed_high_water INTEGER NOT NULL,
  server_tail_high_water INTEGER, coverage_status TEXT NOT NULL,
+ retained_floor INTEGER,
  backfill_required INTEGER NOT NULL, backfill_from_seq INTEGER, backfill_to_seq INTEGER,
  last_checked_at TEXT, last_backfill_at TEXT, last_backfill_result TEXT,
  origin_unknown INTEGER NOT NULL DEFAULT 0,
@@ -78,6 +79,13 @@ def install_schema(conn):
         conn.execute('INSERT INTO evidence_schema VALUES (3,?)', (ev.now(),))
 
 
+def _ensure_v1_columns(conn):
+    columns = {row[1] for row in conn.execute('PRAGMA table_info(source_coverage_state)')}
+    if 'retained_floor' not in columns:
+        with conn:
+            conn.execute('ALTER TABLE source_coverage_state ADD COLUMN retained_floor INTEGER')
+
+
 def initialize(conn):
     import scout_schema
     if conn.execute('SELECT 1 FROM evidence_schema WHERE version=3').fetchone():
@@ -85,6 +93,7 @@ def initialize(conn):
     else:
         install_schema(conn)
         scout_schema.reconcile(conn)
+    _ensure_v1_columns(conn)
 
 
 def source(room):
@@ -101,8 +110,12 @@ def state(conn, room, generation, seed=0):
         cursor = min(seed,gap) if gap is not None else seed
         pending = cursor < seed
         with conn:
-            conn.execute('INSERT INTO source_coverage_state VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,NULL,0)',
-                (source(room),room,gen,cursor,seed,None,'BACKFILL_REQUIRED' if pending else 'UNRESOLVED',int(pending),cursor+1 if pending else None,seed if pending else None))
+            conn.execute('''INSERT INTO source_coverage_state
+                (source,room,generation,coverage_cursor,observed_high_water,server_tail_high_water,coverage_status,
+                 retained_floor,backfill_required,backfill_from_seq,backfill_to_seq,origin_unknown)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,0)''',
+                (source(room),room,gen,cursor,seed,None,'BACKFILL_REQUIRED' if pending else 'UNRESOLVED',None,
+                 int(pending),cursor+1 if pending else None,seed if pending else None))
         row = conn.execute('SELECT * FROM source_coverage_state WHERE room=? AND generation=?',(room,gen)).fetchone()
     # SQLite stores flags as integers, but this is the public coverage-state
     # API used by backfill_room() and scheduler callers.
@@ -134,6 +147,32 @@ def resumable_snapshot(snapshot, coverage_state):
 def event(conn, room, generation, kind, details):
     conn.execute('INSERT INTO evidence_coverage_events(room,generation,kind,created_at,details_json) VALUES (?,?,?,?,?)',
         (room,str(generation),kind,ev.now(),ev.dumps(details)))
+
+
+def coverage_observation(conn, room, generation, *, window_start, window_end,
+                         observed_start, observed_end, unresolved_ranges=(),
+                         saturated=False, unknown=False, export_recovery_provenance=None):
+    """Append one v1 coverage state for one read interval.
+
+    An export can prove a record but cannot turn the surrounding tail interval
+    into COMPLETE; callers therefore pass its recovery provenance explicitly.
+    """
+    if unknown:
+        kind = 'COVERAGE_UNKNOWN'
+    elif saturated:
+        kind = 'COVERAGE_SATURATED'
+    elif unresolved_ranges:
+        kind = 'COVERAGE_GAP_DETECTED'
+    elif export_recovery_provenance:
+        kind = 'COVERAGE_EXPORT_RECOVERED'
+    else:
+        kind = 'COVERAGE_COMPLETE'
+    details = dict(coverage_window_start=window_start, coverage_window_end=window_end,
+                   observed_seq_start=observed_start, observed_seq_end=observed_end,
+                   unresolved_ranges=list(unresolved_ranges),
+                   export_recovery_provenance=export_recovery_provenance)
+    event(conn, room, generation, kind, details)
+    return kind
 
 
 class CoveragePending(Exception):
@@ -319,8 +358,13 @@ def finish_export(conn,s,seed=0):
     with conn:
         conn.execute("UPDATE evidence_export_snapshots SET status='PERSISTED' WHERE snapshot_id=?",(s['snapshot_id'],))
     reassess(conn,s)
+    # A complete consecutive export provides an authoritative retained floor.
+    # It may prove that the requested interval is unavailable, but a partial or
+    # nonconsecutive export never does.
     loss = None
-    if s['consecutive'] and s['first_seq'] is not None and s['first_seq']>old+1 and not current['origin_unknown']:
+    proven_retention_loss = bool(s['consecutive'] and s['record_count'] and s['first_seq'] is not None
+                                 and s['first_seq'] > old + 1 and not current['origin_unknown'])
+    if proven_retention_loss:
         loss = ev.digest(ev.dumps([s['room'],s['generation'],old,s['first_seq'],'CONFIRMED_UPSTREAM_RETENTION_LOSS']))
         raw = conn.execute('SELECT r.raw_record_id FROM raw_network_records r JOIN observed_events e USING(raw_record_id,raw_text_sha256) WHERE r.source=? AND r.room=? AND r.generation=? AND r.seq=? LIMIT 1',
             (source(s['room']),s['room'],s['generation'],s['first_seq'])).fetchone()
@@ -336,14 +380,23 @@ def finish_export(conn,s,seed=0):
     high = max(current['observed_high_water'],s['last_seq'] or 0)
     pending = cursor < max(high,current['server_tail_high_water'] or 0)
     status = 'UNRESOLVED' if pending or not s['consecutive'] or not s['record_count'] else ('CONFIRMED_RETENTION_LOSS' if loss else 'CURRENT_AFTER_BACKFILL')
+    retained_floor=current['retained_floor']
+    if s['consecutive'] and s['record_count']:
+        retained_floor=max(retained_floor or 0,s['first_seq'] or 0) or None
     with conn:
-        conn.execute('''UPDATE source_coverage_state SET coverage_cursor=?,observed_high_water=?,coverage_status=?,
+        conn.execute('''UPDATE source_coverage_state SET coverage_cursor=?,observed_high_water=?,coverage_status=?,retained_floor=?,
             backfill_required=?,backfill_from_seq=?,backfill_to_seq=?,last_backfill_at=?,last_backfill_result=?,origin_unknown=?
-            WHERE room=? AND generation=?''',(cursor,high,status,int(status=='UNRESOLVED'),cursor+1 if pending else None,
+            WHERE room=? AND generation=?''',(cursor,high,status,retained_floor,int(status=='UNRESOLVED'),cursor+1 if pending else None,
             high if pending else None,ev.now(),status,int(current['origin_unknown'] and status=='UNRESOLVED'),s['room'],s['generation']))
         conn.execute("UPDATE evidence_export_snapshots SET status='PERSISTED' WHERE snapshot_id=?",(s['snapshot_id'],))
         ev.bump(conn,'backfills_completed' if status!='UNRESOLVED' else 'backfills_failed')
         event(conn,s['room'],s['generation'],'BACKFILL_COMPLETED' if status!='UNRESOLVED' else 'BACKFILL_UNRESOLVED',{'snapshot_id':s['snapshot_id'],'coverage_cursor':cursor,'status':status})
+        # This is deliberately an export-recovered fact, not a claim that any
+        # surrounding interval is complete.
+        coverage_observation(conn, s['room'], s['generation'], window_start=s['first_seq'],
+            window_end=s['last_seq'], observed_start=s['first_seq'], observed_end=s['last_seq'],
+            unresolved_ranges=[] if status != 'UNRESOLVED' else [(cursor + 1, high)],
+            export_recovery_provenance={'snapshot_id': s['snapshot_id'], 'sha256': s['sha256']})
     return state(conn,s['room'],s['generation'])
 
 
