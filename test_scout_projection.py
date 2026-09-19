@@ -1,5 +1,6 @@
 """All V2 tests use synthetic bytes and temporary SQLite state."""
 from pathlib import Path
+from collections import OrderedDict
 import json
 import sqlite3
 import threading
@@ -40,6 +41,70 @@ def empty_pins(p):
 
 
 def quals(p):return [loads(r[0]) for r in p.conn.execute('SELECT record_json FROM projection.durable_qualifications ORDER BY qualification_id')]
+
+
+def verification_cache(p):
+    """Exercise the same cache scope used exclusively by verify_ledger()."""
+    p._bundle_cache=OrderedDict();p._source_ref_cache=OrderedDict()
+    p._bundle_seen_ids=set();p._source_ref_seen_ids=set();p._ledger_cache_active=True
+
+
+def test_verification_lookup_memoization_is_bounded_and_fail_closed(tmp_path,monkeypatch):
+    import scout_projection as module
+    with create(tmp_path) as p:
+        apply(p,[bundle(1),bundle(2,text='ordinary context')])
+        verification_cache(p)
+        uncached=p.bundle('sm1:raw-1')
+        assert p.bundle('sm1:raw-1')==uncached
+        uncached_ref=p.source_ref('sm1:raw-1')
+        assert p.source_ref('sm1:raw-1')==uncached_ref
+        # source_ref's first construction reuses the same validated bundle.
+        assert p.metrics['bundle_cache_hits']>=2
+        assert p.metrics['source_ref_cache_hits']==1
+        # A tiny test limit proves eviction is deterministic and bounded without
+        # requiring a production-sized fixture.
+        monkeypatch.setattr(module,'VERIFY_CACHE_LIMIT',1)
+        p.bundle('sm1:raw-2')
+        assert len(p._bundle_cache)==1
+        assert p.metrics['bundle_cache_peak_entries']<=1
+        # Cache data is discarded before a new validation attempt, so a bad
+        # durable byte/hash pair cannot be hidden by a prior successful read.
+        p._bundle_cache.clear();p._source_ref_cache.clear()
+        with p.conn:p.conn.execute("UPDATE input_versions SET body='{}' WHERE id=?",('sm1:raw-1',))
+        with pytest.raises(ProjectionError):p.bundle('sm1:raw-1')
+
+
+def test_verification_cache_is_snapshot_local_and_preserves_provenance_checks(tmp_path):
+    one=tmp_path/'one';two=tmp_path/'two'
+    with create(one) as p:
+        apply(p,[bundle()])
+        verification_cache(p)
+        ref=p.source_ref('sm1:raw-1')
+        assert p.source_ref('sm1:raw-1')==ref
+        bad=dict(ref,sha256='0'*64)
+        with pytest.raises(ProjectionError):p.resolve_audit_ref(bad)
+    with create(two) as p:
+        apply(p,[bundle()])
+        assert not p._bundle_cache and not p._source_ref_cache
+        # Existing durable history must still be checked from the independent
+        # snapshot; cached values from the first Projector cannot participate.
+        p.verify_ledger()
+        assert p.metrics['durable_qualifications_verified']>0
+
+
+def test_verification_cache_resets_between_passes_and_publish_reverifies(tmp_path,monkeypatch):
+    with create(tmp_path) as p:
+        apply(p,[bundle()]);empty_pins(p)
+        p.verify_ledger();first=dict(p.metrics)
+        assert not p._bundle_cache and not p._source_ref_cache and not p._ledger_cache_active
+        p.verify_ledger()
+        assert p.metrics['durable_qualifications_verified']==first['durable_qualifications_verified']+len(quals(p))
+        assert p.metrics['source_ref_calls']==first['source_ref_calls']+len(quals(p))
+        calls=[];original=p.verify_ledger
+        def observed():calls.append(True);return original()
+        monkeypatch.setattr(p,'verify_ledger',observed)
+        publish(p,tmp_path/'public',checked_cut=p.status()['source_cut'],evaluated_at=plus(NOW,1))
+        assert calls==[True]
 
 
 def test_a1_duplicate_downgrade_permanent_restart(tmp_path):

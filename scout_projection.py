@@ -5,7 +5,7 @@ in DELETE journal mode: SQLite's super-journal commits both files atomically.
 Only this owner writes either file. Incomplete evaluations block publication.
 """
 from __future__ import annotations
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, OrderedDict
 from dataclasses import asdict
 from pathlib import Path
 import fcntl
@@ -55,6 +55,7 @@ MESSAGE_COLUMNS = ('projection_row_id room generation seq timestamp sender signe
 PROVENANCE_COLUMNS = 'entity_type projection_row_id source_namespace source_record_locator scout_event_id raw_record_id raw_record_sha256 annotations_json'.split()
 BUNDLE_KEYS = {'message', 'provenance', 'first_observed_at', 'facts', 'dependencies'}
 FACT_KEYS = {'signature_failure', 'did_mismatch', 'identity_binding', 'official', 'operator_local', 'workflow'}
+VERIFY_CACHE_LIMIT = 1024
 
 
 def initialize(path, *, epoch, router_source_id, router_epoch, router_did, local_dids=(), source_id='scout-observer', contract_revision=REVISION, legacy_tclk_cohort=None, legacy_tclk_raw_ids=None):
@@ -113,6 +114,7 @@ def initialize(path, *, epoch, router_source_id, router_epoch, router_did, local
 
 class Projector:
     def __init__(self, path, stop=None, *, write_batch_size=50):
+        self.metrics=Counter(bundle_calls=0,bundle_cache_hits=0,bundle_cache_misses=0,bundle_unique_ids=0,bundle_sqlite_queries=0,bundle_sqlite_seconds=0.0,bundle_cache_peak_entries=0,source_ref_calls=0,source_ref_cache_hits=0,source_ref_cache_misses=0,source_ref_unique_ids=0,source_ref_sqlite_seconds=0.0,source_ref_cache_peak_entries=0,ledger_rows_verified=0,durable_qualifications_verified=0)
         require(type(write_batch_size) is int and write_batch_size in (50,100,200,500),
                 'Unsupported bounded projection batch size')
         self.write_batch_size=write_batch_size
@@ -187,12 +189,22 @@ class Projector:
         self.set('operation_head',digest(body))
 
     def verify_ledger(self):
+        verify_started=time.monotonic()
+        # A verification pass may revisit one immutable input through many
+        # qualifications.  Cache only within this pass; clearing here means a
+        # later explicit verification always rereads durable state.
+        self._bundle_cache = OrderedDict()
+        self._source_ref_cache = OrderedDict()
+        self._bundle_seen_ids = set()
+        self._source_ref_seen_ids = set()
+        self._ledger_cache_active = True
         previous=None
         replay_revision=self.config.get('initial_contract_revision',self.config['contract_revision'])
         if replay_revision == TL1_REVISION:
             anchor = self.conn.execute('SELECT body FROM operations WHERE number=1').fetchone()
             require(anchor and loads(anchor[0])['kind'] == 'TL1_INITIAL_ENROLLMENT', 'TL1 initial enrollment anchor missing')
         for operation in self.conn.execute('SELECT * FROM operations ORDER BY number'):
+            self.metrics['ledger_rows_verified']+=1
             body=loads(operation['body']);require(digest(body)==operation['hash'] and body['previous_sha256']==previous,'Corrupt replay operation chain');previous=operation['hash']
             if body['kind'] == 'TL1_INITIAL_ENROLLMENT':
                 require(operation['number'] == 1 and replay_revision == TL1_REVISION and revision_binding(body['payload']) == TL1_REVISION, 'TL1 invalid initial enrollment')
@@ -214,6 +226,7 @@ class Projector:
         require(previous==self.get('operation_head'),'Replay operation history was truncated')
         previous = None;last_evaluation=None;first_evaluation=None;last_complete=None
         for row in self.conn.execute('SELECT * FROM evaluations ORDER BY number'):
+            self.metrics['ledger_rows_verified']+=1
             body = loads(row['body'])
             require(row['event_id'] == identity('pe1', body) and row['previous_sha256'] == previous and body['previous_sha256'] == previous, 'Corrupt evaluation chain')
             revision_binding(body if 'contract_revision' in body else dict(body,contract_revision='A1'))
@@ -242,6 +255,7 @@ class Projector:
         checked_manifests=set()
         # Ledger witnesses are compared with projection bytes, never reconstructed from current scores.
         for row in self.conn.execute('SELECT * FROM qualification_keys'):
+            self.metrics['durable_qualifications_verified']+=1
             record = validate_qualification(loads(row['record_json']), policy_versions(self.config['contract_revision']))
             evaluation=self.conn.execute('SELECT body FROM evaluations WHERE event_id=?',(record['evaluation_id'],)).fetchone()
             require(evaluation is not None and record['bootstrap_id']==first_evaluation,'Qualification lost its evaluation/bootstrap provenance')
@@ -258,11 +272,20 @@ class Projector:
             require(projected and projected[0] == row['record_json'], 'Lost or rewritten historical qualification')
         require(self.conn.execute('SELECT count(*) FROM qualification_keys').fetchone()[0] == self.conn.execute('SELECT count(*) FROM projection.durable_qualifications').fetchone()[0], 'Unledgered qualification')
         for row in self.conn.execute('SELECT * FROM audit_history'):
+            self.metrics['ledger_rows_verified']+=1
             event=loads(row['event_json'],65536)
             for ref in event['proof_refs']+[event['authority_ref']]:self.resolve_audit_ref(ref)
             projected = self.conn.execute('SELECT event_json FROM projection.qualification_events WHERE event_id=?', (row['event_id'],)).fetchone()
             require(projected and projected[0] == row['event_json'], 'Lost or rewritten qualification event')
         require(self.conn.execute('SELECT count(*) FROM audit_history').fetchone()[0] == self.conn.execute('SELECT count(*) FROM projection.qualification_events').fetchone()[0], 'Unledgered audit event')
+        self.metrics['verify_ledger_seconds']=time.monotonic()-verify_started
+        self.metrics['bundle_unique_ids']=len(self._bundle_seen_ids)
+        self.metrics['source_ref_unique_ids']=len(self._source_ref_seen_ids)
+        self._bundle_cache.clear()
+        self._source_ref_cache.clear()
+        self._bundle_seen_ids.clear()
+        self._source_ref_seen_ids.clear()
+        self._ledger_cache_active = False
 
     def validate_bundle(self, bundle):
         keys(bundle, BUNDLE_KEYS | ({'tclk_original'} if self.config['contract_revision'] == TL1_REVISION else set()) | ({'legacy_generation_compact'} if self.config['contract_revision'] in (LG2_REVISION, TL1_REVISION) else set()) | ({'legacy_generation_originals'} if 'legacy_generation_originals' in bundle else set())); message = bundle['message']; provenance = bundle['provenance']
@@ -387,15 +410,49 @@ class Projector:
         return self.resume(number)
 
     def bundle(self, rid):
+        self.metrics['bundle_calls']+=1
+        cache=getattr(self,'_bundle_cache',{}) if getattr(self,'_ledger_cache_active',False) else {}
+        cached=cache.get(rid)
+        if cached is not None:
+            cache.move_to_end(rid)
+            self.metrics['bundle_cache_hits']+=1
+            return cached
+        self.metrics['bundle_cache_misses']+=1
+        if getattr(self,'_ledger_cache_active',False):self._bundle_seen_ids.add(rid)
+        query_started=time.monotonic()
         row = self.conn.execute('SELECT v.hash,v.body FROM current_inputs c JOIN input_versions v ON v.hash=c.hash WHERE c.id=?', (rid,)).fetchone()
+        self.metrics['bundle_sqlite_queries']+=1
+        self.metrics['bundle_sqlite_seconds']+=time.monotonic()-query_started
         require(row is not None, 'Missing local dependency: ' + rid)
         body = loads(row['body'], max(4*1024*1024, len(row['body'].encode())))
         require(digest(body) == row['hash'], 'Corrupt replay input')
+        if getattr(self,'_ledger_cache_active',False):
+            cache[rid]=body
+            cache.move_to_end(rid)
+            if len(cache)>VERIFY_CACHE_LIMIT:cache.popitem(last=False)
+            self.metrics['bundle_cache_peak_entries']=max(self.metrics['bundle_cache_peak_entries'],len(cache))
         return body
 
     def source_ref(self, rid):
+        self.metrics['source_ref_calls']+=1
+        cache=getattr(self,'_source_ref_cache',{}) if getattr(self,'_ledger_cache_active',False) else {}
+        cached=cache.get(rid)
+        if cached is not None:
+            cache.move_to_end(rid)
+            self.metrics['source_ref_cache_hits']+=1
+            return dict(cached)
+        self.metrics['source_ref_cache_misses']+=1
+        if getattr(self,'_ledger_cache_active',False):self._source_ref_seen_ids.add(rid)
+        source_started=time.monotonic()
         msg = self.bundle(rid)['message']
-        return dict(kind='PROJECTED_MESSAGE', source_id=self.config['source_id'], source_epoch=self.config['epoch'], id=rid, sha256=text_hash(msg['text']))
+        ref=dict(kind='PROJECTED_MESSAGE', source_id=self.config['source_id'], source_epoch=self.config['epoch'], id=rid, sha256=text_hash(msg['text']))
+        self.metrics['source_ref_sqlite_seconds']+=time.monotonic()-source_started
+        if getattr(self,'_ledger_cache_active',False):
+            cache[rid]=ref
+            cache.move_to_end(rid)
+            if len(cache)>VERIFY_CACHE_LIMIT:cache.popitem(last=False)
+            self.metrics['source_ref_cache_peak_entries']=max(self.metrics['source_ref_cache_peak_entries'],len(cache))
+        return dict(ref)
 
     def save_manifest(self, body):
         h = digest(body)
