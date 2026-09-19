@@ -4326,6 +4326,10 @@ def profile_note_value(did: str) -> str:
 
 def profile_publish(*, yes: bool) -> None:
     did = load_meta()["did"]
+    # A DID note advertising an unusable mailbox is a harmful self-publication.
+    # This is deliberately before the request is constructed or any write occurs.
+    import scout_contactability
+    scout_contactability.guard_self_publication(MAILBOX_ROOM)
     namespace, key, fingerprint = did_profile_path(did)
     current = get_note(namespace, key)
     proposed = profile_note_value(did)

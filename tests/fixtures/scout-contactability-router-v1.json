@@ -1,0 +1,9 @@
+{
+  "schema": "scout-contactability-router/v1",
+  "mapping": {
+    "MAILBOX_VALID": "CONTACTABLE_ADVERTISED",
+    "MAILBOX_INVALID_NAME": "MAILBOX_INVALID",
+    "MAILBOX_MISSING": "MAILBOX_MISSING",
+    "MAILBOX_UNKNOWN": "CONTACTABILITY_UNKNOWN"
+  }
+}

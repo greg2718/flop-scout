@@ -305,6 +305,8 @@ def initialize(conn, verify):
                 initialize_gaps(conn)
             import scout_coverage
             scout_coverage.initialize(conn)
+            import scout_contactability
+            scout_contactability.install_schema(conn)
             return
     # execute each statement without executescript's implicit pre-commit.
     with conn:
@@ -348,6 +350,8 @@ def initialize(conn, verify):
     initialize_gaps(conn)
     import scout_coverage
     scout_coverage.initialize(conn)
+    import scout_contactability
+    scout_contactability.install_schema(conn)
     with conn:
         conn.execute('INSERT OR IGNORE INTO evidence_schema VALUES (?,?)', (RETRIEVAL_SCHEMA_VERSION, now()))
 
