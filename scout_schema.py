@@ -90,14 +90,19 @@ def status(conn):
             result['incompatible_objects'].append(name+': wrong object kind')
         elif obj['kind'] == 'table':
             cols = {r[0]: r for r in other['columns']}
+            optional_columns = {'source_coverage_state': {'retained_floor'}}.get(name, set())
+            retained = cols.get('retained_floor') if name == 'source_coverage_state' else None
+            if retained is not None and retained != ('retained_floor', 'INTEGER', 0, None, 0):
+                result['incompatible_objects'].append(name+'.retained_floor: type/default/nullability/PK mismatch')
             for col in obj['columns']:
                 if col[0] not in cols:
                     result['missing_columns'].append(name+'.'+col[0])
                 elif col != cols[col[0]]:
                     result['incompatible_objects'].append(name+'.'+col[0]+': type/default/nullability/PK mismatch')
-            # Positional inserts require exact column order, including rejecting extras.
+            # Approved additive columns do not change the legacy positional contract.
             present = [c for c in obj['columns'] if c[0] in cols]
-            if [c[0] for c in present] != [c[0] for c in other['columns']]:
+            actual_columns = [c for c in other['columns'] if c[0] not in optional_columns]
+            if [c[0] for c in present] != [c[0] for c in actual_columns]:
                 result['incompatible_objects'].append(name+': column order/extra columns')
             for field in ('foreign_keys', 'unique'):
                 if obj[field] != other[field]:
@@ -107,6 +112,7 @@ def status(conn):
                 text = normalized(sql).replace('"', '')
                 if name == 'source_coverage_state':
                     text = re.sub(r',?\s*origin_unknown integer not null default 0\s*,?', ',', text)
+                    text = re.sub(r',?\s*retained_floor integer\s*,?', ',', text)
                 return re.sub(r'\s*([(),])\s*', r'\1', text).replace(',)', ')')
             if table_sql(obj['sql']) != table_sql(other['sql']):
                 result['incompatible_objects'].append(name+': table definition mismatch')
