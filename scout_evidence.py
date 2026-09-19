@@ -277,6 +277,18 @@ def source_gaps(conn):
     return [dict(row, schema='flop-scout-source-gap/v1') for row in conn.execute('SELECT * FROM evidence_source_gaps ORDER BY detected_at,gap_id')]
 
 
+def initialize_additive_subschemas(conn):
+    """Install additive local schemas after core evidence reconciliation.
+
+    These installers do not reinterpret or rewrite historical evidence.  They
+    must run even when the retrieval schema version is already current.
+    """
+    import scout_coverage
+    import scout_contactability
+    scout_coverage.initialize(conn)
+    scout_contactability.install_schema(conn)
+
+
 @diagnostics.timed('schema_verification')
 def initialize(conn, verify):
     """Version migration plus physical reconciliation; never called by readers."""
@@ -293,6 +305,7 @@ def initialize(conn, verify):
                 import scout_coverage
                 scout_coverage.initialize(conn)
             scout_schema.reconcile(conn)
+            initialize_additive_subschemas(conn)
             return
         # v3 is intentionally left untouched. Retrieval normalization is an
         # explicit local maintenance operation, never an application-open write.
@@ -303,10 +316,7 @@ def initialize(conn, verify):
         if conn.execute('SELECT 1 FROM evidence_schema WHERE version=1').fetchone():
             if not conn.execute('SELECT 1 FROM evidence_schema WHERE version=2').fetchone():
                 initialize_gaps(conn)
-            import scout_coverage
-            scout_coverage.initialize(conn)
-            import scout_contactability
-            scout_contactability.install_schema(conn)
+            initialize_additive_subschemas(conn)
             return
     # execute each statement without executescript's implicit pre-commit.
     with conn:
@@ -348,10 +358,7 @@ def initialize(conn, verify):
                 conn.execute('INSERT OR IGNORE INTO compatibility_evidence_links VALUES (?,?,?,?)',('tclk_capability_hints',cache_id,rid,hash_value))
         conn.execute('INSERT INTO evidence_schema VALUES (1,?)', (now(),))
     initialize_gaps(conn)
-    import scout_coverage
-    scout_coverage.initialize(conn)
-    import scout_contactability
-    scout_contactability.install_schema(conn)
+    initialize_additive_subschemas(conn)
     with conn:
         conn.execute('INSERT OR IGNORE INTO evidence_schema VALUES (?,?)', (RETRIEVAL_SCHEMA_VERSION, now()))
 

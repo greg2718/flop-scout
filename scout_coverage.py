@@ -80,10 +80,13 @@ def install_schema(conn):
 
 
 def _ensure_v1_columns(conn):
-    columns = {row[1] for row in conn.execute('PRAGMA table_info(source_coverage_state)')}
-    if 'retained_floor' not in columns:
+    columns = {row[1]: row for row in conn.execute('PRAGMA table_info(source_coverage_state)')}
+    column = columns.get('retained_floor')
+    if column is None:
         with conn:
             conn.execute('ALTER TABLE source_coverage_state ADD COLUMN retained_floor INTEGER')
+    elif column[2].upper() != 'INTEGER' or column[3] or column[4] is not None or column[5]:
+        raise sqlite3.DatabaseError('SCHEMA_DRIFT: incompatible source_coverage_state.retained_floor')
 
 
 def initialize(conn):

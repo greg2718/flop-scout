@@ -95,9 +95,14 @@ def status(conn):
                     result['missing_columns'].append(name+'.'+col[0])
                 elif col != cols[col[0]]:
                     result['incompatible_objects'].append(name+'.'+col[0]+': type/default/nullability/PK mismatch')
-            # Positional inserts require exact column order, including rejecting extras.
-            present = [c for c in obj['columns'] if c[0] in cols]
-            if [c[0] for c in present] != [c[0] for c in other['columns']]:
+            # Retained-floor is an additive nullable coverage fact.  It is
+            # reconciled by scout_coverage after this core-schema check.
+            optional_columns = {'source_coverage_state': {'retained_floor'}}.get(name, set())
+            # Positional inserts require exact column order, including rejecting
+            # non-additive extras.
+            present = [c for c in obj['columns'] if c[0] in cols and c[0] not in optional_columns]
+            actual_columns = [c for c in other['columns'] if c[0] not in optional_columns]
+            if [c[0] for c in present] != [c[0] for c in actual_columns]:
                 result['incompatible_objects'].append(name+': column order/extra columns')
             for field in ('foreign_keys', 'unique'):
                 if obj[field] != other[field]:
@@ -107,6 +112,7 @@ def status(conn):
                 text = normalized(sql).replace('"', '')
                 if name == 'source_coverage_state':
                     text = re.sub(r',?\s*origin_unknown integer not null default 0\s*,?', ',', text)
+                    text = re.sub(r',?\s*retained_floor integer\s*,?', ',', text)
                 return re.sub(r'\s*([(),])\s*', r'\1', text).replace(',)', ')')
             if table_sql(obj['sql']) != table_sql(other['sql']):
                 result['incompatible_objects'].append(name+': table definition mismatch')
@@ -130,7 +136,8 @@ def status(conn):
     # Missing historical tables cannot safely be reconstructed as empty evidence.
     if result['missing_tables']:
         result['incompatible_objects'].append('missing tables require reviewed recovery; empty replacements may erase provenance')
-    if any(c != 'source_coverage_state.origin_unknown' for c in result['missing_columns']):
+    approved_additive_columns = {'source_coverage_state.origin_unknown', 'source_coverage_state.retained_floor'}
+    if any(c not in approved_additive_columns for c in result['missing_columns']):
         result['incompatible_objects'].append('missing columns have no approved backfill semantics')
     dirty = any(result[k] for k in ('missing_tables','missing_columns','missing_indexes','missing_triggers','incompatible_objects'))
     result['reconciliation_required'] = dirty
@@ -145,11 +152,15 @@ def reconcile(conn):
         before = status(conn)
         if before['status'] == 'INCOMPATIBLE':
             raise SchemaDrift('SCHEMA_DRIFT: '+repr(before))
-        if before['missing_columns']:
+        if 'source_coverage_state.origin_unknown' in before['missing_columns']:
             conn.execute('ALTER TABLE source_coverage_state ADD COLUMN origin_unknown INTEGER NOT NULL DEFAULT 0')
             # Legacy rows predate explicit epoch-origin tracking. There is no durable
             # proof distinguishing imported baselines from generation changes.
             conn.execute('UPDATE source_coverage_state SET origin_unknown=1')
+        if 'source_coverage_state.retained_floor' in before['missing_columns']:
+            # This is a new nullable fact, never a reconstructed claim about
+            # historical retention.  Old rows intentionally remain NULL.
+            conn.execute('ALTER TABLE source_coverage_state ADD COLUMN retained_floor INTEGER')
         for name in before['missing_indexes'] + before['missing_triggers']:
             conn.execute(contract()[name]['sql'])
         after = status(conn)

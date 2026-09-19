@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sqlite3
 from datetime import datetime, timezone
 
 MAILBOX_PATTERN = re.compile(r'^[a-z0-9][a-z0-9_-]{0,47}$')
@@ -63,9 +64,70 @@ def parse_note(note):
 def confidence(status):
     return 'SYNTAX_ONLY_ADVERTISED' if status == MAILBOX_VALID else 'NOT_CONTACTABLE_FROM_NOTE'
 
+def _statements():
+    statement = ''
+    for line in DDL.splitlines(True):
+        statement += line
+        if sqlite3.complete_statement(statement):
+            yield statement
+            statement = ''
+
+
+def _normalized(sql):
+    return re.sub(r'\s+', ' ', sql.strip().rstrip(';')).lower()
+
+
+def _validate_table(conn, table, expected):
+    if not table or table[0] != 'table':
+        raise sqlite3.DatabaseError('SCHEMA_DRIFT: mailbox_observations table missing or incompatible')
+    expected_columns = [
+        ('observation_id', 'TEXT', 0, None, 1), ('did', 'TEXT', 1, None, 0),
+        ('mailbox_value', 'TEXT', 0, None, 0), ('mailbox_status', 'TEXT', 1, None, 0),
+        ('observed_at', 'TEXT', 1, None, 0), ('note_provenance', 'TEXT', 1, None, 0),
+        ('contactability_confidence', 'TEXT', 1, None, 0),
+    ]
+    columns = [(row[1], row[2].upper(), row[3], row[4], row[5]) for row in conn.execute('PRAGMA table_info(mailbox_observations)')]
+    if columns != expected_columns:
+        raise sqlite3.DatabaseError('SCHEMA_DRIFT: mailbox_observations columns incompatible')
+    if _normalized(table[3]) != _normalized(expected[0].replace(' IF NOT EXISTS', '')):
+        raise sqlite3.DatabaseError('SCHEMA_DRIFT: mailbox_observations table definition incompatible')
+
+
+def _validate_schema(conn):
+    objects = {row[1]: row for row in conn.execute("SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name LIKE 'mailbox_observations%'")}
+    expected = list(_statements())
+    _validate_table(conn, objects.get('mailbox_observations'), expected)
+    index = objects.get('mailbox_observations_did_time')
+    if not index or index[0] != 'index' or [row[2] for row in conn.execute('PRAGMA index_info(mailbox_observations_did_time)')] != ['did', 'observed_at']:
+        raise sqlite3.DatabaseError('SCHEMA_DRIFT: mailbox_observations index incompatible')
+    if _normalized(index[3]) != _normalized(expected[1].replace(' IF NOT EXISTS', '')):
+        raise sqlite3.DatabaseError('SCHEMA_DRIFT: mailbox_observations index definition incompatible')
+    expected_triggers = {'mailbox_observations_no_update': expected[2], 'mailbox_observations_no_delete': expected[3]}
+    actual_triggers = {row[1]: row for row in conn.execute("SELECT type,name,tbl_name,sql FROM sqlite_master WHERE type='trigger' AND tbl_name='mailbox_observations'")}
+    if set(actual_triggers) != set(expected_triggers):
+        raise sqlite3.DatabaseError('SCHEMA_DRIFT: mailbox_observations trigger set incompatible')
+    for name, sql in expected_triggers.items():
+        row = actual_triggers[name]
+        if row[0] != 'trigger' or _normalized(row[3]) != _normalized(sql.replace(' IF NOT EXISTS', '')):
+            raise sqlite3.DatabaseError('SCHEMA_DRIFT: '+name+' definition incompatible')
+
+
 def install_schema(conn):
-    with conn:
-        conn.executescript(DDL)
+    """Install and validate contactability objects atomically within this schema unit."""
+    conn.execute('SAVEPOINT contactability_schema')
+    try:
+        expected = list(_statements())
+        existing = conn.execute("SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name='mailbox_observations'").fetchone()
+        if existing is not None:
+            _validate_table(conn, existing, expected)
+        for statement in _statements():
+            conn.execute(statement)
+        _validate_schema(conn)
+        conn.execute('RELEASE contactability_schema')
+    except BaseException:
+        conn.execute('ROLLBACK TO contactability_schema')
+        conn.execute('RELEASE contactability_schema')
+        raise
 
 def observe(conn, did, mailbox_value, *, note_provenance, observed_at=None, observed=True):
     if not isinstance(did, str) or not did:

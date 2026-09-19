@@ -13,7 +13,9 @@ from unittest.mock import patch
 import pytest
 import flop_scout as scout
 import scout_coverage as cv
+import scout_contactability as contact
 import scout_evidence as ev
+import scout_schema as schema
 import scout_worker as worker
 from coverage_test_support import messages, tail, export_snapshot
 
@@ -497,6 +499,103 @@ def test_v2_migration_is_local_and_readers_do_not_migrate(tmp_path):
     with scout.observer_connect_write(path) as c:
         assert cv.tables_present(c)
         check(c)
+
+
+def test_current_v4_initialization_installs_additive_coverage_and_contactability(tmp_path,monkeypatch):
+    monkeypatch.setattr(scout,'HOME',tmp_path)
+    monkeypatch.setattr(scout,'LOG_FILE',tmp_path/'activity.jsonl')
+    path=tmp_path/'existing-v4.sqlite'
+    with scout.observer_connect_write(path) as c:
+        scout.update_room_cursor(c,'technocore','g1',100)
+        observe(c,101,101)
+        before_coverage=dict(c.execute("SELECT * FROM source_coverage_state WHERE room='technocore' AND generation='g1'").fetchone())
+        before_raw=[tuple(row) for row in c.execute('SELECT * FROM raw_network_records ORDER BY raw_record_id')]
+        before_events=[tuple(row) for row in c.execute('SELECT * FROM observed_events ORDER BY event_id')]
+        c.execute('DROP TABLE mailbox_observations')
+        c.execute('ALTER TABLE source_coverage_state DROP COLUMN retained_floor')
+        c.commit()
+        assert c.execute('SELECT max(version) FROM evidence_schema').fetchone()[0]==ev.RETRIEVAL_SCHEMA_VERSION
+    with scout.observer_connect_write(path) as c:
+        columns=[row[1] for row in c.execute('PRAGMA table_info(source_coverage_state)')]
+        assert columns.count('retained_floor')==1
+        after_coverage=dict(c.execute("SELECT * FROM source_coverage_state WHERE room='technocore' AND generation='g1'").fetchone())
+        assert after_coverage['retained_floor'] is None
+        assert {key:value for key,value in after_coverage.items() if key!='retained_floor'}=={key:value for key,value in before_coverage.items() if key!='retained_floor'}
+        assert [tuple(row) for row in c.execute('SELECT * FROM raw_network_records ORDER BY raw_record_id')]==before_raw
+        assert [tuple(row) for row in c.execute('SELECT * FROM observed_events ORDER BY event_id')]==before_events
+        assert c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='mailbox_observations'").fetchone()
+        assert c.execute("SELECT 1 FROM sqlite_master WHERE type='index' AND name='mailbox_observations_did_time'").fetchone()
+        assert {row[0] for row in c.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='mailbox_observations'")}=={'mailbox_observations_no_update','mailbox_observations_no_delete'}
+        assert c.execute('PRAGMA quick_check').fetchone()[0]=='ok'
+        assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+        assert not c.execute('PRAGMA foreign_key_check').fetchall()
+        check(c)
+    with scout.observer_connect_write(path) as c:
+        assert c.execute("SELECT count(*) FROM pragma_table_info('source_coverage_state') WHERE name='retained_floor'").fetchone()[0]==1
+        assert c.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='mailbox_observations'").fetchone()[0]==1
+        assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+
+
+def test_fresh_initialization_installs_additive_coverage_and_contactability(tmp_path,monkeypatch):
+    monkeypatch.setattr(scout,'HOME',tmp_path)
+    monkeypatch.setattr(scout,'LOG_FILE',tmp_path/'activity.jsonl')
+    with scout.observer_connect_write(tmp_path/'fresh.sqlite') as c:
+        assert c.execute("SELECT count(*) FROM pragma_table_info('source_coverage_state') WHERE name='retained_floor'").fetchone()[0]==1
+        assert c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='mailbox_observations'").fetchone()
+        assert c.execute("SELECT 1 FROM sqlite_master WHERE type='index' AND name='mailbox_observations_did_time'").fetchone()
+        assert {row[0] for row in c.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='mailbox_observations'")}=={'mailbox_observations_no_update','mailbox_observations_no_delete'}
+        assert c.execute('PRAGMA quick_check').fetchone()[0]=='ok'
+        assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+        assert not c.execute('PRAGMA foreign_key_check').fetchall()
+
+
+def test_current_v4_initialization_rejects_incompatible_retained_floor(tmp_path,monkeypatch):
+    monkeypatch.setattr(scout,'HOME',tmp_path)
+    monkeypatch.setattr(scout,'LOG_FILE',tmp_path/'activity.jsonl')
+    path=tmp_path/'bad-retained-floor.sqlite'
+    with scout.observer_connect_write(path) as c:
+        scout.update_room_cursor(c,'technocore','g1',100)
+        cv.state(c,'technocore','g1',100)
+        before=dict(c.execute("SELECT * FROM source_coverage_state WHERE room='technocore' AND generation='g1'").fetchone())
+        c.execute('ALTER TABLE source_coverage_state DROP COLUMN retained_floor')
+        c.execute('ALTER TABLE source_coverage_state ADD COLUMN retained_floor TEXT')
+        c.commit()
+    with pytest.raises(schema.SchemaDrift,match='retained_floor'):
+        scout.observer_connect_write(path)
+    with sqlite3.connect(path) as c:
+        c.row_factory=sqlite3.Row
+        assert {row[1]:row[2] for row in c.execute('PRAGMA table_info(source_coverage_state)')}['retained_floor']=='TEXT'
+        after=dict(c.execute("SELECT * FROM source_coverage_state WHERE room='technocore' AND generation='g1'").fetchone())
+        assert {key:value for key,value in after.items() if key!='retained_floor'}=={key:value for key,value in before.items() if key!='retained_floor'}
+
+
+def test_contactability_schema_rejects_incompatible_index_and_trigger_atomically(tmp_path,monkeypatch):
+    monkeypatch.setattr(scout,'HOME',tmp_path)
+    monkeypatch.setattr(scout,'LOG_FILE',tmp_path/'activity.jsonl')
+    path=tmp_path/'bad-contactability.sqlite'
+    with scout.observer_connect_write(path) as c:
+        scout.update_room_cursor(c,'technocore','g1',100)
+        cv.state(c,'technocore','g1',100)
+        before=dict(c.execute("SELECT * FROM source_coverage_state WHERE room='technocore' AND generation='g1'").fetchone())
+        c.execute('DROP INDEX mailbox_observations_did_time')
+        c.execute('CREATE INDEX mailbox_observations_did_time ON mailbox_observations(observed_at,did)')
+        c.execute('DROP TRIGGER mailbox_observations_no_update')
+        c.execute("CREATE TRIGGER mailbox_observations_no_update BEFORE UPDATE ON mailbox_observations BEGIN SELECT 1; END")
+        c.commit()
+    with pytest.raises(sqlite3.DatabaseError,match='mailbox_observations'):
+        scout.observer_connect_write(path)
+    with sqlite3.connect(path) as c:
+        c.row_factory=sqlite3.Row
+        assert [row[2] for row in c.execute('PRAGMA index_info(mailbox_observations_did_time)')]==['observed_at','did']
+        trigger=c.execute("SELECT sql FROM sqlite_master WHERE name='mailbox_observations_no_update'").fetchone()[0]
+        assert 'SELECT 1' in trigger
+        after=dict(c.execute("SELECT * FROM source_coverage_state WHERE room='technocore' AND generation='g1'").fetchone())
+        assert after==before
+    with sqlite3.connect(':memory:') as c:
+        c.execute('CREATE TABLE mailbox_observations(bad TEXT)')
+        with pytest.raises(sqlite3.DatabaseError,match='mailbox_observations'):
+            contact.install_schema(c)
+        assert c.execute("SELECT sql FROM sqlite_master WHERE name='mailbox_observations'").fetchone()[0]=='CREATE TABLE mailbox_observations(bad TEXT)'
 
 
 def test_original_gap_recovery_hash_integrity_preserved(db,tmp_path):

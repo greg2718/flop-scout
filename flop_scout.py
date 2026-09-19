@@ -867,9 +867,13 @@ def observer_connect_write(db_path: Path = OBSERVER_DB, *, connection_factory=sq
     conn.execute("PRAGMA foreign_keys=ON")
     if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='evidence_schema'").fetchone():
         init_observer_db(conn)
-    evidence_store.initialize(conn, verify_signed_record_offline)
-    evidence_store.sync_collections(conn, evidence_store.load_collections(HOME / "watch_collections.json"))
-    return conn
+    try:
+        evidence_store.initialize(conn, verify_signed_record_offline)
+        evidence_store.sync_collections(conn, evidence_store.load_collections(HOME / "watch_collections.json"))
+        return conn
+    except BaseException:
+        conn.close()
+        raise
 
 
 # Compatibility name for existing explicit writers. Readers never call this.
