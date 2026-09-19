@@ -101,7 +101,10 @@ def state(conn, room, generation, seed=0):
         cursor = min(seed,gap) if gap is not None else seed
         pending = cursor < seed
         with conn:
-            conn.execute('INSERT INTO source_coverage_state VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,NULL,0)',
+            conn.execute('''INSERT INTO source_coverage_state
+                (source,room,generation,coverage_cursor,observed_high_water,server_tail_high_water,coverage_status,
+                 backfill_required,backfill_from_seq,backfill_to_seq,last_checked_at,last_backfill_at,last_backfill_result,origin_unknown)
+                VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,NULL,0)''',
                 (source(room),room,gen,cursor,seed,None,'BACKFILL_REQUIRED' if pending else 'UNRESOLVED',int(pending),cursor+1 if pending else None,seed if pending else None))
         row = conn.execute('SELECT * FROM source_coverage_state WHERE room=? AND generation=?',(room,gen)).fetchone()
     return dict(row)
