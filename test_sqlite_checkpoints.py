@@ -148,9 +148,9 @@ def test_high_watermark_drains_admitted_tail_before_maintenance(tmp_path):
  r.checkpointer=SimpleNamespace(blocks_writes=True,future=None,concurrent=True,pressure=True)
  r.tails={'lobby':{'turn_ready':0,'queued':0}};submitted=[]
  r.submit_write=lambda kind,*args:submitted.append(kind)
- r.turns=16;r.export={'ready':True}  # export fairness must not bypass WAL pressure
+ r.turns=16;r.export={'ready':([{}],{},1,False)}  # export fairness must not bypass WAL pressure
  r.choose_write();assert submitted==['tail']
- r.tails.clear();submitted.clear();r.export={'ready':True}
+ r.tails.clear();submitted.clear();r.export={'ready':([{}],{},1,False)}
  r.choose_write();assert not submitted  # no unbounded export/status work
  r.checkpointer.future=Future();r.checkpointer.concurrent=False;r.tails={'lobby':{'turn_ready':0,'queued':0}}
  r.choose_write();assert not submitted  # old SQLite must still serialize

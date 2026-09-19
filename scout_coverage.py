@@ -104,7 +104,11 @@ def state(conn, room, generation, seed=0):
             conn.execute('INSERT INTO source_coverage_state VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,NULL,0)',
                 (source(room),room,gen,cursor,seed,None,'BACKFILL_REQUIRED' if pending else 'UNRESOLVED',int(pending),cursor+1 if pending else None,seed if pending else None))
         row = conn.execute('SELECT * FROM source_coverage_state WHERE room=? AND generation=?',(room,gen)).fetchone()
-    return dict(row)
+    # SQLite stores flags as integers, but this is the public coverage-state
+    # API used by backfill_room() and scheduler callers.
+    result = dict(row)
+    result['backfill_required'] = bool(result['backfill_required'])
+    return result
 
 
 def resumable_snapshot(snapshot, coverage_state):

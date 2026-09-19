@@ -162,13 +162,17 @@ class SimulationPool:
             # A 200-record turn in the first slow region would take 30 seconds.
             delay=0.002+count*(0.15 if position<=40 else 0.0003)
         elif args and args[0]=='tail_read_prepare':delay=0.2
-        elif args and args[0]=='export_open':delay=90 # 30s parse + 30s snapshot I/O + 30s verification
+        elif args and args[0]=='export_open':delay=30 # bounded successful export preparation; runtime rejects >45s
         f=Future();self.jobs.append((self.clock[0]+delay,f,fn,args,delay,kind));self.max_jobs=max(self.max_jobs,len(self.jobs));return f
     def pump(self):
         for item in list(self.jobs):
             end,f,fn,args,delay,kind=item
             if end>self.clock[0]:continue
             self.jobs.remove(item)
+            # Runtime cancels an overdue queued export.  A real executor never
+            # starts that cancelled task, so the deterministic simulation must
+            # not attempt to complete its Future later.
+            if f.cancelled():continue
             try:
                 value=fn(*args)
                 if kind:
@@ -204,6 +208,11 @@ class SimulationStorage:
             self.completed+=1;self.data[room]['coverage']['backfill_required']=0
             return dict(records=len(batch),done=True,metadata=self.metadata())
         return dict(records=len(batch))
+    def export_failed(self,room,generation,error):
+        # Match Runtime.Storage's failure boundary: retain the room as pending
+        # work and provide scheduler metadata after the failed writer turn.
+        self.data[room]['coverage']['backfill_required']=1
+        return dict(done=True,metadata=self.metadata())
     def save_status(self,snapshot):return {}
 
 
