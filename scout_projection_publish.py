@@ -13,6 +13,7 @@ from scout_projection_model import validate_qualification, validate_event, first
 
 DB_PATTERN=re.compile(r'router-projection-v2-(0|[1-9][0-9]{0,19})-([0-9a-f]{64})\.sqlite\Z')
 MANIFEST_PATTERN=re.compile(r'manifest-v2-(0|[1-9][0-9]{0,19})-([0-9a-f]{64})\.json\Z')
+HEARTBEAT_CONTENT_FIELDS=('contract_revision','sha256','size_bytes','database','content_created_at','selection_policy_sha256','row_counts','watermarks','coverage_history','next_expiry_at')
 
 
 def manifest_revision(manifest):
@@ -27,6 +28,23 @@ def manifest_revision(manifest):
     keys(manifest['row_counts'],tables_for(revision))
     require(all(type(v) is int and v>=0 for v in manifest['row_counts'].values()),'Invalid manifest row counts')
     return revision
+
+
+def validate_heartbeat_continuity(previous, manifest):
+    """Fail closed unless a heartbeat preserves Router's content binding.
+
+    This mirrors the consumer contract at publication time. It deliberately
+    does not claim an independently running Router observed the prior
+    manifest; that acknowledgement is outside this publication API.
+    """
+    require(manifest['publication_kind']=='HEARTBEAT','Invalid heartbeat kind')
+    require(int(manifest['snapshot_id'])>int(previous['snapshot_id']),'Heartbeat publication ID did not advance')
+    require(manifest['database_content_id']==previous['database_content_id'],'Heartbeat content ID changed')
+    require(manifest['selection_policy']==previous['selection_policy'],'Heartbeat selection policy changed')
+    require(all(manifest[k]==previous[k] for k in HEARTBEAT_CONTENT_FIELDS),'Heartbeat content binding changed')
+    cut,old=manifest['source_checkpoint'],previous['source_checkpoint']
+    require((cut['source_id'],cut['epoch'])==(old['source_id'],old['epoch']) and int(cut['committed_event_id'])>=int(old['committed_event_id']),'Heartbeat source checkpoint regressed')
+    require(instant(manifest['selection_evaluated_at'])>=instant(previous['selection_evaluated_at']) and instant(manifest['produced_at'])>=instant(previous['produced_at']),'Heartbeat time regressed')
 
 
 def file_hash(path, stop=None):
@@ -258,7 +276,7 @@ def archive_lg1_publication(root, pointer, manifest, stop=None):
     return str(archive)
 
 
-def _publish(projector,root,*,checked_cut,evaluated_at=None,fail=None):
+def _publish(projector,root,*,checked_cut,evaluated_at=None,fail=None,expected_current_id=None,force_content=False):
     """Explicit fresh source cut check is mandatory even for heartbeat reuse."""
     projector.check();root=Path(root)
     require(root.is_absolute() and not root.is_symlink(),'Explicit absolute non-symlink publication root required')
@@ -286,6 +304,8 @@ def _publish(projector,root,*,checked_cut,evaluated_at=None,fail=None):
         require(hashlib.sha256(raw).hexdigest()==pointer['manifest_sha256'],'Current manifest corrupted')
         previous=loads(raw)
         previous_revision=manifest_revision(previous)
+        if expected_current_id is not None:
+            require(previous['snapshot_id']==str(expected_current_id),'Expected current publication ID mismatch')
         revision_changed=previous_revision!=revision
         if revision == TL1_REVISION and previous_revision == TL1_REVISION:
             require({k:previous[k] for k in revision_metadata(revision)} == revision_metadata(revision, projector.config['legacy_tclk_cohort']), 'TL1_HEARTBEAT_BINDING_CHANGED')
@@ -307,7 +327,7 @@ def _publish(projector,root,*,checked_cut,evaluated_at=None,fail=None):
     with projector.conn:
         pub_id=max(int(projector.get('publication_id','0')),int(previous['snapshot_id']) if previous else 0)+1
         decimal(str(pub_id));projector.set('publication_id',pub_id)
-    changed=projector.get('dirty','1')=='1' or previous is None or revision_changed
+    changed=projector.get('dirty','1')=='1' or previous is None or revision_changed or force_content
     temp=None
     try:
         if changed:
@@ -345,6 +365,8 @@ def _publish(projector,root,*,checked_cut,evaluated_at=None,fail=None):
         manifest.update(revision_metadata(revision, projector.config.get('legacy_tclk_cohort')))
         manifest_revision(manifest)
         revision_binding(manifest)
+        if not changed:
+            validate_heartbeat_continuity(previous,manifest)
         require(len(canonical(manifest))<=4*1024*1024,'Manifest exceeds limit')
         mh=digest(manifest);mn=f'manifest-v2-{pub_id}-{mh}.json';atomic_json(root,mn,manifest)
         if fail:fail('manifest')
@@ -402,9 +424,10 @@ class PublicationLock:
         if self.fd is not None:os.close(self.fd)
 
 
-def publish(projector,root,*,checked_cut,evaluated_at=None,fail=None):
+def publish(projector,root,*,checked_cut,evaluated_at=None,fail=None,expected_current_id=None,force_content=False,publication_locked=False):
     try:
-        with PublicationLock(root):return _publish(projector,root,checked_cut=checked_cut,evaluated_at=evaluated_at,fail=fail)
+        if publication_locked:return _publish(projector,root,checked_cut=checked_cut,evaluated_at=evaluated_at,fail=fail,expected_current_id=expected_current_id,force_content=force_content)
+        with PublicationLock(root):return _publish(projector,root,checked_cut=checked_cut,evaluated_at=evaluated_at,fail=fail,expected_current_id=expected_current_id,force_content=force_content)
     except (ProjectionError, InterruptedError) as exc:
         if projector.config['contract_revision'] in (LG2_REVISION, TL1_REVISION):projector.legacy_error(exc)
         raise

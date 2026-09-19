@@ -192,16 +192,23 @@ def current_bundle(source,rid):
         operator_local=msg['sender'] in LOCAL_DIDS,workflow=workflow),dependencies=[])
 
 
-def generate(source_path,work,root,router_state,pins_path=None,limit=25000):
+def generate(source_path,work,root,router_state,pins_path=None,limit=25000,*,reanchor=False,expected_current_id=None,publication_locked=False,epoch_override=None):
     from scout_projection import initialize,Projector
     from scout_projection_source import map_raw,resolve_interaction
     from scout_projection_pins import import_pins
-    from scout_projection_publish import publish
+    from scout_projection_publish import publish, _publish, read_artifact, MANIFEST_PATTERN, manifest_revision
     started=time.monotonic();when=utc()
     for path in (work,root):
         require(path.is_absolute() and not path.is_symlink(),'Absolute non-symlink output required')
         path.mkdir(parents=True,exist_ok=True)
     require(work.resolve()!=root.resolve(),'Separate private state and publication root required')
+    if reanchor:
+        require(publication_locked and expected_current_id is not None and epoch_override is not None,'Re-anchor requires held publication lock, expected ID, and existing epoch')
+        pointer=json.loads(read_artifact(root,'current.json',limit=16384));require(pointer['schema']=='flop-scout-router-current/v2','Invalid current pointer')
+        raw=read_artifact(root,pointer['manifest'],MANIFEST_PATTERN);require(hashlib.sha256(raw).hexdigest()==pointer['manifest_sha256'],'Current manifest corrupted')
+        previous=json.loads(raw);manifest_revision(previous)
+        require(previous['snapshot_id']==str(expected_current_id),'Expected current publication ID mismatch')
+        require(previous['source_checkpoint']['epoch']==epoch_override,'Re-anchor epoch mismatch')
     with (work/'owner.lock').open('a+b') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         state=json.loads(router_state.read_text())
@@ -215,7 +222,7 @@ def generate(source_path,work,root,router_state,pins_path=None,limit=25000):
         plan_path=work/'plan.json';extract_path=work/'current-source.sqlite'
         if plan_path.exists():plan=json.loads(plan_path.read_text());when=plan['evaluated_at'];pins=json.loads((work/'pins.json').read_text())
         else:
-            require(not (root/'current.json').exists(),'New enrollment requires a fresh publication root')
+            require(reanchor or not (root/'current.json').exists(),'New enrollment requires a fresh publication root')
             require(not (work/'projection.sqlite').exists() and not (work/'projection.sqlite.ledger').exists(),'Refuse pre-existing projection without a bounded plan')
             extract_path.unlink(missing_ok=True)
             src=Source(source_path)
@@ -223,7 +230,7 @@ def generate(source_path,work,root,router_state,pins_path=None,limit=25000):
             finally:src.close()
             plan.update(source_path=str(source_path),router_state_sha256=digest(state),pins_sha256=pins['content_sha256'])
             atomic(work/'pins.json',pins);atomic(plan_path,plan)
-        epoch='bounded-current-'+digest(plan)[:24];projection=work/'projection.sqlite'
+        epoch=epoch_override or 'bounded-current-'+digest(plan)[:24];projection=work/'projection.sqlite'
         if not projection.exists():initialize(projection,epoch=epoch,source_id='scout-current-bounded',router_source_id=pins['source_id'],router_epoch=pins['epoch'],router_did=LOCAL_DIDS[2],local_dids=LOCAL_DIDS,contract_revision='A1')
         with closing(sqlite3.connect(projection.with_suffix('.sqlite.ledger').as_uri()+'?mode=ro',uri=True)) as probe:
             config=json.loads(probe.execute('SELECT json FROM configuration').fetchone()[0])
@@ -245,7 +252,8 @@ def generate(source_path,work,root,router_state,pins_path=None,limit=25000):
                     p.seal(n)
                 else:p.resume(n)
             import_pins(p,canonical(pins),now=when)
-            result=publish(p,root,checked_cut=p.status()['source_cut'],evaluated_at=when)
+            require(not reanchor or (datetime.now(timezone.utc)-instant(when)).total_seconds()<=600,'Re-anchor capture exceeded freshness limit')
+            result=(_publish(p,root,checked_cut=p.status()['source_cut'],evaluated_at=when,expected_current_id=expected_current_id) if publication_locked else publish(p,root,checked_cut=p.status()['source_cut'],evaluated_at=when))
             latest=source.execute('SELECT max(created_at) FROM raw_network_records').fetchone()[0]
             report=dict(publication_root=str(root),database=str(root/result['manifest']['database']),
                 record_count=result['manifest']['row_counts']['messages'],row_counts=result['manifest']['row_counts'],

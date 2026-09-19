@@ -81,7 +81,7 @@ def require_capacity(work, estimated_next_refresh_bytes):
     return report
 
 
-def refresh(source_path,work,root,*,now=None,fail=None):
+def refresh(source_path,work,root,*,now=None,fail=None,force_content=False,expected_current_id=None,publication_locked=False,source_binding_path=None):
     from scout_projection import Projector
     from scout_projection_publish import publish,retain
     started=time.monotonic();when=now or utc()
@@ -164,7 +164,7 @@ def refresh(source_path,work,root,*,now=None,fail=None):
                 raise ValueError('Refresh capture exceeded 10-minute deadline; previous publication retained')
             current=manifest(root)
             already=(current['source_checkpoint']==p.status()['source_cut'] and current['selection_evaluated_at']==pending['when'])
-            result=({'manifest':current} if already else publish(p,root,checked_cut=p.status()['source_cut'],evaluated_at=pending['when']))
+            result=({'manifest':current} if already and not force_content else publish(p,root,checked_cut=p.status()['source_cut'],evaluated_at=pending['when'],force_content=force_content,expected_current_id=expected_current_id,publication_locked=publication_locked))
             new=result['manifest']
             status=dict(status='READY',automatic=True,completed_at=utc(),cadence_seconds=CADENCE,
                 next_due_at=utc(datetime.now(timezone.utc)+timedelta(seconds=CADENCE)),
@@ -177,7 +177,7 @@ def refresh(source_path,work,root,*,now=None,fail=None):
             status.update(capacity_report(work,capacity['estimated_next_refresh_bytes']))
             atomic(work/'refresh-status.json',status)
             pending_path.unlink()
-            retain(root,keep=4)
+            if not publication_locked:retain(root,keep=4)
             return status
 
 

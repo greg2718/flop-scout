@@ -9,7 +9,7 @@ from scout_projection_contract import *
 from scout_projection import Projector, initialize, read_status
 from scout_projection_model import *
 from scout_projection_pins import import_pins
-from scout_projection_publish import publish, validate_database, retain, file_hash
+from scout_projection_publish import publish, validate_database, retain, file_hash, validate_heartbeat_continuity, HEARTBEAT_CONTENT_FIELDS
 
 NOW='2026-09-08T12:00:00.000000Z'
 DID='did:key:z6MkSyntheticSource'
@@ -125,6 +125,28 @@ def test_a1_duplicate_downgrade_permanent_restart(tmp_path):
         heartbeat=publish(p,tmp_path/'public',checked_cut=p.status()['source_cut'],evaluated_at=plus(NOW,3))
         assert heartbeat['manifest']['publication_kind']=='HEARTBEAT'
         assert heartbeat['manifest']['database']==out['manifest']['database']
+
+
+def test_heartbeat_contract_preserves_content_binding_and_allows_only_monotonic_progress(tmp_path):
+    with create(tmp_path) as p:
+        apply(p,[bundle()])
+        empty_pins(p)
+        first=publish(p,tmp_path/'public',checked_cut=p.status()['source_cut'],evaluated_at=NOW)['manifest']
+        heartbeat=publish(p,tmp_path/'public',checked_cut=p.status()['source_cut'],evaluated_at=plus(NOW,1))['manifest']
+        assert heartbeat['publication_kind']=='HEARTBEAT'
+        assert heartbeat['database_content_id']==first['database_content_id']
+        assert all(heartbeat[field]==first[field] for field in HEARTBEAT_CONTENT_FIELDS)
+        assert heartbeat['snapshot_id']!=first['snapshot_id']
+        assert heartbeat['selection_evaluated_at']!=first['selection_evaluated_at']
+        advanced=loads(canonical(heartbeat));advanced['source_checkpoint']['committed_event_id']=str(int(first['source_checkpoint']['committed_event_id'])+1)
+        validate_heartbeat_continuity(first,advanced)
+        for field,value in [('sha256','0'*64),('next_expiry_at','2026-10-01T00:00:00.000000Z')]:
+            invalid=loads(canonical(heartbeat));invalid[field]=value
+            with pytest.raises(ProjectionError,match='Heartbeat content binding changed'):
+                validate_heartbeat_continuity(first,invalid)
+        invalid=loads(canonical(heartbeat));invalid['source_checkpoint']['committed_event_id']='0'
+        with pytest.raises(ProjectionError,match='Heartbeat source checkpoint regressed'):
+            validate_heartbeat_continuity(first,invalid)
 
 
 def test_bootstrap_does_not_manufacture_prefix_qualification(tmp_path):
