@@ -353,6 +353,27 @@ CREATE TRIGGER IF NOT EXISTS router_projection_relink AFTER UPDATE ON compatibil
 CREATE TRIGGER IF NOT EXISTS router_projection_unlink AFTER DELETE ON compatibility_evidence_links BEGIN INSERT OR IGNORE INTO router_projection_pending VALUES(OLD.raw_record_id); END;
 """
 
+TCLK_INDEX_CONTRACT={
+    'router_projection_tclk_offer':('offer_id','frame_type','room','generation'),
+    'router_projection_tclk_contract':('contract_id','room','generation'),
+}
+
+def reconcile_tclk_indexes(conn):
+    """Add and verify the two bounded TCLK lookup indexes on a writer-owned outbox."""
+    conn.execute('SAVEPOINT reconcile_tclk_indexes')
+    try:
+        for name,columns in TCLK_INDEX_CONTRACT.items():
+            row=conn.execute("SELECT sql FROM sqlite_master WHERE type='index' AND name=?",(name,)).fetchone()
+            if row is None:
+                conn.execute('CREATE INDEX '+name+' ON tclk_frames('+','.join(columns)+')')
+            actual=tuple(r[2] for r in conn.execute("PRAGMA index_info('"+name+"')"))
+            require(actual==columns,'SCHEMA_DRIFT: '+name+' columns/order incompatible')
+        conn.execute('RELEASE reconcile_tclk_indexes')
+    except BaseException:
+        conn.execute('ROLLBACK TO reconcile_tclk_indexes')
+        conn.execute('RELEASE reconcile_tclk_indexes')
+        raise
+
 
 class Outbox:
     """Bounded staging on Scout's existing writer; only complete logical cuts seal."""
@@ -370,6 +391,7 @@ class Outbox:
                 existing=scout_schema.structure(conn);expected=scout_schema.projection_outbox_contract()
                 require(all(name in existing for name,obj in expected.items() if obj['kind']=='table'),'Lost source outbox history must be restored, not recreated empty')
             conn.executescript(OUTBOX_SQL)
+            reconcile_tclk_indexes(conn)
             for table in ('messages','evidence_records','kibble_events','tclk_frames'):
                 conn.execute(update_trigger_sql(table))
             with conn:conn.execute('INSERT OR IGNORE INTO router_projection_source VALUES(1,?,?)',(source_id,epoch))
