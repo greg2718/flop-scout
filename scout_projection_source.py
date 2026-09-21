@@ -263,8 +263,20 @@ def tclk_workflow(conn,raw,msg,obj,revision=REVISION):
         key=frontier.pop(0)
         if key in seen:continue
         seen.add(key);require(len(seen)<=200,'TCLK source linkage exceeds bounded lookup capacity')
+        # Resolve the two identifier domains independently.  The UNION has the
+        # same set semantics as the prior OR (a frame matching both is emitted
+        # once), while allowing SQLite to use each single-column TCLK index.
         PROFILE['tclk_correlation_queries']+=1;PROFILE['tclk_keys'].add(key)
-        rows=conn.execute("SELECT r.* FROM tclk_frames t JOIN compatibility_evidence_links l ON l.cache_table='tclk_frames' AND l.cache_rowid=t.rowid JOIN raw_network_records r ON r.raw_record_id=l.raw_record_id WHERE (t.offer_id=? OR t.contract_id=?) AND r.room=? AND r.generation IS ? LIMIT 201",(key,key,raw['room'],raw['generation'])).fetchall()
+        rows=conn.execute("""WITH roots AS (
+            SELECT rowid FROM tclk_frames WHERE offer_id=?
+            UNION
+            SELECT rowid FROM tclk_frames WHERE contract_id=?
+        )
+        SELECT r.* FROM roots t
+        CROSS JOIN compatibility_evidence_links l INDEXED BY sqlite_autoindex_compatibility_evidence_links_1
+        ON l.cache_table='tclk_frames' AND l.cache_rowid=t.rowid
+        JOIN raw_network_records r ON r.raw_record_id=l.raw_record_id
+        WHERE r.room=? AND r.generation IS ? LIMIT 201""",(key,key,raw['room'],raw['generation'])).fetchall()
         require(len(rows)<=200,'TCLK reference fanout exceeds bounded lookup capacity')
         for row in rows:
             candidate=dict(row);cache=exact_cache(conn,'tclk_frames',candidate,revision)
