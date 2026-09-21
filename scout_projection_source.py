@@ -273,7 +273,8 @@ def tclk_workflow(conn,raw,msg,obj,revision=REVISION):
             SELECT rowid FROM tclk_frames WHERE contract_id=?
         )
         SELECT r.* FROM roots t
-        JOIN compatibility_evidence_links l ON l.cache_table='tclk_frames' AND l.cache_rowid=t.rowid
+        CROSS JOIN compatibility_evidence_links l INDEXED BY sqlite_autoindex_compatibility_evidence_links_1
+        ON l.cache_table='tclk_frames' AND l.cache_rowid=t.rowid
         JOIN raw_network_records r ON r.raw_record_id=l.raw_record_id
         WHERE r.room=? AND r.generation IS ? LIMIT 201""",(key,key,raw['room'],raw['generation'])).fetchall()
         require(len(rows)<=200,'TCLK reference fanout exceeds bounded lookup capacity')
