@@ -255,6 +255,29 @@ or publishes an unverified candidate.
 - Canonical UTF-8 JSON uses the existing repository canonical serializer;
   object keys are sorted, arrays are policy-sorted, no duplicate keys, NaN,
   floats, or non-finite values are permitted.
+
+### Legacy-A1 local provenance recovery
+
+Legacy A1 artifacts that omitted `source_provenance.raw_record_sha256` may be
+examined only by a local, read-only recovery resolver.  This is recovery
+evidence for Scout's own migration planning: it is **never** a Router receipt,
+Router-private state, a producer-wire assertion, or an assertion that Router
+accepted the recovered artifact.  The resolver requires an exact
+caller-authorized descriptor and rejects any difference from the descriptor
+verified by acquisition.  It recomputes immutable raw identity, verifies exact
+source/event/cache witnesses and the declared source cut, and emits only
+identifiers, hashes, event IDs, reasons, counts, and a domain-separated local
+commitment.  It never changes the content bytes, manifest, pointer, or source
+database.
+
+Recovery is bounded before materialization: at most 50,000 source/projection
+records, 1 GiB per supplied SQLite artifact, 64 KiB per raw JSON/text or
+embedded JSON value, 64 coverage rows, and a 16 MiB canonical commitment
+payload.  Missing, duplicate, oversized, malformed, mismatched, or ambiguous
+evidence fails closed without echoing raw text.  The rule is limited to an
+explicitly authorized legacy descriptor; it is not a generic provenance
+substitution mechanism.  All future projections MUST carry a non-null,
+validated `raw_record_sha256` for every source-provenance message.
 - Every digest is SHA-256 over canonical bytes prefixed with a fixed domain
   string and NUL separator, e.g. `flop-scout/epoch-v2/predecessor\0`.
 - Commitment views are precise: `archive_commitment_sha256` excludes only
