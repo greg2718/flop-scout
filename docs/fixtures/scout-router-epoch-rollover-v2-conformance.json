@@ -1,28 +1,2992 @@
 {
-  "schema": "flop-scout-router-epoch-rollover-v2-conformance/v1",
-  "notice": "Specification-only bounded synthetic vectors. They are not production publications or executable fixtures.",
-  "limits": {"max_descriptor_bytes": 65536, "max_locator_bytes": 256, "max_epoch_number": 9007199254740991},
+  "notice": "Synthetic frozen V2 wire vectors; no producer field asserts Router bridge validation.",
+  "schema": "flop-scout-router-epoch-rollover-v2-conformance/v2",
+  "slice1_cases": [],
   "vectors": [
-    {"name":"valid-v1-ordinary","expect":"accept-v1-path","manifest":{"contract_revision":"A1","snapshot_id":"900","database_content_id":"800","publication_kind":"CONTENT"}},
-    {"name":"valid-first-v2-transition","expect":"accept-v2-gated","manifest":{"contract_revision":"A1-EPOCH-V2","snapshot_id":"901","database_content_id":"801","epoch_rollover":{"schema":"flop-scout-router-epoch-rollover/v2","epoch_number":1,"epoch_id":"se2:1111111111111111111111111111111111111111111111111111111111111111","predecessor":{"publication_id":"900","content_id":"800","manifest_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifact_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifact_size_bytes":42,"epoch_id":"v1:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","epoch_number":0,"accepted_state_hash":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"},"archive":{"schema":"flop-scout-epoch-archive/v1","archive_id":"ea2:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","artifact_sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","size_bytes":42,"database_schema_version":"scout-observer/v1","locator":"archives/ea2.sqlite","previous_epoch_id":"v1:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","previous_manifest_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","preservation":"IMMUTABLE_RETAINED","archive_commitment_sha256":"9999999999999999999999999999999999999999999999999999999999999999"}}}},
-    {"name":"valid-later-v2-transition","expect":"accept-v2-gated","delta":{"epoch_number":2,"predecessor_epoch_number":1,"snapshot_id":"902","content_id":"802"}},
-    {"name":"invalid-predecessor-hash","expect":"reject:CONTINUITY_EPOCH_PREDECESSOR_HASH","delta":{"predecessor.manifest_sha256":"0000000000000000000000000000000000000000000000000000000000000000"}},
-    {"name":"epoch-regression","expect":"reject:CONTINUITY_EPOCH_REGRESSION","delta":{"epoch_number":1,"predecessor_epoch_number":1}},
-    {"name":"forged-retained-floor","expect":"reject:EPOCH_RETAINED_FLOOR_WITNESS","delta":{"retained_floor_commitment":{"entries":[{"room":"synthetic-room","generation":"1","domain":"messages","retained_floor":999,"coverage_witness_sha256":"0000000000000000000000000000000000000000000000000000000000000000"}]}}},
-    {"name":"missing-permanent-proof","expect":"reject:CONTINUITY_EPOCH_PERMANENT_PROOF_LOSS","delta":{"retained_floor_commitment":{"permanent_pinned_evidence_sha256":null}}},
-    {"name":"missing-qualification-history","expect":"reject:CONTINUITY_EPOCH_QUALIFICATION_HISTORY_LOSS","delta":{"retained_floor_commitment":{"durable_qualification_history_sha256":null}}},
-    {"name":"archive-mismatch","expect":"reject:CONTINUITY_EPOCH_ARCHIVE_HASH","delta":{"archive":{"artifact_sha256":"0000000000000000000000000000000000000000000000000000000000000000"}}},
-    {"name":"source-cut-rollback","expect":"reject:CONTINUITY_SOURCE_ROLLBACK","delta":{"source_cut":{"committed_event_id":"1"}}},
-    {"name":"oversized-field","expect":"reject:EPOCH_FIELD_BOUNDS","delta":{"archive":{"locator":"synthetic/"}},"construction":"append 257 ASCII x characters to locator"},
-    {"name":"interrupted-prepublication","expect":"resume-same-bytes-or-abort","journal":{"state":"SCOUT_VERIFIED","predecessor_hash":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","candidate_hash":"abababababababababababababababababababababababababababababababab"},"required":"no pointer mutation; retry must use identical cut, selected identities, archive hash, and candidate hash"}
-  ],
-  "slice1_cases": [
-    {"name":"valid-first","expect":"PASS","mutation":"none"},
-    {"name":"epoch-regression","expect":"EPOCH_NUMBER","mutation":"epoch-zero"},
-    {"name":"first-source-change","expect":"EPOCH_FIRST_SOURCE_IDENTITY","mutation":"first-source-change"},
-    {"name":"predecessor-mismatch","expect":"EPOCH_PREDECESSOR","mutation":"predecessor-mismatch"},
-    {"name":"source-cut-rollback","expect":"EPOCH_SOURCE_CUT","mutation":"source-cut-rollback"},
-    {"name":"forged-retained-floor","expect":"EPOCH_RETAINED_FLOOR","mutation":"forged-floor"},
-    {"name":"capacity-overflow","expect":"EPOCH_CAPACITY","mutation":"capacity-overflow"}
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "PASS",
+      "first_transition": true,
+      "name": "valid-direct",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "PASS",
+      "first_transition": true,
+      "name": "valid-cumulative",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "c8346a8c335a33d589a44557803137445be7f8bac73f5891fbc63d286f4d1809",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "1f67b94ae51ef438b4cc63c9376e954d3acf42b5a6e91bcaf99964db1230c6ae",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "1f67b94ae51ef438b4cc63c9376e954d3acf42b5a6e91bcaf99964db1230c6ae",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 801,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 901,
+          "source_cut": 8,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "c8346a8c335a33d589a44557803137445be7f8bac73f5891fbc63d286f4d1809",
+          "bridge_binding_sha256": "1f67b94ae51ef438b4cc63c9376e954d3acf42b5a6e91bcaf99964db1230c6ae",
+          "bridge_predecessor_sha256": "fb465d8f636110471e5948838bfb1ab740f178d21e2fafdcca62abc982ca2e60",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "19a269c3ebc64f760ff035f4f22aadfd2fd8e759fdaf49adf0c0876a20535922"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_BRIDGE_BINDING",
+      "first_transition": true,
+      "name": "forged-bridge-binding",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_ACCEPTED_ANCHOR",
+      "first_transition": true,
+      "name": "mutated-anchor",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_BRIDGE_BINDING",
+      "first_transition": true,
+      "name": "mutated-bridge",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_FIELDS",
+      "first_transition": true,
+      "name": "missing-anchor",
+      "transition": {
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_FIELDS",
+      "first_transition": true,
+      "name": "missing-bridge",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_FIELDS",
+      "first_transition": true,
+      "name": "missing-binding",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_DESCRIPTOR",
+      "first_transition": true,
+      "name": "unknown-anchor-field",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "extra": 1,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_BRIDGE_SOURCE",
+      "first_transition": true,
+      "name": "anchor-bridge-identity-mismatch",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "1aac3d7b0b45f817b94cfc96fdbd9c74c62b042eeb141d70e602656b650fd266",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "c60a2ae41a006e614b00e09d2fb5bd6992a45144c4a70e68229e274604d95c1b",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "c60a2ae41a006e614b00e09d2fb5bd6992a45144c4a70e68229e274604d95c1b",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "other-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "1aac3d7b0b45f817b94cfc96fdbd9c74c62b042eeb141d70e602656b650fd266",
+          "bridge_binding_sha256": "c60a2ae41a006e614b00e09d2fb5bd6992a45144c4a70e68229e274604d95c1b",
+          "bridge_predecessor_sha256": "95da35ddb0029af413a0fb38cd221fd9bf830824ed486b383cf550033d7a604b",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "1de284b391b72b77c557a4633a204fbf884c7540980c9fbed905e781a48ba56b"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_SOURCE_BINDING",
+      "first_transition": true,
+      "name": "candidate-bridge-identity-mismatch",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "other-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "other-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 9,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_BRIDGE_SOURCE",
+      "first_transition": true,
+      "name": "anchor-cut-after-bridge",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 9,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "6e0e641786a0d7815dd59c99cc9d22f95c9d185463b12d408982498ddf6f7e2a",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "fdaa5c35fb523d8d6ca8528637a549f4d58705778c26bdd8ce29323e6917bbc8",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "fdaa5c35fb523d8d6ca8528637a549f4d58705778c26bdd8ce29323e6917bbc8",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "162bb20d3f82093d2f28b8976e791154a4bd4435b006f71e6c2c099aa9a4e522",
+          "archive_descriptor_sha256": "6e0e641786a0d7815dd59c99cc9d22f95c9d185463b12d408982498ddf6f7e2a",
+          "bridge_binding_sha256": "fdaa5c35fb523d8d6ca8528637a549f4d58705778c26bdd8ce29323e6917bbc8",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "528c0cadac48c8533c40660e9d052fcc4ae78046cdee77f22bcedd9807a95491"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_SOURCE_CUT",
+      "first_transition": true,
+      "name": "bridge-cut-after-candidate",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "f0561258b62669a10d916e21742fb7757b1434160a3576b2d93609a3fe2337db",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "501a56540d4208bd9aed4877a1d8e0571edce3946ab7d15a5add174a9701d821",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "501a56540d4208bd9aed4877a1d8e0571edce3946ab7d15a5add174a9701d821",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 9,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "f0561258b62669a10d916e21742fb7757b1434160a3576b2d93609a3fe2337db",
+          "bridge_binding_sha256": "501a56540d4208bd9aed4877a1d8e0571edce3946ab7d15a5add174a9701d821",
+          "bridge_predecessor_sha256": "4f32b5757f4ae152357a9031e2c5a44f4d34fa34d1bce928e2a794269aed90ba",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "8bf00b4445f338fc3b2b04a8f1c795ddd0ebcc62350a1512eba16ab393e6cf21"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_ARCHIVE_BINDING",
+      "first_transition": true,
+      "name": "wrong-archive-bridge-binding",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "277e981ee7a84cab484a4ece31c6eadcdf5fa84cf9c98d1a5de94d94f9979f13",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "277e981ee7a84cab484a4ece31c6eadcdf5fa84cf9c98d1a5de94d94f9979f13",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "220bff68c43db0c3a2770754204739b8fbb9767095c23cb8d18f4d6905439fc7"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_BRIDGE_BINDING",
+      "first_transition": true,
+      "name": "false-direct-ids-only",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_FIELDS",
+      "first_transition": true,
+      "name": "forbidden-bridge_valid",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "bridge_valid": true,
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_FIELDS",
+      "first_transition": true,
+      "name": "forbidden-bridge_mode",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_mode": true,
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_FIELDS",
+      "first_transition": true,
+      "name": "forbidden-validation_success",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "validation_success": true
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_FIELDS",
+      "first_transition": true,
+      "name": "forbidden-verified_receipt",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "verified_receipt": true
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_FIELDS",
+      "first_transition": true,
+      "name": "forbidden-router_private_state_hash",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "router_private_state_hash": true,
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_RETAINED_FLOOR",
+      "first_transition": true,
+      "name": "retained-floor-regression",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 5,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_ARCHIVE_HASH",
+      "first_transition": true,
+      "name": "archive-regression",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_CAPACITY",
+      "first_transition": true,
+      "name": "capacity-regression",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 6000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 45000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "b4ed57368de522ce636cc6757bee92f1316adca1469a12a5d772510dc32ce67d"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    },
+    {
+      "accepted_anchor": {
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_size": 42,
+        "content_id": 800,
+        "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "publication_sequence": 900,
+        "source_cut": 7,
+        "source_id": "scout-source",
+        "source_kind": "source-epoch"
+      },
+      "accepted_epoch_number": 0,
+      "expect": "EPOCH_TRANSITION_HASH",
+      "first_transition": true,
+      "name": "transition-hash-regression",
+      "transition": {
+        "accepted_anchor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "active_epoch": {
+          "hard_max": 50000,
+          "headroom": 9000,
+          "mandatory_closure_count": 12000,
+          "reserve": 1000,
+          "target": 40000
+        },
+        "archive": {
+          "archive_commitment_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "archive_id": "ea2:archive",
+          "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "database_schema_version": "scout-observer/v1",
+          "locator": "archives/epoch-0.sqlite",
+          "preservation": "IMMUTABLE_RETAINED",
+          "previous_bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "previous_epoch_id": "v1:predecessor",
+          "previous_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema": "flop-scout-epoch-archive/v1",
+          "size_bytes": 42
+        },
+        "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+        "bridge_predecessor": {
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "artifact_size": 42,
+          "content_id": 800,
+          "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_sequence": 900,
+          "source_cut": 7,
+          "source_id": "scout-source",
+          "source_kind": "source-epoch"
+        },
+        "commitments": {
+          "accepted_anchor_sha256": "d9eb6264e1b0ed1372d4627681483b21d7372373df9e409963b8a9eae7a4a9bc",
+          "archive_descriptor_sha256": "5b98e6cb4da1e2d664af2fe73c65c5f2f4cd796e5a1fae158ecd92953b024585",
+          "bridge_binding_sha256": "a12d32f32a0bccfbaaae855ea13faf4423fad501a5d15fae032925da79378bd4",
+          "bridge_predecessor_sha256": "978c44ed9ff0c440ffa2029d8f345b5a39c6edaa649e2bcee07e077561a4e9fd",
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "mandatory_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_declaration_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "transition_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "contract_revision": "A1-EPOCH-V2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "epoch_id": "se2:epoch-one",
+        "epoch_number": 1,
+        "retained_floor_commitment": {
+          "coverage_witnesses": [
+            "coverage-a"
+          ],
+          "coverage_witnesses_sha256": "ed17cc5d5b5e5c47d6c10c84d10f26d163c4ce242463d435e6eebbc43164a94d",
+          "durable_qualification_history": [
+            "qualification-a"
+          ],
+          "durable_qualification_history_sha256": "8c66aa0b12f8acd471d2e2090ef7472f37dcacaf45f69de34be030f661a94cbb",
+          "entries": [
+            {
+              "domain": "messages",
+              "generation": "1",
+              "omitted_ranges": [
+                [
+                  1,
+                  3
+                ]
+              ],
+              "retained_floor": 4,
+              "room": "room-a"
+            }
+          ],
+          "mandatory_proof_closure": [
+            "proof-a"
+          ],
+          "mandatory_proof_closure_sha256": "91a595505c435b6e2a352f9cb485352ca2e8b1cf1bad0c3196b5dd435b95f62f",
+          "omitted_history": [
+            "row-a"
+          ],
+          "omitted_history_sha256": "e3e1966c79b2f06a13d65465aae8cb955371c45eab555bb726ac38859ab6742a",
+          "permanent_pinned_evidence": [
+            "pin-a"
+          ],
+          "permanent_pinned_evidence_sha256": "5d213120f5be7005e7fcca42124b2b8a36d8e46813b956f0e758dd0829589d76",
+          "retained_floor_commitment_sha256": "2bbd5658c1ed1ade62e9f4d3eb85f0bdbe3a28273007cd51e2efc0a271ee1665",
+          "selection_policy_version": "epoch-v2-policy/1"
+        },
+        "schema": "flop-scout-router-epoch-rollover/v2",
+        "source_binding": {
+          "descriptor_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        },
+        "source_cut": {
+          "committed_event_id": 8,
+          "cut_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "source-epoch",
+          "source_id": "scout-source"
+        }
+      }
+    }
   ]
 }

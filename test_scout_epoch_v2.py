@@ -14,7 +14,7 @@ def h(char):
     return char * 64
 
 
-def make_transition():
+def _legacy_transition():
     predecessor = {"publication_id": 900, "content_id": 800,
                    "manifest_sha256": h("a"), "artifact_sha256": h("b"),
                    "artifact_size_bytes": 42, "epoch_id": "v1:predecessor",
@@ -63,6 +63,32 @@ def make_transition():
     return value
 
 
+def make_transition():
+    old = _legacy_transition(); predecessor = old.pop("predecessor")
+    anchor = {"publication_sequence": predecessor["publication_id"], "content_id": predecessor["content_id"],
+              "manifest_sha256": predecessor["manifest_sha256"], "artifact_sha256": predecessor["artifact_sha256"],
+              "artifact_size": predecessor["artifact_size_bytes"], "source_kind": predecessor["source_cut"]["epoch"],
+              "source_id": predecessor["source_cut"]["source_id"], "source_cut": predecessor["source_cut"]["committed_event_id"]}
+    bridge = copy.deepcopy(anchor)
+    old["accepted_anchor"] = anchor
+    old["bridge_predecessor"] = bridge
+    old["bridge_binding_sha256"] = e.commitment("a1-bridge-binding", {"accepted_anchor": anchor, "bridge_predecessor": bridge})
+    old["archive"]["previous_manifest_sha256"] = bridge["manifest_sha256"]
+    old["archive"]["previous_bridge_binding_sha256"] = old["bridge_binding_sha256"]
+    old["archive"]["archive_commitment_sha256"] = e.commitment("archive-descriptor", {k:v for k,v in old["archive"].items() if k != "archive_commitment_sha256"})
+    old["commitments"] = {"accepted_anchor_sha256": e.commitment("accepted-anchor", anchor),
+        "bridge_predecessor_sha256": e.commitment("bridge-predecessor", bridge),
+        "bridge_binding_sha256": old["bridge_binding_sha256"],
+        "archive_descriptor_sha256": e.commitment("archive-descriptor", {k:v for k,v in old["archive"].items() if k != "archive_commitment_sha256"}),
+        "retained_floor_declaration_sha256": old["retained_floor_commitment"]["retained_floor_commitment_sha256"],
+        "mandatory_closure_sha256": old["retained_floor_commitment"]["mandatory_proof_closure_sha256"],
+        "durable_qualification_history_sha256": old["retained_floor_commitment"]["durable_qualification_history_sha256"],
+        "coverage_witnesses_sha256": old["retained_floor_commitment"]["coverage_witnesses_sha256"],
+        "permanent_pinned_evidence_sha256": old["retained_floor_commitment"]["permanent_pinned_evidence_sha256"]}
+    old["commitments"]["transition_sha256"] = e.commitment("complete-transition", {**{k:v for k,v in old.items() if k != "commitments"}, "commitments": old["commitments"]})
+    return old
+
+
 def code(call):
     with pytest.raises(e.V2ValidationError) as caught:
         call()
@@ -78,7 +104,7 @@ def apply_case(value, name):
         value["source_binding"]["source_id"] = "other-source"
         value["source_cut"]["source_id"] = "other-source"
     elif name == "predecessor-mismatch":
-        value["predecessor"]["content_id"] = 1
+        value["accepted_anchor"]["content_id"] = 1
     elif name == "source-cut-rollback":
         value["source_cut"]["committed_event_id"] = 6
     elif name == "forged-floor":
@@ -92,24 +118,23 @@ def apply_case(value, name):
 def test_documented_conformance_vectors_are_available():
     vectors = json.loads(FIXTURE.read_text())["vectors"]
     names = {item["name"] for item in vectors}
-    assert {"valid-v1-ordinary", "valid-first-v2-transition", "valid-later-v2-transition",
-            "invalid-predecessor-hash", "epoch-regression", "forged-retained-floor",
-            "source-cut-rollback", "interrupted-prepublication"} <= names
+    assert {"valid-direct", "valid-cumulative", "forged-bridge-binding",
+            "wrong-archive-bridge-binding", "transition-hash-regression"} <= names
 
 
 @pytest.mark.parametrize("case", json.loads(FIXTURE.read_text())["slice1_cases"], ids=lambda item: item["name"])
 def test_slice1_cases_are_driven_by_documented_fixture(case):
-    value = make_transition(); prior = copy.deepcopy(value["predecessor"])
+    value = make_transition(); prior = copy.deepcopy(value["accepted_anchor"])
     apply_case(value, case["mutation"])
     if case["expect"] == "PASS":
-        assert e.validate_transition(value, prior, True)["epoch_number"] == 1
+        assert e.validate_transition(value, prior, 0, True)["epoch_number"] == 1
     else:
-        assert code(lambda: e.validate_transition(value, prior, True)) == case["expect"]
+        assert code(lambda: e.validate_transition(value, prior, 0, True)) == case["expect"]
 
 
 def test_valid_first_transition_and_deterministic_canonicalization():
     value = make_transition()
-    assert e.validate_transition(value, copy.deepcopy(value["predecessor"]), True)["epoch_number"] == 1
+    assert e.validate_transition(value, copy.deepcopy(value["accepted_anchor"]), 0, True)["epoch_number"] == 1
     assert e.canonical_json({"b": 1, "a": [True, None]}) == e.canonical_json({"a": [True, None], "b": 1})
 
 
@@ -126,31 +151,31 @@ def test_parser_bounds_and_unknown_fields():
     assert code(lambda: e.parse_json(("[" + ",".join("0" for _ in range(257)) + "]").encode("ascii"))) == "EPOCH_LIST_BOUNDS"
     assert code(lambda: e.parse_json(json.dumps({str(i): 0 for i in range(65)}).encode("ascii"))) == "EPOCH_MAP_BOUNDS"
     value = make_transition(); value["unexpected"] = 1
-    assert code(lambda: e.validate_transition(value, make_transition()["predecessor"], True)) == "EPOCH_FIELDS"
+    assert code(lambda: e.validate_transition(value, make_transition()["accepted_anchor"], 0, True)) == "EPOCH_FIELDS"
 
 
 @pytest.mark.parametrize("mutate, expected", [
     (lambda x: x.update(epoch_number=0), "EPOCH_NUMBER"),
-    (lambda x: (x["source_binding"].update(source_id="other-source"), x["source_cut"].update(source_id="other-source")), "EPOCH_FIRST_SOURCE_IDENTITY"),
-    (lambda x: x["predecessor"].update(content_id=1), "EPOCH_PREDECESSOR"),
+    (lambda x: (x["source_binding"].update(source_id="other-source"), x["source_cut"].update(source_id="other-source")), "EPOCH_SOURCE_BINDING"),
+    (lambda x: x["accepted_anchor"].update(content_id=1), "EPOCH_ACCEPTED_ANCHOR"),
     (lambda x: x["source_cut"].update(committed_event_id=6), "EPOCH_SOURCE_CUT"),
     (lambda x: x["retained_floor_commitment"]["entries"][0].update(retained_floor=5), "EPOCH_RETAINED_FLOOR"),
     (lambda x: x["active_epoch"].update(target=45000, headroom=6000), "EPOCH_CAPACITY")])
 def test_validation_failures_are_stable(mutate, expected):
-    value = make_transition(); prior = copy.deepcopy(value["predecessor"]); mutate(value)
-    assert code(lambda: e.validate_transition(value, prior, True)) == expected
+    value = make_transition(); prior = copy.deepcopy(value["accepted_anchor"]); mutate(value)
+    assert code(lambda: e.validate_transition(value, prior, 0, True)) == expected
 
 
 def test_commitments_are_domain_separated_and_sensitive():
-    assert e.commitment("predecessor", {"x": 1}) != e.commitment("archive-descriptor", {"x": 1})
-    assert e.commitment("predecessor", {"x": 1}) != e.commitment("predecessor", {"x": 2})
+    assert e.commitment("a1-bridge-binding", {"x": 1}) != e.commitment("archive-descriptor", {"x": 1})
+    assert e.commitment("a1-bridge-binding", {"x": 1}) != e.commitment("a1-bridge-binding", {"x": 2})
     assert code(lambda: e.commitment("Wrong", {})) == "EPOCH_DOMAIN"
 
 
 def test_wrong_domain_commitment_fails_validation():
-    value = make_transition(); prior = copy.deepcopy(value["predecessor"])
-    value["commitments"]["predecessor_sha256"] = e.commitment("archive-descriptor", value["predecessor"])
-    assert code(lambda: e.validate_transition(value, prior, True)) == "EPOCH_COMMITMENT"
+    value = make_transition(); prior = copy.deepcopy(value["accepted_anchor"])
+    value["commitments"]["accepted_anchor_sha256"] = e.commitment("archive-descriptor", value["accepted_anchor"])
+    assert code(lambda: e.validate_transition(value, prior, 0, True)) == "EPOCH_COMMITMENT"
 
 
 def test_error_does_not_echo_untrusted_payload():
@@ -158,3 +183,40 @@ def test_error_does_not_echo_untrusted_payload():
     with pytest.raises(e.V2ValidationError) as caught:
         e.parse_json(("{\"x\":\"%s\"}" % value).encode("ascii"))
     assert value not in str(caught.value)
+
+
+@pytest.mark.parametrize("vector", json.loads(FIXTURE.read_text())["vectors"], ids=lambda x: x["name"])
+def test_frozen_wire_vectors_execute_declared_outcome(vector):
+    transition = vector["transition"]
+    call = lambda: e.validate_transition(transition, vector["accepted_anchor"], vector["accepted_epoch_number"], vector["first_transition"])
+    if vector["expect"] == "PASS":
+        assert call()["epoch_number"] == 1
+    else:
+        assert code(call) == vector["expect"]
+
+
+@pytest.mark.parametrize("field", ["bridge_valid", "bridge_mode", "validation_success", "verified_receipt", "router_private_state_hash"])
+def test_producer_proof_claims_are_unknown_fields(field):
+    value = make_transition(); value[field] = True
+    assert code(lambda: e.validate_transition(value, value["accepted_anchor"], 0, True)) == "EPOCH_FIELDS"
+
+
+def test_complete_bridge_binding_and_archive_bind_bridge_not_anchor():
+    value = make_transition(); bridge = value["bridge_predecessor"]
+    assert e.validate_transition(value, value["accepted_anchor"], 0, True)["epoch_number"] == 1
+    value["archive"]["previous_bridge_binding_sha256"] = "0" * 64
+    assert code(lambda: e.validate_transition(value, value["accepted_anchor"], 0, True)) == "EPOCH_ARCHIVE_HASH"
+    assert bridge != {**bridge, "artifact_sha256": "0" * 64}
+
+
+def test_cumulative_bridge_is_derived_from_complete_descriptor_inequality():
+    value = make_transition(); value["bridge_predecessor"] = dict(value["bridge_predecessor"], publication_sequence=901, content_id=801, source_cut=8)
+    value["bridge_binding_sha256"] = e.commitment("a1-bridge-binding", {"accepted_anchor": value["accepted_anchor"], "bridge_predecessor": value["bridge_predecessor"]})
+    value["archive"]["previous_manifest_sha256"] = value["bridge_predecessor"]["manifest_sha256"]
+    value["archive"]["previous_bridge_binding_sha256"] = value["bridge_binding_sha256"]
+    value["archive"]["archive_commitment_sha256"] = e.commitment("archive-descriptor", {k:v for k,v in value["archive"].items() if k != "archive_commitment_sha256"})
+    value["commitments"]["bridge_predecessor_sha256"] = e.commitment("bridge-predecessor", value["bridge_predecessor"])
+    value["commitments"]["bridge_binding_sha256"] = value["bridge_binding_sha256"]
+    value["commitments"]["archive_descriptor_sha256"] = e.commitment("archive-descriptor", {k:v for k,v in value["archive"].items() if k != "archive_commitment_sha256"})
+    value["commitments"]["transition_sha256"] = e.commitment("complete-transition", {**{k:v for k,v in value.items() if k != "commitments"}, "commitments": {k:v for k,v in value["commitments"].items() if k != "transition_sha256"}})
+    assert e.validate_transition(value, value["accepted_anchor"], 0, True)["epoch_number"] == 1

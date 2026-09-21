@@ -74,6 +74,25 @@ considered.
 
 ## 4. Exact predecessor binding
 
+### 4A. Accepted anchor and A1 bridge
+
+The first V2 transition may encounter a Router whose accepted A1 content is
+older than Scout's currently published A1 content.  The wire contract therefore
+uses `accepted_anchor`, `bridge_predecessor`, and `bridge_binding_sha256`, not
+a singular predecessor.  Each descriptor has exactly
+`publication_sequence`, `content_id`, `manifest_sha256`, `artifact_sha256`,
+`artifact_size`, `source_kind`, `source_id`, and `source_cut`.  The binding is
+`SHA256(domain("a1-bridge-binding"), canonical({accepted_anchor,
+bridge_predecessor}))`; it binds identities only and is never evidence that a
+Router validated the bridge.  Directness is derived solely from complete
+descriptor equality.  Router must locally validate a differing A1 bridge.
+
+The candidate source identity must equal the bridge identity, and cuts must be
+non-regressing `accepted_anchor <= bridge_predecessor <= candidate`.  Archive
+retirement binds the bridge manifest, not the accepted anchor.  No receipt,
+mode, validation-success indicator, or Router-private state hash is permitted
+in a Scout-produced manifest.
+
 `predecessor` is an exact commitment, not a lookup hint:
 
 | Field | Required value |
