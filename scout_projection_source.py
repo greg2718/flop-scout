@@ -62,6 +62,7 @@ def map_raw(conn,raw_id,local_dids=(),revision=REVISION,*,_prepared=None):
     row=_prepared.raws.get(raw_id) if _prepared is not None else conn.execute('SELECT * FROM raw_network_records WHERE raw_record_id=?',(raw_id,)).fetchone();require(row,'Missing immutable raw input');raw=dict(row)
     event=_prepared.events.get(raw_id) if _prepared is not None else conn.execute('SELECT * FROM observed_events WHERE raw_record_id=?',(raw_id,)).fetchone()
     require(event and event['raw_text_sha256']==raw['raw_text_sha256'],'Missing or inconsistent committed derived evidence')
+    sha(raw['raw_text_sha256'])
     if generation(raw['generation'])!='UNKNOWN_LEGACY' and raw.get('reported_generation') not in (None,raw['generation']):
         from scout_projection_legacy import LegacyGenerationError
         raise LegacyGenerationError('LG1_GENERATION_CONFLICT')
@@ -121,7 +122,7 @@ def map_raw(conn,raw_id,local_dids=(),revision=REVISION,*,_prepared=None):
             facts['did_mismatch'] = False
     workflow=None if legacy_candidate else workflow_from_source(conn,raw,msg,obj,revision)
     facts['workflow']=workflow
-    provenance=dict(entity_type='message',projection_row_id=msg['projection_row_id'],source_namespace=raw['source'],source_record_locator=raw_id,scout_event_id=str(event['event_id']),raw_record_id=raw_id,raw_record_sha256=None,annotations_json=canonical(annotations(ann,revision)).decode())
+    provenance=dict(entity_type='message',projection_row_id=msg['projection_row_id'],source_namespace=raw['source'],source_record_locator=raw_id,scout_event_id=str(event['event_id']),raw_record_id=raw_id,raw_record_sha256=raw['raw_text_sha256'],annotations_json=canonical(annotations(ann,revision)).decode())
     bundle=dict(message=msg,provenance=provenance,first_observed_at=observed_time(raw['created_at']),facts=facts,dependencies=[])
     if revision in (LG2_REVISION,TL1_REVISION):
         from scout_projection_compact import encode

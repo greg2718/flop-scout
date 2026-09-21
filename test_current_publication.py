@@ -49,6 +49,13 @@ def test_missing_tclk_root_is_retained_as_unresolved(tmp_path):
     assert b['facts']['workflow']['identity']['protocol']=='scout-unresolved/v1'
     assert b['facts']['workflow']['terminal'] is None
     assert b['facts']['workflow']['authenticated'] is False
+    assert b['provenance']['raw_record_sha256']==c.execute('SELECT raw_text_sha256 FROM raw_network_records WHERE raw_record_id=?',(rid,)).fetchone()[0]
+    c.execute('PRAGMA foreign_keys=OFF')
+    with c:c.execute("UPDATE observed_events SET raw_text_sha256=? WHERE raw_record_id=?",('0'*64,rid))
+    c.execute('PRAGMA foreign_keys=ON')
+    with patch('scout_projection_source.map_raw',side_effect=ValueError('Authenticated TCLK transition has no authoritative offer root')):
+        with pytest.raises(ValueError,match='inconsistent committed derived evidence'):
+            current_bundle(c,rid)
     c.close()
 
 

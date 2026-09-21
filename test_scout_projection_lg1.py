@@ -17,6 +17,7 @@ from test_scout_projection import create,apply,empty_pins,quals,bundle
 def test_lg1_complete_representation_replay_watermarks(tmp_path,report):
     c=source();rid=add_legacy(c,report=report,protocol_cache=True);before=dict(c.execute('SELECT * FROM raw_network_records').fetchone())
     b=map_raw(c,rid,[DID]);ann=loads(b['provenance']['annotations_json'])['legacy_generation']
+    assert b['provenance']['raw_record_sha256']==before['raw_text_sha256']
     assert ann['captured_generation']=='UNKNOWN_LEGACY' and ann['reported_generation']==report
     assert ann['generation_authority']=='LEGACY_REPORTED_ONLY' and ann['generation_match_status']=='UNRESOLVED_LEGACY'
     assert len(ann['linked_cache_records'])==2 and ann['linked_cache_records']==sorted(ann['linked_cache_records'],key=canonical)
@@ -24,6 +25,7 @@ def test_lg1_complete_representation_replay_watermarks(tmp_path,report):
     assert from_originals(b['legacy_generation_originals'])==ann
     with create(tmp_path/'p',local=[DID]) as p:
         apply(p,[b]);original=quals(p)
+        assert p.conn.execute("SELECT raw_record_sha256 FROM projection.source_provenance WHERE projection_row_id=?",('sm1:'+rid,)).fetchone()[0]==before['raw_text_sha256']
         assert original and all(q['same_operator'] and not q['independent_reputation'] for q in original)
         for q in original:
             assert q['source_ref']['id']=='sm1:'+rid and q['source_ref']['sha256']==text_hash(TEXT)
@@ -40,6 +42,16 @@ def test_lg1_complete_representation_replay_watermarks(tmp_path,report):
         assert quals(p)==original
         assert loads(p.bundle('sm1:'+rid)['provenance']['annotations_json'])['legacy_generation']==ann
     assert dict(c.execute('SELECT * FROM raw_network_records').fetchone())==before
+    c.close()
+
+
+def test_map_raw_rejects_mismatched_committed_hash_before_provenance():
+    c=source();rid=add_legacy(c)
+    c.execute('PRAGMA foreign_keys=OFF')
+    with c:c.execute("UPDATE observed_events SET raw_text_sha256=? WHERE raw_record_id=?",('0'*64,rid))
+    c.execute('PRAGMA foreign_keys=ON')
+    with pytest.raises(ProjectionError,match='inconsistent committed derived evidence'):
+        map_raw(c,rid)
     c.close()
 
 

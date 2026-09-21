@@ -164,13 +164,17 @@ def copy_records(source,dst,chosen,cut,required=(),pins=None):
 def current_bundle(source,rid):
     """A1 current source adapter: missing roots remain unresolved, never closed."""
     from scout_projection_source import map_raw,observed_time,exact_cache,generation
-    from scout_projection_contract import annotation_template,annotations,text_hash
+    from scout_projection_contract import annotation_template,annotations,text_hash,sha
     from scout_projection_model import workflow_identity
     try:return map_raw(source,rid,LOCAL_DIDS,'A1')
     except ValueError as exc:
         if str(exc)!='Authenticated TCLK transition has no authoritative offer root':raise
-    raw=dict(source.execute('SELECT * FROM raw_network_records WHERE raw_record_id=?',(rid,)).fetchone())
-    event=source.execute('SELECT event_id FROM observed_events WHERE raw_record_id=?',(rid,)).fetchone()
+    source_row=source.execute('SELECT * FROM raw_network_records WHERE raw_record_id=?',(rid,)).fetchone()
+    require(source_row,'Missing immutable raw input');raw=dict(source_row)
+    events=source.execute('SELECT event_id,raw_text_sha256 FROM observed_events WHERE raw_record_id=? LIMIT 2',(rid,)).fetchall()
+    require(len(events)==1 and events[0]['raw_text_sha256']==raw['raw_text_sha256'],'Missing or inconsistent committed derived evidence')
+    sha(raw['raw_text_sha256']);require(text_hash(raw['raw_text'])==raw['raw_text_sha256'],'Raw source text corruption')
+    event=events[0]
     verified=exact_cache(source,'evidence_records',raw,'A1')
     msg=dict(projection_row_id='sm1:'+rid,room=raw['room'],generation=generation(raw['generation']),
         seq=raw['seq'],timestamp=raw['network_timestamp'],sender=raw['sender_did'],signed=1,
@@ -185,8 +189,8 @@ def current_bundle(source,rid):
     workflow=dict(id=wid,identity=ident,role='ROOT',root_id=msg['projection_row_id'],result_id=None,
         authenticated=raw['signature_status']=='VERIFIED_OFFLINE',deadline_ms=None,terminal=None)
     return dict(message=msg,provenance=dict(entity_type='message',projection_row_id=msg['projection_row_id'],
-        source_namespace=raw['source'],source_record_locator=rid,scout_event_id=str(event[0]),
-        raw_record_id=rid,raw_record_sha256=None,annotations_json=canonical(annotations(ann,'A1')).decode()),
+        source_namespace=raw['source'],source_record_locator=rid,scout_event_id=str(event['event_id']),
+        raw_record_id=rid,raw_record_sha256=raw['raw_text_sha256'],annotations_json=canonical(annotations(ann,'A1')).decode()),
         first_observed_at=observed_time(raw['created_at']),facts=dict(signature_failure=raw['signature_status']=='FAILED',
         did_mismatch=bool(raw['did_mismatch']),identity_binding=False,official=False,
         operator_local=msg['sender'] in LOCAL_DIDS,workflow=workflow),dependencies=[])
