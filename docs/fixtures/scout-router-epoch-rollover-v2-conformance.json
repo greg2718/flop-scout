@@ -15,5 +15,14 @@
     {"name":"source-cut-rollback","expect":"reject:CONTINUITY_SOURCE_ROLLBACK","delta":{"source_cut":{"committed_event_id":"1"}}},
     {"name":"oversized-field","expect":"reject:EPOCH_FIELD_BOUNDS","delta":{"archive":{"locator":"synthetic/"}},"construction":"append 257 ASCII x characters to locator"},
     {"name":"interrupted-prepublication","expect":"resume-same-bytes-or-abort","journal":{"state":"SCOUT_VERIFIED","predecessor_hash":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","candidate_hash":"abababababababababababababababababababababababababababababababab"},"required":"no pointer mutation; retry must use identical cut, selected identities, archive hash, and candidate hash"}
+  ],
+  "slice1_cases": [
+    {"name":"valid-first","expect":"PASS","mutation":"none"},
+    {"name":"epoch-regression","expect":"EPOCH_NUMBER","mutation":"epoch-zero"},
+    {"name":"first-source-change","expect":"EPOCH_FIRST_SOURCE_IDENTITY","mutation":"first-source-change"},
+    {"name":"predecessor-mismatch","expect":"EPOCH_PREDECESSOR","mutation":"predecessor-mismatch"},
+    {"name":"source-cut-rollback","expect":"EPOCH_SOURCE_CUT","mutation":"source-cut-rollback"},
+    {"name":"forged-retained-floor","expect":"EPOCH_RETAINED_FLOOR","mutation":"forged-floor"},
+    {"name":"capacity-overflow","expect":"EPOCH_CAPACITY","mutation":"capacity-overflow"}
   ]
 }

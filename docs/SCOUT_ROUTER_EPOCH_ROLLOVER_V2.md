@@ -42,9 +42,11 @@ predecessor binding, or relax A1 checks for V1 publications.
 ## 3. V2 manifest extension and field contract
 
 All fields are required for a `CONTENT` V2 epoch-transition artifact unless
-marked conditional.  Integers are JSON integers, never floats; identifiers are
-bounded ASCII lower-case hex or documented prefixed strings; timestamps are UTC
-RFC3339 `Z` strings with microseconds permitted.
+marked conditional.  Integers are JSON integers, never floats. **Every V2
+string, including keys, identifiers, timestamps, locators, and policy names, is
+ASCII-only**; this deliberately leaves no Unicode-normalization ambiguity.
+Identifiers are bounded lower-case hex or documented prefixed strings;
+timestamps are UTC RFC3339 `Z` strings with microseconds permitted.
 
 | Field | Type / bound | Meaning and validation |
 | --- | --- | --- |
@@ -105,8 +107,10 @@ as an immutable archive.  `archive` contains:
 | `preservation` | `IMMUTABLE_RETAINED`; records the minimum retention policy/version and audit availability. |
 | `archive_commitment_sha256` | Hash of canonical descriptor excluding this self-field. |
 
-Scout writes/renames an archive only into a containment-checked immutable
-archive root.  Router validates descriptor canonical bytes, locator syntax,
+Scout writes/renames a public archive only into a containment-checked immutable
+archive root and retains first-deployment epoch archives indefinitely.  Private
+recovery archives are a separate root and must not be exposed as public archive
+locators.  Router validates descriptor canonical bytes, locator syntax,
 hash/size/schema and predecessor binding before acceptance.  It MAY cache a
 verified archive locally under hash-derived ownership-safe paths.  If required
 archive bytes are unavailable, unreadable, changing, oversized, corrupt, or
@@ -157,8 +161,11 @@ X = hard active maximum
 
 Required invariant: `M >= R`, `T + H + S <= X`, and an active build succeeds
 only if `M <= T <= X`.  The policy records all measured inputs and its version.
-The exact `T`, `X`, source batch cap, high-rate percentile/window, and disk
-budget are operator-approved constants, not inferred from this design document.
+For the first deployment, `X` remains **50,000**; any later increase requires
+an independently approved production-shaped rehearsal.  `T` is calculated, not
+fixed.  `H` is at least 12 hours and uses the greater of a conservative measured
+high-percentile ingestion rate and twice the recent mean.  `S` remains a
+separate deterministic safety reserve.
 
 Selection is stable and total: policy version, required closure first, then
 explicit class priority, source event order, and raw-record-id tie-breaker.
@@ -167,6 +174,7 @@ the same bounded fanout safeguards as A1.  If closure alone exceeds `T` or `X`, 
 rollover aborts before mutable staging/pointer publication.  It never evicts a
 required record merely to meet capacity.
 
+Scheduling begins before capacity is exhausted: its trigger is `X - H - S`.
 Rollover triggers at the earlier of: (a) projected time to `X` is 12 hours at
 the measured high-rate ingestion estimate, (b) a scheduled cadence reaches its
 cut, or (c) an operator-approved disk-growth threshold.  An acceleration that
@@ -230,8 +238,11 @@ or publishes an unverified candidate.
   floats, or non-finite values are permitted.
 - Every digest is SHA-256 over canonical bytes prefixed with a fixed domain
   string and NUL separator, e.g. `flop-scout/epoch-v2/predecessor\0`.
-- Self-hashes exclude only their own field.  All other nested commitment hashes
-  are mandatory and independently recomputed.
+- Commitment views are precise: `archive_commitment_sha256` excludes only
+  `archive_commitment_sha256`; `retained_floor_commitment_sha256` excludes only
+  `retained_floor_commitment_sha256`; and `transition_sha256` excludes only
+  `commitments.transition_sha256`.  Every other field, including all nested
+  commitments, remains in its corresponding canonical view.
 - JSON descriptors, arrays, string lengths, archive/database sizes, row counts,
   path lengths, and archive count per transition have explicit bounded limits.
 - Paths are relative opaque locators resolved under a designated root after
@@ -250,8 +261,10 @@ or publishes an unverified candidate.
    compatible and A1 checks unchanged.
 3. Rehearse first transition on production-shaped isolated roots, including
    crash recovery and archive retrieval.
-4. Obtain explicit approval for one first V2 transition.  Router feature gate
-   is enabled before Scout publishes the candidate.
+4. Obtain explicit approval for one first V2 transition.  Its authority is a
+   local operator action bound to exact predecessor values; network content
+   cannot trigger it.  The first transition keeps source identity unchanged.
+   Router feature gate is enabled before Scout publishes the candidate.
 5. After a V2 publication, rollback is forward-only: retain the last accepted
    V2 artifact/archive and repair with a later V2 publication.  Downgrading a
    Router that cannot validate the accepted V2 chain is not a safe rollback.
@@ -270,12 +283,12 @@ or publishes an unverified candidate.
 
 ## 13. Decisions still requiring operator approval
 
-1. Target/hard active capacity and measured ingestion percentile/window.
+1. Target capacity and measured ingestion percentile/window; the first hard
+   maximum is fixed at 50,000.
 2. Exact mandatory closure categories and whether any currently finite evidence
    becomes mandatory across an epoch boundary.
 3. Archive storage backend, retention duration, independent backup, access
    controls, and audit service-level objective.
-4. Whether source identity can change across epochs; if yes, the exact
-   cross-source provenance/replay rule.
-5. First-transition operational authority, feature-gate default, checkpoint
-   retention, and the measurable performance/disk acceptance thresholds.
+4. Later-epoch source-identity changes, if ever allowed, and their exact
+   cross-source provenance/replay rule.  The first transition cannot change it.
+5. Checkpoint retention and measurable performance/disk acceptance thresholds.
