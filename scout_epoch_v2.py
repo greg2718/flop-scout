@@ -146,10 +146,10 @@ CUT = ("source_id", "epoch", "committed_event_id", "cut_evidence_sha256")
 ARCHIVE = ("schema", "archive_id", "artifact_sha256", "size_bytes", "database_schema_version", "locator", "previous_epoch_id", "previous_manifest_sha256", "previous_bridge_binding_sha256", "preservation", "archive_commitment_sha256")
 ACTIVE_ARTIFACT = ("schema", "content_id", "locator", "artifact_sha256", "size_bytes", "database_schema_version")
 ACTIVE_SET_PLAN = ("schema", "locator", "sha256", "size_bytes", "plan_commitment_sha256", "recovery_commitment_sha256")
-PLAN = ("schema", "candidate_source", "archive_descriptor_sha256", "recovery_commitment_sha256", "retained_floor_commitment_sha256", "omission_commitment_sha256", "capacity", "selected", "omitted", "counts", "plan_commitment_sha256")
+PLAN = ("schema", "selection_policy_version", "candidate_source", "archive_descriptor_sha256", "recovery_commitment_sha256", "retained_floor_commitment_sha256", "omission_commitment_sha256", "capacity", "selected", "omitted", "counts", "plan_commitment_sha256")
 PLAN_RECORD = ("projection_row_id", "raw_record_id", "raw_text_sha256", "scout_event_id", "reasons")
 FLOOR = ("room", "generation", "domain", "retained_floor", "omitted_ranges")
-FLOORS = ("entries", "selection_policy_version", "mandatory_proof_closure", "mandatory_proof_closure_sha256", "durable_qualification_history", "durable_qualification_history_sha256", "coverage_witnesses", "coverage_witnesses_sha256", "permanent_pinned_evidence", "permanent_pinned_evidence_sha256", "omitted_history", "omitted_history_sha256", "retained_floor_commitment_sha256")
+FLOORS = ("entries", "selection_policy_version", "mandatory_proof_closure_count", "mandatory_proof_closure_sha256", "durable_qualification_history_count", "durable_qualification_history_sha256", "coverage_witnesses_count", "coverage_witnesses_sha256", "permanent_pinned_evidence_count", "permanent_pinned_evidence_sha256", "omitted_history_count", "omitted_history_sha256", "retained_floor_commitment_sha256")
 ACTIVE = ("target", "headroom", "reserve", "hard_max", "mandatory_closure_count")
 COMMITMENTS = ("accepted_anchor_sha256", "bridge_predecessor_sha256", "bridge_binding_sha256", "archive_descriptor_sha256", "active_artifact_descriptor_sha256", "active_set_plan_descriptor_sha256", "retained_floor_declaration_sha256", "mandatory_closure_sha256", "durable_qualification_history_sha256", "coverage_witnesses_sha256", "permanent_pinned_evidence_sha256", "transition_sha256")
 TRANSITION = ("schema", "contract_revision", "epoch_number", "epoch_id", "created_at", "source_binding", "source_cut", "accepted_anchor", "bridge_predecessor", "bridge_binding_sha256", "active_artifact", "active_set_plan", "archive", "retained_floor_commitment", "active_epoch", "commitments")
@@ -160,6 +160,108 @@ MANIFEST_TRANSITION = ("schema", "locator", "sha256", "size_bytes", "transition_
 def _cut(value):
     _obj(value, CUT); _id(value["source_id"]); _id(value["epoch"])
     _integer(value["committed_event_id"], "EPOCH_SOURCE_CUT"); _hash(value["cut_evidence_sha256"])
+
+
+def source_binding_descriptor(bridge_predecessor, bridge_binding_sha256):
+    """Canonical first-transition authority, bound to the complete A1 bridge."""
+    _descriptor(bridge_predecessor); _hash(bridge_binding_sha256, "EPOCH_BRIDGE_BINDING")
+    return commitment("source-binding-descriptor", {
+        "schema": "flop-scout-epoch-source-binding/v1",
+        "source_id": bridge_predecessor["source_id"], "epoch": bridge_predecessor["source_kind"],
+        "bridge_binding_sha256": bridge_binding_sha256})
+
+
+def first_transition_source_binding(bridge_predecessor, bridge_binding_sha256):
+    return {"source_id": bridge_predecessor["source_id"], "epoch": bridge_predecessor["source_kind"],
+            "descriptor_sha256": source_binding_descriptor(bridge_predecessor, bridge_binding_sha256)}
+
+
+def source_cut_evidence(source_binding, bridge_predecessor, bridge_binding_sha256):
+    _obj(source_binding, ("source_id", "epoch", "descriptor_sha256"), "EPOCH_SOURCE_BINDING")
+    _descriptor(bridge_predecessor); _hash(bridge_binding_sha256, "EPOCH_BRIDGE_BINDING")
+    return commitment("source-cut-evidence", {
+        "schema": "flop-scout-epoch-source-cut-evidence/v1", "source_binding": source_binding,
+        "committed_event_id": bridge_predecessor["source_cut"], "bridge_binding_sha256": bridge_binding_sha256})
+
+
+def first_transition_source_cut(source_binding, bridge_predecessor, bridge_binding_sha256):
+    return {"source_id": source_binding["source_id"], "epoch": source_binding["epoch"],
+            "committed_event_id": bridge_predecessor["source_cut"],
+            "cut_evidence_sha256": source_cut_evidence(source_binding, bridge_predecessor, bridge_binding_sha256)}
+
+
+def normalize_legacy_a1_bridge_descriptor(legacy, observed_manifest_sha256, normalized_bridge):
+    """Local-only conversion of one acquired A1 descriptor; never wire parsing."""
+    try:
+        if type(legacy) is not dict or set(legacy) != {"publication_id", "content_id", "manifest_sha256", "artifact_sha256", "artifact_size", "source_checkpoint"}:
+            raise ValueError
+        checkpoint = legacy["source_checkpoint"]
+        if type(checkpoint) is not dict or set(checkpoint) != {"source_id", "epoch", "committed_event_id"}:
+            raise ValueError
+        _hash(observed_manifest_sha256)
+        if legacy["manifest_sha256"] != observed_manifest_sha256: raise ValueError
+        for key in ("artifact_sha256", "manifest_sha256"): _hash(legacy[key])
+        def decimal(value):
+            if type(value) is not str or not re.match(r"^(0|[1-9][0-9]*)$", value): raise ValueError
+            number = int(value)
+            if number > MAX_INT: raise ValueError
+            return number
+        candidate = {"publication_sequence": decimal(legacy["publication_id"]), "content_id": decimal(legacy["content_id"]),
+                     "manifest_sha256": observed_manifest_sha256, "artifact_sha256": legacy["artifact_sha256"],
+                     "artifact_size": legacy["artifact_size"], "source_kind": checkpoint["epoch"],
+                     "source_id": checkpoint["source_id"], "source_cut": decimal(checkpoint["committed_event_id"])}
+        if type(candidate["artifact_size"]) is not int or type(candidate["artifact_size"]) is bool or candidate["artifact_size"] < 0:
+            raise ValueError
+        if candidate["publication_sequence"] < 1 or candidate["content_id"] < 1: raise ValueError
+        _id(candidate["source_id"]); _text(candidate["source_kind"])
+        _descriptor(candidate)
+        _descriptor(normalized_bridge)
+        if candidate != normalized_bridge: raise ValueError
+        return candidate
+    except (TypeError, ValueError, V2ValidationError):
+        _fail("EPOCH_LEGACY_BRIDGE_DESCRIPTOR", "legacy bridge descriptor is invalid or differs from verified bridge")
+
+
+def legacy_a1_bridge_descriptor_from_normalized(normalized_bridge):
+    """Return recovery-only legacy compatibility data for one normalized V2 bridge.
+
+    This is deliberately not a V2 wire parser.  The historical A1 publication
+    shape is rebuilt only for the local round-trip proof below; the returned
+    value is the closed descriptor shape consumed by legacy recovery.
+    """
+    try:
+        _descriptor(normalized_bridge)
+        if normalized_bridge["publication_sequence"] < 1 or normalized_bridge["content_id"] < 1:
+            raise ValueError
+        if normalized_bridge["artifact_size"] < 1:
+            raise ValueError
+        publication_descriptor = {
+            "publication_id": str(normalized_bridge["publication_sequence"]),
+            "content_id": str(normalized_bridge["content_id"]),
+            "manifest_sha256": normalized_bridge["manifest_sha256"],
+            "artifact_sha256": normalized_bridge["artifact_sha256"],
+            "artifact_size": normalized_bridge["artifact_size"],
+            "source_checkpoint": {
+                "source_id": normalized_bridge["source_id"],
+                "epoch": normalized_bridge["source_kind"],
+                "committed_event_id": str(normalized_bridge["source_cut"]),
+            },
+        }
+        if normalize_legacy_a1_bridge_descriptor(
+                publication_descriptor, normalized_bridge["manifest_sha256"], normalized_bridge) != normalized_bridge:
+            raise ValueError
+        return {
+            "content_id": str(normalized_bridge["content_id"]),
+            "manifest_sha256": normalized_bridge["manifest_sha256"],
+            "artifact_sha256": normalized_bridge["artifact_sha256"],
+            "artifact_size": normalized_bridge["artifact_size"],
+            "source_kind": normalized_bridge["source_kind"],
+            "source_id": normalized_bridge["source_id"],
+            "source_epoch": normalized_bridge["source_kind"],
+            "source_cut": normalized_bridge["source_cut"],
+        }
+    except (TypeError, ValueError, V2ValidationError):
+        _fail("EPOCH_LEGACY_BRIDGE_DESCRIPTOR", "normalized bridge descriptor cannot produce legacy recovery data")
 
 
 def _descriptor(value):
@@ -244,6 +346,47 @@ def derive_epoch_id(value):
     return "se2:" + commitment("epoch-id", epoch_identity(value))
 
 
+def build_first_transition(accepted_anchor, bridge_predecessor, archive, active_artifact,
+                           active_set_plan, retained_floor_commitment, active_epoch,
+                           created_at):
+    """Pure construction of the first, still-unpublished compact V2 transition."""
+    _descriptor(accepted_anchor); _descriptor(bridge_predecessor); _archive(archive)
+    _active_artifact(active_artifact); _active_set_plan(active_set_plan)
+    _floors(retained_floor_commitment); _obj(active_epoch, ACTIVE)
+    if type(created_at) is not str or not _TIME.match(created_at):
+        _fail("EPOCH_TIMESTAMP", "timestamp is not canonical UTC RFC3339")
+    binding = commitment("a1-bridge-binding", {"accepted_anchor": accepted_anchor,
+                                                 "bridge_predecessor": bridge_predecessor})
+    source_binding = first_transition_source_binding(bridge_predecessor, binding)
+    source_cut = first_transition_source_cut(source_binding, bridge_predecessor, binding)
+    value = {"schema": SCHEMA, "contract_revision": REVISION, "epoch_number": 1,
+             "epoch_id": "se2:pending", "created_at": created_at,
+             "source_binding": source_binding, "source_cut": source_cut,
+             "accepted_anchor": accepted_anchor, "bridge_predecessor": bridge_predecessor,
+             "bridge_binding_sha256": binding, "active_artifact": active_artifact,
+             "active_set_plan": active_set_plan, "archive": archive,
+             "retained_floor_commitment": retained_floor_commitment,
+             "active_epoch": active_epoch}
+    checks = {"accepted_anchor_sha256": commitment("accepted-anchor", accepted_anchor),
+              "bridge_predecessor_sha256": commitment("bridge-predecessor", bridge_predecessor),
+              "bridge_binding_sha256": binding,
+              "archive_descriptor_sha256": commitment("archive-descriptor", _without(archive, "archive_commitment_sha256")),
+              "active_artifact_descriptor_sha256": commitment("active-artifact-descriptor", active_artifact),
+              "active_set_plan_descriptor_sha256": commitment("active-set-plan-descriptor", active_set_plan),
+              "retained_floor_declaration_sha256": retained_floor_commitment["retained_floor_commitment_sha256"],
+              "mandatory_closure_sha256": retained_floor_commitment["mandatory_proof_closure_sha256"],
+              "durable_qualification_history_sha256": retained_floor_commitment["durable_qualification_history_sha256"],
+              "coverage_witnesses_sha256": retained_floor_commitment["coverage_witnesses_sha256"],
+              "permanent_pinned_evidence_sha256": retained_floor_commitment["permanent_pinned_evidence_sha256"]}
+    value["commitments"] = dict(checks, transition_sha256="0" * 64)
+    value["epoch_id"] = derive_epoch_id(value)
+    complete = _without(value, "commitments")
+    complete["commitments"] = _without(value["commitments"], "transition_sha256")
+    value["commitments"]["transition_sha256"] = commitment("complete-transition", complete)
+    validate_transition(value, accepted_anchor, 0, True)
+    return value
+
+
 def _plan_bounded(value, depth=0):
     if depth > MAX_DEPTH:
         _fail("EPOCH_PLAN_NESTING", "plan nesting exceeds the limit")
@@ -277,6 +420,52 @@ def parse_active_set_plan(data):
     return value
 
 
+def active_set_plan_commitment(value):
+    """Large-plan commitment; unlike generic wire objects it permits 50k rows."""
+    _plan_bounded(value)
+    return hashlib.sha256(b"flop-scout/epoch-v2/active-set-plan\0" +
+                          json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+                                     allow_nan=False).encode("ascii")).hexdigest()
+
+
+def bounded_commitment(domain, value):
+    """Commit a canonical set which Router independently reconstructs at acceptance."""
+    if type(domain) is not str or not re.match(r"^[a-z][a-z0-9-]{0,63}$", domain):
+        _fail("EPOCH_DOMAIN", "invalid commitment domain")
+    _plan_bounded(value)
+    if type(value) is not list:
+        _fail("EPOCH_FLOOR_BOUNDS", "compact commitment value must be a list")
+    identities = [json.dumps(item, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+                             allow_nan=False).encode("ascii") for item in value]
+    if identities != sorted(identities) or len(identities) != len(set(identities)):
+        _fail("EPOCH_FLOOR_ORDER", "compact commitment values must be sorted and unique")
+    return hashlib.sha256(("flop-scout/epoch-v2/" + domain).encode("ascii") + b"\0" +
+                          json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+                                     allow_nan=False).encode("ascii")).hexdigest()
+
+
+def compact_retained_floor(entries, selection_policy_version, sets):
+    """Create the compact V2 floor binding from independently reconstructable sets."""
+    domains = (("mandatory_proof_closure", "mandatory-closure"),
+               ("durable_qualification_history", "durable-qualification-history"),
+               ("coverage_witnesses", "coverage-witnesses"),
+               ("permanent_pinned_evidence", "permanent-pinned-evidence"),
+               ("omitted_history", "omitted-history"))
+    if type(sets) is not dict or set(sets) != {name for name, _ in domains}:
+        _fail("EPOCH_RETAINED_FLOOR", "compact retained-floor sets are incomplete")
+    value = {"entries": entries, "selection_policy_version": selection_policy_version}
+    for name, domain in domains:
+        rows = sets[name]
+        if type(rows) is not list or len(rows) > MAX_PLAN_RECORDS:
+            _fail("EPOCH_FLOOR_BOUNDS", "compact retained-floor set exceeds the limit")
+        value[name + "_count"] = len(rows)
+        value[name + "_sha256"] = bounded_commitment(domain, rows)
+    value["retained_floor_commitment_sha256"] = commitment(
+        "retained-floor-declaration", value)
+    _floors(value)
+    return value
+
+
 def _plan_record(value):
     _obj(value, PLAN_RECORD, "EPOCH_PLAN_RECORD")
     _id(value["projection_row_id"], "EPOCH_PLAN_RECORD"); _hash(value["raw_record_id"], "EPOCH_PLAN_RECORD")
@@ -296,6 +485,7 @@ def validate_active_set_plan(value, transition):
     """Validate a bounded, redacted plan sidecar against its transition."""
     _plan_bounded(value); _obj(value, PLAN, "EPOCH_PLAN_FIELDS")
     if value["schema"] != "flop-scout-epoch-active-set-plan/v1": _fail("EPOCH_PLAN_SCHEMA", "unsupported plan schema")
+    _text(value["selection_policy_version"], "EPOCH_PLAN_BINDING")
     if value["candidate_source"] != {"source_binding": transition["source_binding"], "source_cut": transition["source_cut"]}: _fail("EPOCH_PLAN_BINDING", "plan source differs")
     checks = {"archive_descriptor_sha256": commitment("archive-descriptor", _without(transition["archive"], "archive_commitment_sha256")), "recovery_commitment_sha256": transition["active_set_plan"]["recovery_commitment_sha256"], "retained_floor_commitment_sha256": transition["retained_floor_commitment"]["retained_floor_commitment_sha256"], "omission_commitment_sha256": transition["retained_floor_commitment"]["omitted_history_sha256"], "capacity": transition["active_epoch"]}
     for key, expected in checks.items():
@@ -309,7 +499,7 @@ def validate_active_set_plan(value, transition):
     if len(ids) != len(set(ids)) or value["counts"] != {"selected": len(selected), "omitted": len(omitted), "eligible": len(records)}:
         _fail("EPOCH_PLAN_COUNTS", "plan records are duplicate or counts differ")
     _hash(value["plan_commitment_sha256"], "EPOCH_PLAN_COMMITMENT")
-    if value["plan_commitment_sha256"] != commitment("active-set-plan", _plan_commitment_view(value)):
+    if value["plan_commitment_sha256"] != active_set_plan_commitment(_plan_commitment_view(value)):
         _fail("EPOCH_PLAN_COMMITMENT", "plan commitment mismatch")
     return value
 
@@ -367,10 +557,10 @@ def _floors(value):
             if start <= prior: _fail("EPOCH_OMISSION_ORDER", "omission ranges must be sorted and disjoint")
             prior = end
     _text(value["selection_policy_version"])
-    pairs = (("mandatory_proof_closure", "mandatory_proof_closure_sha256", "mandatory-closure"), ("durable_qualification_history", "durable_qualification_history_sha256", "durable-qualification-history"), ("coverage_witnesses", "coverage_witnesses_sha256", "coverage-witnesses"), ("permanent_pinned_evidence", "permanent_pinned_evidence_sha256", "permanent-pinned-evidence"), ("omitted_history", "omitted_history_sha256", "omitted-history"))
-    for body, digest, domain in pairs:
+    pairs = (("mandatory_proof_closure_count", "mandatory_proof_closure_sha256"), ("durable_qualification_history_count", "durable_qualification_history_sha256"), ("coverage_witnesses_count", "coverage_witnesses_sha256"), ("permanent_pinned_evidence_count", "permanent_pinned_evidence_sha256"), ("omitted_history_count", "omitted_history_sha256"))
+    for count, digest in pairs:
+        _integer(value[count], "EPOCH_FLOOR_BOUNDS", 0, MAX_PLAN_RECORDS)
         _hash(value[digest])
-        if value[digest] != commitment(domain, value[body]): _fail("EPOCH_COMMITMENT", "nested commitment mismatch")
     _hash(value["retained_floor_commitment_sha256"])
     if value["retained_floor_commitment_sha256"] != commitment("retained-floor-declaration", _without(value, "retained_floor_commitment_sha256")):
         _fail("EPOCH_RETAINED_FLOOR", "retained-floor commitment mismatch")
@@ -397,7 +587,14 @@ def validate_transition(value, accepted_anchor, accepted_epoch_number=0, first_t
     if (anchor["source_kind"],anchor["source_id"]) != (bridge["source_kind"],bridge["source_id"]) or anchor["source_cut"] > bridge["source_cut"]: _fail("EPOCH_BRIDGE_SOURCE", "bridge source regressed or changed")
     if (source["epoch"],source["source_id"]) != (bridge["source_kind"],bridge["source_id"]): _fail("EPOCH_SOURCE_BINDING", "candidate source identity differs from bridge")
     if value["source_cut"]["committed_event_id"] < bridge["source_cut"]: _fail("EPOCH_SOURCE_CUT", "source cut regressed")
-    if first_transition and epoch != 1: _fail("EPOCH_FIRST_TRANSITION", "first transition must begin epoch one")
+    if first_transition:
+        if epoch != 1: _fail("EPOCH_FIRST_TRANSITION", "first transition must begin epoch one")
+        expected_source = first_transition_source_binding(bridge, expected)
+        if source != expected_source: _fail("EPOCH_SOURCE_DESCRIPTOR", "first-transition source binding differs from bridge authority")
+        if value["source_cut"]["committed_event_id"] != bridge["source_cut"]:
+            _fail("EPOCH_FIRST_SOURCE_CUT", "first transition must use the bridge source cut")
+        if value["source_cut"] != first_transition_source_cut(source, bridge, expected):
+            _fail("EPOCH_SOURCE_CUT_EVIDENCE", "first-transition source cut evidence differs from bridge authority")
     _active_artifact(value["active_artifact"])
     _active_set_plan(value["active_set_plan"])
     _archive(value["archive"])

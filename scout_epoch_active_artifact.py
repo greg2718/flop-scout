@@ -15,6 +15,7 @@ import uuid
 from pathlib import Path
 
 from scout_epoch_active_set_adapter import ActiveSetError, build_plan
+from scout_epoch_active_set_plan import ActiveSetPlanError, read as read_active_set_plan
 from scout_projection_contract import REVISIONS, digest, instant, policy_for, sql_for
 from scout_projection_publish import validate_database
 
@@ -81,6 +82,20 @@ def _strict_plan(path):
 
 def _same_plan(approved, derived):
     return all(approved.get(key) == derived.get(key) for key in _PLAN_CORE)
+
+
+def _same_sidecar(sidecar, derived):
+    """Compare exact redacted row identities; SQLite bytes remain A1-compatible."""
+    def rows(items):
+        return {(row["projection_row_id"], row["raw_record_id"], row["raw_text_sha256"], str(row["scout_event_id"]))
+                for row in items}
+    if sidecar["counts"] != {"selected": len(derived["selected"]), "omitted": len(derived["omitted"]), "eligible": derived["eligible_count"]}:
+        return False
+    return (rows(sidecar["selected"]) == rows(derived["selected"]) and
+            rows(sidecar["omitted"]) == rows(derived["omitted"]) and
+            sidecar["recovery_commitment_sha256"] == derived["recovery_commitment"] and
+            sidecar["retained_floor_commitment_sha256"] == derived["retained_floor_commitment_sha256"] and
+            sidecar["omission_commitment_sha256"] == derived["omission_commitment_sha256"])
 
 
 def _input_hash(path):
@@ -193,7 +208,8 @@ def _validate_plan_rows(path, bridge_path, plan):
 
 def build(projection_path, source_evidence_path, archive_root, plan_path, authorized_descriptor,
           observed_descriptor, archive_context, archive_descriptor, expected_manifest_sha256,
-          candidate_content_id, candidate_source_cut, created_at, contract_revision, output_path):
+          candidate_content_id, candidate_source_cut, created_at, contract_revision, output_path,
+          sidecar_path=None, sidecar_descriptor=None):
     """Atomically build one V2-only local active artifact from explicit inputs."""
     projection_path = _path(projection_path, "bridge projection")
     source_evidence_path = _path(source_evidence_path, "source evidence")
@@ -211,6 +227,14 @@ def build(projection_path, source_evidence_path, archive_root, plan_path, author
     except Exception as exc:
         raise ActiveArtifactError("ACTIVE_ARTIFACT_CREATED_AT", "created_at must be caller-supplied canonical UTC") from exc
     approved = _strict_plan(plan_path)
+    sidecar = None
+    if sidecar_path is not None or sidecar_descriptor is not None:
+        if sidecar_path is None or not isinstance(sidecar_descriptor, dict):
+            _fail("ACTIVE_ARTIFACT_PLAN", "canonical plan sidecar path and descriptor are both required")
+        try:
+            sidecar = read_active_set_plan(sidecar_path, sidecar_descriptor)
+        except ActiveSetPlanError as exc:
+            raise ActiveArtifactError("ACTIVE_ARTIFACT_PLAN", "canonical plan sidecar failed validation: " + exc.code) from exc
     protected_inputs = (projection_path, source_evidence_path, _path(plan_path, "plan"), *_archive_inputs(archive_root))
     before = {str(path): _input_hash(path) for path in protected_inputs}
     try:
@@ -221,6 +245,8 @@ def build(projection_path, source_evidence_path, archive_root, plan_path, author
         raise ActiveArtifactError("ACTIVE_ARTIFACT_INPUT", "archive, recovery, or plan derivation failed: " + exc.code) from exc
     if not _same_plan(approved, derived):
         _fail("ACTIVE_ARTIFACT_PLAN", "approved plan differs from independently derived plan")
+    if sidecar is not None and not _same_sidecar(sidecar, derived):
+        _fail("ACTIVE_ARTIFACT_PLAN", "canonical sidecar differs from independently derived plan")
     if candidate_source_cut != int(approved["source_cut"]) or approved["archive_manifest_sha256"] != expected_manifest_sha256:
         _fail("ACTIVE_ARTIFACT_PLAN", "candidate cut or archive binding differs from approved plan")
     if (approved["eligible_count"], len(approved["selected"]), len(approved["omitted"]),

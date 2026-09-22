@@ -6,11 +6,12 @@ from pathlib import Path
 import pytest
 
 import scout_epoch_v2 as e
+from scout_legacy_a1_recovery import validate_descriptor as validate_recovery_descriptor
 
 
 FIXTURE = Path(__file__).parent / "docs/fixtures/scout-router-epoch-rollover-v2-conformance.json"
 BUNDLE_FIXTURE = Path(__file__).parent / "docs/fixtures/scout-epoch-v2-publication-bundle-v1.json"
-BUNDLE_FIXTURE_SHA256 = "82f12edd66c9d0c74e51e6e5fd3840b6d9d58c00adfb767137928fa6be02e654"
+BUNDLE_FIXTURE_SHA256 = "d3dca144bacaad1f47a1b0ad5a7ee4ec2c35eaa60c946bcc282d5b5b607bb8a4"
 
 
 def h(char):
@@ -33,18 +34,15 @@ def _legacy_transition():
     archive["archive_commitment_sha256"] = e.commitment("archive-descriptor", archive)
     floors = {"entries": [{"room": "room-a", "generation": "1", "domain": "messages",
                             "retained_floor": 4, "omitted_ranges": [[1, 3]]}],
-              "selection_policy_version": "epoch-v2-policy/1",
-              "mandatory_proof_closure": ["proof-a"],
-              "durable_qualification_history": ["qualification-a"],
-              "coverage_witnesses": ["coverage-a"],
-              "permanent_pinned_evidence": ["pin-a"], "omitted_history": ["row-a"]}
-    items = (("mandatory_proof_closure", "mandatory_proof_closure_sha256", "mandatory-closure"),
-             ("durable_qualification_history", "durable_qualification_history_sha256", "durable-qualification-history"),
-             ("coverage_witnesses", "coverage_witnesses_sha256", "coverage-witnesses"),
-             ("permanent_pinned_evidence", "permanent_pinned_evidence_sha256", "permanent-pinned-evidence"),
-             ("omitted_history", "omitted_history_sha256", "omitted-history"))
-    for body, digest, domain in items:
-        floors[digest] = e.commitment(domain, floors[body])
+              "selection_policy_version": "epoch-v2-policy/1"}
+    items = (("mandatory_proof_closure", ["proof-a"], "mandatory-closure"),
+             ("durable_qualification_history", ["qualification-a"], "durable-qualification-history"),
+             ("coverage_witnesses", ["coverage-a"], "coverage-witnesses"),
+             ("permanent_pinned_evidence", ["pin-a"], "permanent-pinned-evidence"),
+             ("omitted_history", ["row-a"], "omitted-history"))
+    for name, body, domain in items:
+        floors[name + "_count"] = len(body)
+        floors[name + "_sha256"] = e.bounded_commitment(domain, body)
     floors["retained_floor_commitment_sha256"] = e.commitment("retained-floor-declaration", floors)
     value = {"schema": e.SCHEMA, "contract_revision": e.REVISION, "epoch_number": 1,
              "epoch_id": "se2:epoch-one", "created_at": "2026-01-01T00:00:00Z",
@@ -76,6 +74,8 @@ def make_transition():
     old["accepted_anchor"] = anchor
     old["bridge_predecessor"] = bridge
     old["bridge_binding_sha256"] = e.commitment("a1-bridge-binding", {"accepted_anchor": anchor, "bridge_predecessor": bridge})
+    old["source_binding"] = e.first_transition_source_binding(bridge, old["bridge_binding_sha256"])
+    old["source_cut"] = e.first_transition_source_cut(old["source_binding"], bridge, old["bridge_binding_sha256"])
     old["archive"]["previous_manifest_sha256"] = bridge["manifest_sha256"]
     old["archive"]["previous_bridge_binding_sha256"] = old["bridge_binding_sha256"]
     old["archive"]["archive_commitment_sha256"] = e.commitment("archive-descriptor", {k:v for k,v in old["archive"].items() if k != "archive_commitment_sha256"})
@@ -138,6 +138,14 @@ def test_frozen_publication_bundle_fixture_hash_is_stable():
     assert hashlib.sha256(BUNDLE_FIXTURE.read_bytes()).hexdigest() == BUNDLE_FIXTURE_SHA256
 
 
+def test_frozen_compact_candidate_identity_is_path_free_and_exact():
+    value = json.loads(BUNDLE_FIXTURE.read_text())["compact_candidate_279_243"]
+    assert value["transition_size_bytes"] == 5697
+    assert value["counts"] == {"eligible": 49808, "mandatory_closure": 10427,
+                               "selected": 43840, "omitted": 5968}
+    assert all("/" not in item for item in value.values() if isinstance(item, str))
+
+
 @pytest.mark.parametrize("case", json.loads(FIXTURE.read_text())["slice1_cases"], ids=lambda item: item["name"])
 def test_slice1_cases_are_driven_by_documented_fixture(case):
     value = make_transition(); prior = copy.deepcopy(value["accepted_anchor"])
@@ -152,6 +160,15 @@ def test_valid_first_transition_and_deterministic_canonicalization():
     value = make_transition()
     assert e.validate_transition(value, copy.deepcopy(value["accepted_anchor"]), 0, True)["epoch_number"] == 1
     assert e.canonical_json({"b": 1, "a": [True, None]}) == e.canonical_json({"a": [True, None], "b": 1})
+
+
+def test_build_first_transition_recomputes_every_wire_binding():
+    value = make_transition()
+    built = e.build_first_transition(value["accepted_anchor"], value["bridge_predecessor"],
+                                     value["archive"], value["active_artifact"], value["active_set_plan"],
+                                     value["retained_floor_commitment"], value["active_epoch"], value["created_at"])
+    assert e.validate_transition(built, value["accepted_anchor"], 0, True)["epoch_number"] == 1
+    assert built["epoch_id"] == value["epoch_id"]
 
 
 @pytest.mark.parametrize("raw, expected", [
@@ -188,12 +205,140 @@ def test_commitments_are_domain_separated_and_sensitive():
     assert code(lambda: e.commitment("Wrong", {})) == "EPOCH_DOMAIN"
 
 
+def test_compact_retained_floor_binds_counts_and_reconstructable_sets():
+    entries = [{"room": "room-a", "generation": "1", "domain": "messages",
+                "retained_floor": 4, "omitted_ranges": [[1, 3]]}]
+    sets = {"mandatory_proof_closure": ["proof-a"],
+            "durable_qualification_history": ["qualification-a"],
+            "coverage_witnesses": ["coverage-a"],
+            "permanent_pinned_evidence": ["pin-a"],
+            "omitted_history": ["row-a"]}
+    compact = e.compact_retained_floor(entries, "epoch-v2-policy/1", sets)
+    assert compact["mandatory_proof_closure_count"] == 1
+    assert compact["mandatory_proof_closure_sha256"] == e.bounded_commitment("mandatory-closure", ["proof-a"])
+    assert "mandatory_proof_closure" not in compact
+    compact["omitted_history_count"] = 2
+    assert code(lambda: e._floors(compact)) == "EPOCH_RETAINED_FLOOR"
+    assert code(lambda: e.bounded_commitment("mandatory-closure", ["proof-b", "proof-a"])) == "EPOCH_FLOOR_ORDER"
+    assert code(lambda: e.bounded_commitment("mandatory-closure", ["proof-a", "proof-a"])) == "EPOCH_FLOOR_ORDER"
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda x: x["retained_floor_commitment"].update(mandatory_proof_closure_count=2),
+    lambda x: x["retained_floor_commitment"].update(mandatory_proof_closure_sha256=h("0")),
+    lambda x: x["retained_floor_commitment"].update(mandatory_proof_closure=["legacy"]),
+    lambda x: x["retained_floor_commitment"].pop("omitted_history_count"),
+    lambda x: x["retained_floor_commitment"].update(unexpected="x"),
+])
+def test_compact_retained_floor_rejects_summary_mismatch_and_obsolete_arrays(mutate):
+    value = make_transition(); mutate(value)
+    assert code(lambda: e.validate_transition(value, value["accepted_anchor"], 0, True)) in {
+        "EPOCH_RETAINED_FLOOR", "EPOCH_FIELDS", "EPOCH_COMMITMENT"}
+
+
+def test_first_transition_source_authority_derivations_are_exact_and_domain_separated():
+    value = make_transition(); bridge = value["bridge_predecessor"]; binding = value["bridge_binding_sha256"]
+    assert value["source_binding"] == e.first_transition_source_binding(bridge, binding)
+    assert value["source_cut"] == e.first_transition_source_cut(value["source_binding"], bridge, binding)
+    assert e.source_binding_descriptor(bridge, binding) != e.source_cut_evidence(value["source_binding"], bridge, binding)
+
+
+def _legacy_bridge(bridge):
+    return {"publication_id": str(bridge["publication_sequence"]), "content_id": str(bridge["content_id"]),
+            "manifest_sha256": bridge["manifest_sha256"], "artifact_sha256": bridge["artifact_sha256"],
+            "artifact_size": bridge["artifact_size"], "source_checkpoint": {"source_id": bridge["source_id"],
+            "epoch": bridge["source_kind"], "committed_event_id": str(bridge["source_cut"])}}
+
+
+def test_normalize_legacy_a1_bridge_descriptor_is_closed_and_exact():
+    bridge = make_transition()["bridge_predecessor"]; legacy = _legacy_bridge(bridge)
+    assert e.normalize_legacy_a1_bridge_descriptor(legacy, bridge["manifest_sha256"], bridge) == bridge
+    assert code(lambda: e.validate_transition(legacy, bridge, 0, True)) == "EPOCH_FIELDS"
+
+
+def test_legacy_a1_recovery_descriptor_from_normalized_is_exact_and_local_only():
+    bridge = make_transition()["bridge_predecessor"]
+    recovery = e.legacy_a1_bridge_descriptor_from_normalized(bridge)
+    assert recovery == {
+        "content_id": "800", "manifest_sha256": bridge["manifest_sha256"],
+        "artifact_sha256": bridge["artifact_sha256"], "artifact_size": 42,
+        "source_kind": "source-epoch", "source_id": "scout-source",
+        "source_epoch": "source-epoch", "source_cut": 7,
+    }
+    assert validate_recovery_descriptor(recovery, recovery) == recovery
+    assert code(lambda: e.validate_transition(recovery, bridge, 0, True)) == "EPOCH_FIELDS"
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda x: x.update(unexpected="x"), lambda x: x.update(manifest_sha256="A" * 64),
+    lambda x: x.update(artifact_sha256="a" * 63), lambda x: x.update(publication_sequence=True),
+    lambda x: x.update(content_id=True), lambda x: x.update(artifact_size=True),
+    lambda x: x.update(source_cut=True), lambda x: x.update(publication_sequence=0),
+    lambda x: x.update(content_id=0), lambda x: x.update(artifact_size=0),
+    lambda x: x.update(source_cut=-1), lambda x: x.update(source_cut=e.MAX_INT + 1),
+    lambda x: x.update(publication_sequence="01"), lambda x: x.update(content_id="800"),
+    lambda x: x.update(artifact_size="42"), lambda x: x.update(source_cut="7"),
+])
+def test_legacy_a1_recovery_descriptor_from_normalized_rejects_bad_bridge(mutate):
+    bridge = make_transition()["bridge_predecessor"]
+    mutate(bridge)
+    assert code(lambda: e.legacy_a1_bridge_descriptor_from_normalized(bridge)) == "EPOCH_LEGACY_BRIDGE_DESCRIPTOR"
+
+
+@pytest.mark.parametrize("field", e.DESCRIPTOR)
+def test_legacy_a1_recovery_descriptor_from_normalized_requires_every_normalized_field(field):
+    bridge = make_transition()["bridge_predecessor"]
+    bridge.pop(field)
+    assert code(lambda: e.legacy_a1_bridge_descriptor_from_normalized(bridge)) == "EPOCH_LEGACY_BRIDGE_DESCRIPTOR"
+
+
+@pytest.mark.parametrize("field", ("unknown", "publication_id", "source_checkpoint"))
+def test_legacy_a1_recovery_descriptor_from_normalized_rejects_every_unknown_shape(field):
+    bridge = make_transition()["bridge_predecessor"]
+    bridge[field] = "x"
+    assert code(lambda: e.legacy_a1_bridge_descriptor_from_normalized(bridge)) == "EPOCH_LEGACY_BRIDGE_DESCRIPTOR"
+
+
+def test_legacy_a1_recovery_descriptor_from_normalized_uses_canonical_decimal_forms():
+    bridge = make_transition()["bridge_predecessor"]
+    bridge.update(publication_sequence=123, content_id=456, source_cut=0)
+    recovery = e.legacy_a1_bridge_descriptor_from_normalized(bridge)
+    assert recovery["content_id"] == "456"
+    assert type(recovery["source_cut"]) is int and recovery["source_cut"] == 0
+    assert validate_recovery_descriptor(recovery, recovery) == recovery
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda x: x.update(publication_id="0"), lambda x: x.update(content_id="01"),
+    lambda x: x.update(manifest_sha256="A" * 64), lambda x: x.update(artifact_sha256="a" * 63),
+    lambda x: x.update(artifact_size=True), lambda x: x["source_checkpoint"].update(committed_event_id="+7"),
+    lambda x: x["source_checkpoint"].update(committed_event_id=" 7"),
+    lambda x: x["source_checkpoint"].update(committed_event_id="01"),
+    lambda x: x["source_checkpoint"].update(committed_event_id=True),
+    lambda x: x.update(extra="x"), lambda x: x["source_checkpoint"].update(extra="x")])
+def test_normalize_legacy_a1_bridge_descriptor_rejects_every_bad_shape(mutate):
+    bridge = make_transition()["bridge_predecessor"]; legacy = _legacy_bridge(bridge); mutate(legacy)
+    assert code(lambda: e.normalize_legacy_a1_bridge_descriptor(legacy, bridge["manifest_sha256"], bridge)) == "EPOCH_LEGACY_BRIDGE_DESCRIPTOR"
+
+
+@pytest.mark.parametrize("mutate,expected", [
+    (lambda x: x["source_binding"].update(source_id="other"), "EPOCH_SOURCE_BINDING"),
+    (lambda x: x["source_binding"].update(epoch="other"), "EPOCH_SOURCE_BINDING"),
+    (lambda x: x["source_binding"].update(descriptor_sha256=h("0")), "EPOCH_SOURCE_DESCRIPTOR"),
+    (lambda x: x["source_cut"].update(cut_evidence_sha256=h("0")), "EPOCH_SOURCE_CUT_EVIDENCE"),
+    (lambda x: x["source_cut"].update(committed_event_id=9), "EPOCH_FIRST_SOURCE_CUT"),
+    (lambda x: x["source_binding"].update(extra="x"), "EPOCH_FIELDS")])
+def test_first_transition_source_authority_rejects_mutation(mutate, expected):
+    value = make_transition(); mutate(value)
+    assert code(lambda: e.validate_transition(value, value["accepted_anchor"], 0, True)) == expected
+
+
 def _plan_for(transition):
     selected = {"projection_row_id": "sm1:" + h("5"), "raw_record_id": h("5"),
                 "raw_text_sha256": h("6"), "scout_event_id": "9", "reasons": ["mandatory"]}
     omitted = {"projection_row_id": "sm1:" + h("7"), "raw_record_id": h("7"),
                "raw_text_sha256": h("8"), "scout_event_id": "10", "reasons": ["optional"]}
-    value = {"schema": "flop-scout-epoch-active-set-plan/v1",
+    value = {"schema": "flop-scout-epoch-active-set-plan/v1", "selection_policy_version": "epoch-v2-policy/1",
              "candidate_source": {"source_binding": transition["source_binding"], "source_cut": transition["source_cut"]},
              "archive_descriptor_sha256": e.commitment("archive-descriptor", e._without(transition["archive"], "archive_commitment_sha256")),
              "recovery_commitment_sha256": transition["active_set_plan"]["recovery_commitment_sha256"],
@@ -328,6 +473,8 @@ def test_complete_bridge_binding_and_archive_bind_bridge_not_anchor():
 def test_cumulative_bridge_is_derived_from_complete_descriptor_inequality():
     value = make_transition(); value["bridge_predecessor"] = dict(value["bridge_predecessor"], publication_sequence=901, content_id=801, source_cut=8)
     value["bridge_binding_sha256"] = e.commitment("a1-bridge-binding", {"accepted_anchor": value["accepted_anchor"], "bridge_predecessor": value["bridge_predecessor"]})
+    value["source_binding"] = e.first_transition_source_binding(value["bridge_predecessor"], value["bridge_binding_sha256"])
+    value["source_cut"] = e.first_transition_source_cut(value["source_binding"], value["bridge_predecessor"], value["bridge_binding_sha256"])
     value["archive"]["previous_manifest_sha256"] = value["bridge_predecessor"]["manifest_sha256"]
     value["archive"]["previous_bridge_binding_sha256"] = value["bridge_binding_sha256"]
     value["archive"]["archive_commitment_sha256"] = e.commitment("archive-descriptor", {k:v for k,v in value["archive"].items() if k != "archive_commitment_sha256"})

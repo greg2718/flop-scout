@@ -46,7 +46,10 @@ def test_manifest_and_descriptor_are_deterministic():
     spec = {"archive_id": "a1:test", "previous_epoch_id": "epoch", "previous_manifest_sha256": "e" * 64, "locator": "archives/a1/manifest.json"}
     manifest = _manifest(_context(), spec, members, _recovery())
     assert manifest == _manifest(_context(), spec, list(reversed(members)), _recovery())
-    assert _descriptor(spec, _context(), manifest) == _descriptor(spec, _context(), manifest)
+    descriptor = _descriptor(spec, _context(), manifest)
+    assert descriptor == _descriptor(spec, _context(), manifest)
+    from scout_epoch_v2 import commitment
+    assert descriptor["archive_commitment_sha256"] == commitment("archive-descriptor", {k:v for k,v in descriptor.items() if k != "archive_commitment_sha256"})
 
 
 @pytest.mark.parametrize("checkpoint", [

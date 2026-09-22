@@ -77,3 +77,16 @@ def test_logical_plan_comparison_rejects_archive_or_recovery_substitution():
     assert not artifact._same_plan(base, changed)
     changed = dict(base); changed["recovery_commitment"] = "different"
     assert not artifact._same_plan(base, changed)
+
+
+def test_sidecar_rejects_individually_well_formed_but_different_rows_or_hashes():
+    row = {"projection_row_id": "sm1:" + RAW, "raw_record_id": RAW,
+           "raw_text_sha256": HASH, "scout_event_id": "7"}
+    derived = {"selected": [row], "omitted": [], "eligible_count": 1,
+               "recovery_commitment": "a", "retained_floor_commitment_sha256": "b",
+               "omission_commitment_sha256": "c"}
+    sidecar = {"selected": [dict(row)], "omitted": [], "counts": {"selected": 1, "omitted": 0, "eligible": 1},
+               "recovery_commitment_sha256": "a", "retained_floor_commitment_sha256": "b", "omission_commitment_sha256": "c"}
+    assert artifact._same_sidecar(sidecar, derived)
+    sidecar["selected"][0]["raw_text_sha256"] = "d" * 64
+    assert not artifact._same_sidecar(sidecar, derived)

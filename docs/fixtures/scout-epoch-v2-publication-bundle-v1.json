@@ -1,6 +1,16 @@
 {
   "schema": "flop-scout-epoch-v2-publication-bundle-conformance/v1",
-  "notice": "Synthetic declarative vectors; the test builder canonicalizes every commitment before applying one mutation.",
+  "notice": "Synthetic declarative vectors plus a path-free frozen compact candidate identity; the test builder canonicalizes every commitment before applying one mutation.",
+  "compact_candidate_279_243": {
+    "epoch_id": "se2:076158cddf732ffb17dd49d09c8a83af4ca9cf9b5588dbf04330526364e85718",
+    "transition_sha256": "46f0370b2ba2c6caf487ced16f13fbd2e8075b65146c4a9449519517cc2cd11b",
+    "transition_size_bytes": 5697,
+    "artifact_sha256": "65c5db170085e2d4b41f3f5d9f09dc588ca5eec8d1f23bd50a4fc3ee01d2a301",
+    "plan_sha256": "ed3ce95eca784d8a0f2b28bd5706d990bc613ef2047843871ba66b1773f4832f",
+    "manifest_sha256": "9a25372a60c23c6a7d889fb6dc7c303a05c6cfaf3b932eb9afc904df0a5d3539",
+    "pointer_sha256": "08cebb3ca2d95e064e0b4cd04c3bb2ff371554cf7e165787ba87f8f3789c1edf",
+    "counts": {"eligible": 49808, "mandatory_closure": 10427, "selected": 43840, "omitted": 5968}
+  },
   "transition_cases": [
     {"name": "valid-active-artifact-and-plan", "mutation": "none", "expect": "PASS"},
     {"name": "artifact-hash-mismatch", "mutation": "artifact-hash", "expect": "EPOCH_ID"},

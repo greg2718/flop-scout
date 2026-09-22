@@ -106,6 +106,30 @@ considered.
 
 ## 4. Exact predecessor binding
 
+### 4.0 First legacy transition source authority
+
+For the first A1 to `A1-EPOCH-V2` transition only, source authority is
+derived—not supplied by a planner or deployment path.  Define:
+
+```text
+source_binding.descriptor_sha256 =
+  commitment("source-binding-descriptor", {
+    schema:"flop-scout-epoch-source-binding/v1",
+    source_id: bridge_predecessor.source_id,
+    epoch: bridge_predecessor.source_kind,
+    bridge_binding_sha256
+  })
+```
+
+Then define `source_cut.cut_evidence_sha256` with domain
+`source-cut-evidence` over schema
+`flop-scout-epoch-source-cut-evidence/v1`, the complete source binding, the
+bridge source cut, and the bridge binding.  The first candidate must use the
+same source ID, epoch, and committed event ID as the bridge predecessor.
+Higher cuts are rejected until a separately descriptor-bound fresh-cut proof is
+specified.  This rule is legacy-first-transition authority only; it grants no
+authority for arbitrary later cuts.
+
 ### 4A. Accepted anchor and A1 bridge
 
 The first V2 transition may encounter a Router whose accepted A1 content is
@@ -405,24 +429,35 @@ requires exact descriptor/transition/archive/recovery/floor/omission equality,
 and rejects duplicate record IDs, count disagreement, overflow, or any
 transition whose independently bound plan or artifact identity differs.
 
+The active SQLite artifact retains the unchanged `snapshot_meta` schema and
+ordinary selection-policy digest.  It does not store the plan commitment.
+The artifact/plan relationship is instead proven by the transition binding and
+Router's exact semantic comparison of selected IDs, recovered hashes, and
+required dependency closure against the validated plan.
+
 ## 6. Retained-floor and omitted-history commitment
 
-`retained_floor_commitment` is a canonical object with sorted entries keyed by
+`retained_floor_commitment` is a canonical compact object with sorted entries keyed by
 `(room, generation, domain)`.  Each entry contains the evidence-derived
 `retained_floor` (or explicit `null` only where no floor has been established),
 the omitted sequence intervals, coverage status/witness digest, and the
 selection-policy version that produced it.  It additionally commits to:
 
-- `mandatory_proof_closure_sha256`: canonical set/hash of every required
+- `mandatory_proof_closure_count` and `mandatory_proof_closure_sha256`: count
+  and canonical set/hash of every required
   identity, provenance, interaction/workflow, pin, terminal, and fanout proof
   carried forward or located in the archive;
-- `durable_qualification_history_sha256`: canonical durable qualification
+- `durable_qualification_history_count` and
+  `durable_qualification_history_sha256`: canonical durable qualification
   identity/payload history, never an aggregate count alone;
-- `coverage_witness_sha256`: canonical evidence coverage and retention-loss
+- `coverage_witnesses_count` and `coverage_witnesses_sha256`: canonical
+  evidence coverage and retention-loss
   witness set;
-- `permanent_pinned_evidence_sha256`: canonical permanent and pin-rooted
+- `permanent_pinned_evidence_count` and
+  `permanent_pinned_evidence_sha256`: canonical permanent and pin-rooted
   evidence set; and
-- `omitted_history_sha256`: canonical list of omitted projection identities,
+- `omitted_history_count` and `omitted_history_sha256`: canonical list of
+  omitted projection identities,
   their archive location, and reason class.
 
 Floors cannot claim coverage across unresolved gaps, confirmed retention loss,
@@ -432,6 +467,14 @@ and its omission is permitted by the deterministic policy.  Permanent, pinned,
 unexpired, mandatory lifecycle, or proof-closure evidence is never silently
 dropped.  A forged, lowered, reordered, missing, or non-evidence-grounded floor
 is a rejection, not an opportunity to recompute a convenient value.
+
+The transition carries only these bounded count/digest pairs, never large
+detail arrays. They are not trusted producer assertions. Before any enabled
+acceptance Router independently reconstructs each sorted, unique detail set
+from the descriptor-bound plan, active artifact, archive/source evidence,
+qualifications, coverage, memberships, and lifecycle evidence; it requires
+exact count and domain-separated digest equality. Missing, duplicate, extra,
+misclassified, or mismatched evidence rejects the candidate.
 
 ## 7. Active-epoch capacity and selection policy
 

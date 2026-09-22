@@ -159,7 +159,7 @@ def _descriptor(spec, context, manifest):
     value = {"schema": MANIFEST_SCHEMA, "archive_id": spec["archive_id"], "artifact_sha256": _sha(manifest_bytes), "size_bytes": len(manifest_bytes),
              "database_schema_version": "flop-scout-epoch-archive-manifest/v1", "locator": spec["locator"], "previous_epoch_id": spec["previous_epoch_id"],
              "previous_manifest_sha256": spec["previous_manifest_sha256"], "previous_bridge_binding_sha256": context["previous_bridge_binding_sha256"], "preservation": "IMMUTABLE_RETAINED"}
-    value["archive_commitment_sha256"] = _sha(b"scout/epoch-archive-descriptor/v1\0" + _bytes(value))
+    value["archive_commitment_sha256"] = epoch_commitment("archive-descriptor", value)
     return value
 
 
