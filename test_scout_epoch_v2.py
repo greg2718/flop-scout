@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -8,6 +9,8 @@ import scout_epoch_v2 as e
 
 
 FIXTURE = Path(__file__).parent / "docs/fixtures/scout-router-epoch-rollover-v2-conformance.json"
+BUNDLE_FIXTURE = Path(__file__).parent / "docs/fixtures/scout-epoch-v2-publication-bundle-v1.json"
+BUNDLE_FIXTURE_SHA256 = "82f12edd66c9d0c74e51e6e5fd3840b6d9d58c00adfb767137928fa6be02e654"
 
 
 def h(char):
@@ -76,15 +79,24 @@ def make_transition():
     old["archive"]["previous_manifest_sha256"] = bridge["manifest_sha256"]
     old["archive"]["previous_bridge_binding_sha256"] = old["bridge_binding_sha256"]
     old["archive"]["archive_commitment_sha256"] = e.commitment("archive-descriptor", {k:v for k,v in old["archive"].items() if k != "archive_commitment_sha256"})
+    old["active_artifact"] = {"schema": "scout-router-projection/v2", "content_id": 801,
+        "locator": "router-projection-v2-801.sqlite", "artifact_sha256": h("1"), "size_bytes": 43,
+        "database_schema_version": "scout-router-projection/v2"}
+    old["active_set_plan"] = {"schema": "flop-scout-epoch-active-set-plan/v1",
+        "locator": "epoch-active-set-v2-801.json", "sha256": h("2"), "size_bytes": 1024,
+        "plan_commitment_sha256": h("3"), "recovery_commitment_sha256": h("4")}
     old["commitments"] = {"accepted_anchor_sha256": e.commitment("accepted-anchor", anchor),
         "bridge_predecessor_sha256": e.commitment("bridge-predecessor", bridge),
         "bridge_binding_sha256": old["bridge_binding_sha256"],
         "archive_descriptor_sha256": e.commitment("archive-descriptor", {k:v for k,v in old["archive"].items() if k != "archive_commitment_sha256"}),
+        "active_artifact_descriptor_sha256": e.commitment("active-artifact-descriptor", old["active_artifact"]),
+        "active_set_plan_descriptor_sha256": e.commitment("active-set-plan-descriptor", old["active_set_plan"]),
         "retained_floor_declaration_sha256": old["retained_floor_commitment"]["retained_floor_commitment_sha256"],
         "mandatory_closure_sha256": old["retained_floor_commitment"]["mandatory_proof_closure_sha256"],
         "durable_qualification_history_sha256": old["retained_floor_commitment"]["durable_qualification_history_sha256"],
         "coverage_witnesses_sha256": old["retained_floor_commitment"]["coverage_witnesses_sha256"],
         "permanent_pinned_evidence_sha256": old["retained_floor_commitment"]["permanent_pinned_evidence_sha256"]}
+    old["epoch_id"] = e.derive_epoch_id(old)
     old["commitments"]["transition_sha256"] = e.commitment("complete-transition", {**{k:v for k,v in old.items() if k != "commitments"}, "commitments": old["commitments"]})
     return old
 
@@ -120,6 +132,10 @@ def test_documented_conformance_vectors_are_available():
     names = {item["name"] for item in vectors}
     assert {"valid-direct", "valid-cumulative", "forged-bridge-binding",
             "wrong-archive-bridge-binding", "transition-hash-regression"} <= names
+
+
+def test_frozen_publication_bundle_fixture_hash_is_stable():
+    assert hashlib.sha256(BUNDLE_FIXTURE.read_bytes()).hexdigest() == BUNDLE_FIXTURE_SHA256
 
 
 @pytest.mark.parametrize("case", json.loads(FIXTURE.read_text())["slice1_cases"], ids=lambda item: item["name"])
@@ -172,6 +188,82 @@ def test_commitments_are_domain_separated_and_sensitive():
     assert code(lambda: e.commitment("Wrong", {})) == "EPOCH_DOMAIN"
 
 
+def _plan_for(transition):
+    selected = {"projection_row_id": "sm1:" + h("5"), "raw_record_id": h("5"),
+                "raw_text_sha256": h("6"), "scout_event_id": "9", "reasons": ["mandatory"]}
+    omitted = {"projection_row_id": "sm1:" + h("7"), "raw_record_id": h("7"),
+               "raw_text_sha256": h("8"), "scout_event_id": "10", "reasons": ["optional"]}
+    value = {"schema": "flop-scout-epoch-active-set-plan/v1",
+             "candidate_source": {"source_binding": transition["source_binding"], "source_cut": transition["source_cut"]},
+             "archive_descriptor_sha256": e.commitment("archive-descriptor", e._without(transition["archive"], "archive_commitment_sha256")),
+             "recovery_commitment_sha256": transition["active_set_plan"]["recovery_commitment_sha256"],
+             "retained_floor_commitment_sha256": transition["retained_floor_commitment"]["retained_floor_commitment_sha256"],
+             "omission_commitment_sha256": transition["retained_floor_commitment"]["omitted_history_sha256"],
+             "capacity": transition["active_epoch"], "selected": [selected], "omitted": [omitted],
+             "counts": {"selected": 1, "omitted": 1, "eligible": 2}}
+    value["plan_commitment_sha256"] = e.commitment("active-set-plan", value)
+    return value
+
+
+def _bind_plan_bytes(transition, plan):
+    raw = e.canonical_json(plan)
+    transition["active_set_plan"].update(sha256=hashlib.sha256(raw).hexdigest(), size_bytes=len(raw),
+                                         plan_commitment_sha256=plan["plan_commitment_sha256"])
+    transition["commitments"]["active_set_plan_descriptor_sha256"] = e.commitment("active-set-plan-descriptor", transition["active_set_plan"])
+    transition["epoch_id"] = e.derive_epoch_id(transition)
+    transition["commitments"]["transition_sha256"] = e.commitment("complete-transition", {**{k:v for k,v in transition.items() if k != "commitments"}, "commitments": transition["commitments"]})
+    return e.canonical_json(plan)
+
+
+def test_active_set_plan_is_bounded_redacted_and_bound_to_transition():
+    transition = make_transition(); plan = _plan_for(transition)
+    assert e.validate_active_set_plan(plan, transition)["counts"]["eligible"] == 2
+    raw = e.canonical_json(plan)
+    assert e.parse_active_set_plan(raw) == plan and b'"raw_text":' not in raw
+    # A real sidecar additionally binds its canonical bytes and logical hash.
+    raw = _bind_plan_bytes(transition, plan)
+    assert e.validate_active_set_plan_bytes(raw, transition)["counts"]["eligible"] == 2
+
+
+@pytest.mark.parametrize("mutate,expected", [
+    (lambda x: x.update(archive_descriptor_sha256=h("0")), "EPOCH_PLAN_BINDING"),
+    (lambda x: x["omitted"].append(dict(x["selected"][0])), "EPOCH_PLAN_COUNTS"),
+    (lambda x: x.update(plan_commitment_sha256=h("0")), "EPOCH_PLAN_COMMITMENT")])
+def test_active_set_plan_rejects_mismatch_and_duplicate_records(mutate, expected):
+    transition = make_transition(); plan = _plan_for(transition); mutate(plan)
+    assert code(lambda: e.validate_active_set_plan(plan, transition)) == expected
+
+
+def test_plan_byte_and_epoch_identity_bounds_are_fail_closed():
+    assert code(lambda: e.parse_active_set_plan(b"x" * (e.MAX_PLAN_BYTES + 1))) == "EPOCH_PLAN_BOUNDS"
+    assert code(lambda: e.parse_active_set_plan(("[" + ",".join("0" for _ in range(e.MAX_PLAN_RECORDS + 1)) + "]").encode("ascii"))) == "EPOCH_PLAN_BOUNDS"
+    value = make_transition(); value["active_artifact"]["artifact_sha256"] = h("0")
+    assert code(lambda: e.validate_transition(value, value["accepted_anchor"], 0, True)) == "EPOCH_ID"
+
+
+def _manifest_for(transition):
+    active = transition["active_artifact"]
+    return {"schema": e.MANIFEST_SCHEMA, "contract_revision": e.REVISION, "snapshot_id": 901,
+            "publication_kind": "CONTENT", "database_content_id": active["content_id"],
+            "database": active["locator"], "sha256": active["artifact_sha256"],
+            "size_bytes": active["size_bytes"], "database_schema_version": active["database_schema_version"],
+            "selection_policy": "epoch-v2-policy/1", "selection_policy_sha256": h("9"),
+            "content_created_at": "2026-01-01T00:00:00Z", "selection_evaluated_at": "2026-01-01T00:00:00Z",
+            "produced_at": "2026-01-01T00:00:00Z", "source_checkpoint": {}, "next_expiry_at": "2026-01-02T00:00:00Z",
+            "row_counts": {}, "watermarks": {}, "coverage_history": {},
+            "epoch_transition": {"schema": e.SCHEMA, "locator": "epoch-transition-v2.json", "sha256": h("a"),
+                                 "size_bytes": 1, "transition_sha256": transition["commitments"]["transition_sha256"]}}
+
+
+def test_v2_manifest_is_strict_content_only_and_matches_transition():
+    transition = make_transition(); manifest = _manifest_for(transition)
+    assert e.validate_v2_manifest(manifest, transition)["publication_kind"] == "CONTENT"
+    heartbeat = dict(manifest, publication_kind="HEARTBEAT")
+    assert code(lambda: e.validate_v2_manifest(heartbeat, transition)) == "EPOCH_PUBLICATION_KIND"
+    bad = dict(manifest, database_content_id=999)
+    assert code(lambda: e.validate_v2_manifest(bad, transition)) == "EPOCH_MANIFEST_BINDING"
+
+
 def test_wrong_domain_commitment_fails_validation():
     value = make_transition(); prior = copy.deepcopy(value["accepted_anchor"])
     value["commitments"]["accepted_anchor_sha256"] = e.commitment("archive-descriptor", value["accepted_anchor"])
@@ -185,14 +277,38 @@ def test_error_does_not_echo_untrusted_payload():
     assert value not in str(caught.value)
 
 
-@pytest.mark.parametrize("vector", json.loads(FIXTURE.read_text())["vectors"], ids=lambda x: x["name"])
-def test_frozen_wire_vectors_execute_declared_outcome(vector):
-    transition = vector["transition"]
-    call = lambda: e.validate_transition(transition, vector["accepted_anchor"], vector["accepted_epoch_number"], vector["first_transition"])
-    if vector["expect"] == "PASS":
-        assert call()["epoch_number"] == 1
-    else:
-        assert code(call) == vector["expect"]
+def _bundle_mutation(value, name):
+    if name == "none": return
+    if name == "artifact-hash": value["active_artifact"]["artifact_sha256"] = h("0")
+    elif name == "plan-descriptor": value["active_set_plan"]["sha256"] = h("0")
+    elif name == "epoch-id": value["epoch_id"] = "se2:" + h("0")
+    elif name == "artifact-locator": value["active_artifact"]["locator"] = "other.sqlite"
+    elif name == "manifest-hash": value["manifest_sha256"] = h("0")
+    else: raise AssertionError(name)
+
+
+@pytest.mark.parametrize("case", json.loads(BUNDLE_FIXTURE.read_text())["transition_cases"], ids=lambda x: x["name"])
+def test_frozen_publication_bundle_vectors_execute_declared_outcome(case):
+    value = make_transition()
+    if case["mutation"] == "heartbeat":
+        assert code(lambda: e.validate_transition(value, value["accepted_anchor"], 0, True, "HEARTBEAT")) == case["expect"]
+        return
+    _bundle_mutation(value, case["mutation"])
+    call = lambda: e.validate_transition(value, value["accepted_anchor"], 0, True)
+    if case["expect"] == "PASS": assert call()["epoch_number"] == 1
+    else: assert code(call) == case["expect"]
+
+
+@pytest.mark.parametrize("case", json.loads(BUNDLE_FIXTURE.read_text())["plan_cases"], ids=lambda x: x["name"])
+def test_frozen_active_set_plan_vectors_execute_declared_outcome(case):
+    transition = make_transition(); plan = _plan_for(transition)
+    if case["mutation"] == "artifact": plan["archive_descriptor_sha256"] = h("0")
+    elif case["mutation"] == "duplicate": plan["omitted"].append(dict(plan["selected"][0]))
+    elif case["mutation"] == "oversized":
+        assert code(lambda: e.parse_active_set_plan(b"x" * (e.MAX_PLAN_BYTES + 1))) == case["expect"]; return
+    call = lambda: e.validate_active_set_plan(plan, transition)
+    if case["expect"] == "PASS": assert call()["counts"]["eligible"] == 2
+    else: assert code(call) == case["expect"]
 
 
 @pytest.mark.parametrize("field", ["bridge_valid", "bridge_mode", "validation_success", "verified_receipt", "router_private_state_hash"])
@@ -218,5 +334,6 @@ def test_cumulative_bridge_is_derived_from_complete_descriptor_inequality():
     value["commitments"]["bridge_predecessor_sha256"] = e.commitment("bridge-predecessor", value["bridge_predecessor"])
     value["commitments"]["bridge_binding_sha256"] = value["bridge_binding_sha256"]
     value["commitments"]["archive_descriptor_sha256"] = e.commitment("archive-descriptor", {k:v for k,v in value["archive"].items() if k != "archive_commitment_sha256"})
+    value["epoch_id"] = e.derive_epoch_id(value)
     value["commitments"]["transition_sha256"] = e.commitment("complete-transition", {**{k:v for k,v in value.items() if k != "commitments"}, "commitments": {k:v for k,v in value["commitments"].items() if k != "transition_sha256"}})
     assert e.validate_transition(value, value["accepted_anchor"], 0, True)["epoch_number"] == 1

@@ -39,7 +39,37 @@ V2 MUST NOT reuse a retained floor as a deletion instruction, treat archive
 paths as authority, accept a changed source identity without an exact
 predecessor binding, or relax A1 checks for V1 publications.
 
-## 3. V2 manifest extension and field contract
+## 3. V2 publication bundle, manifest revision, and field contract
+
+The pointer remains the existing exact `flop-scout-router-current/v2` object
+(`schema`, `manifest`, `manifest_sha256`, `published_at`).  It binds only the
+canonical manifest bytes and is published last.  It is deliberately not
+version-bumped: a Router that understands the pointer but has V2 disabled can
+recognize `contract_revision: A1-EPOCH-V2` and return
+`EPOCH_V2_DISABLED`, without attempting A1 fallback or accepting the active
+artifact.
+
+An `A1-EPOCH-V2` manifest retains all ordinary content/artifact fields and has
+two additional exact descriptors:
+
+```text
+active artifact:  content_id, locator, artifact_sha256, size_bytes,
+                  database_schema_version=scout-router-projection/v2
+transition sidecar: schema=flop-scout-router-epoch-rollover/v2, locator,
+                    sha256, size_bytes, transition_sha256
+```
+
+The sidecar has the transition schema in this document and contains both the
+same active-artifact descriptor and an active-set-plan descriptor.  Router
+requires equality between the manifest and transition active-artifact identity.
+This gives a one-way graph: pointer -> manifest -> transition -> active
+artifact plus archive.  A manifest or transition hash is never inserted into
+the transition, archive, plan, or `epoch_id`, so the graph is acyclic.
+
+`HEARTBEAT` is prohibited for `A1-EPOCH-V2`.  V2 is disabled by default; V1
+parsing and acceptance remain unchanged.  An archive locator is a safe,
+relative locator resolved only beneath an explicitly configured archive trust
+root.  It is never an absolute path or an authority claim.
 
 All fields are required for a `CONTENT` V2 epoch-transition artifact unless
 marked conditional.  Integers are JSON integers, never floats. **Every V2
@@ -53,11 +83,13 @@ timestamps are UTC RFC3339 `Z` strings with microseconds permitted.
 | `epoch_rollover` | object, canonical JSON <= 64 KiB | Versioned V2 envelope; no unknown fields until a later explicit revision. |
 | `epoch_rollover.schema` | exact string | `flop-scout-router-epoch-rollover/v2`. |
 | `epoch_number` | integer `>= 1` | Strictly greater than the Router-accepted predecessor epoch number. |
-| `epoch_id` | `se2:` + 64 lower-case hex | `SHA256(domain("epoch-id"), scout_source_binding, epoch_number, creation_cut, predecessor_commitment)`. Unique; never reused. |
+| `epoch_id` | `se2:` + 64 lower-case hex | Domain-separated SHA-256 over the exact locator-free identity view: schema/revision, epoch number, complete anchor/bridge and binding, candidate source binding/cut, active artifact and plan hash identities, archive hash identity, capacity policy, and retained-floor/omission commitments. It excludes itself, transition/manifest/pointer hashes, and deployment locators/filenames. |
 | `created_at` | UTC timestamp | Creation time, `>=` predecessor published time; not a substitute for source freshness. |
 | `source_binding` | object | Exact Scout/source identity: `source_id`, source `epoch`, and an immutable source descriptor/hash. |
 | `source_cut` | object | `source_id`, source epoch, `committed_event_id`, and cut evidence hash.  Event id never regresses for the same source binding. |
-| `predecessor` | object | Exact accepted predecessor commitment detailed in section 4. |
+| `accepted_anchor` / `bridge_predecessor` | objects | Exact predecessor identities detailed in section 4. |
+| `active_artifact` | object | Exact active SQLite identity; its manifest counterpart must be identical. |
+| `active_set_plan` | object | Descriptor for the bounded canonical plan sidecar below. |
 | `archive` | object | Immutable predecessor archive descriptor detailed in section 5. |
 | `retained_floor_commitment` | object | Deterministic coverage/history/closure commitment detailed in section 6. |
 | `active_epoch` | object | Bounded active set policy and actual counts detailed in section 7. |
@@ -120,7 +152,7 @@ creation, publication, or Router acceptance.
 
 ### 5.1 Existing transition descriptor remains the outer binding
 
-No V2 transition-wire field is added.  The existing `archive` object remains
+The existing `archive` object remains
 the transition commitment and has its current exact fields.  For this format:
 
 | Existing descriptor field | Required archive-manifest interpretation |
@@ -337,6 +369,41 @@ member hashes, not an ever-growing chain or a claimed receipt.  Audit retrieval
 repeats descriptor/manifest/member verification and may repeat recovery; any
 failure rejects the audit result and the candidate that requires it while
 retaining the last accepted publication.
+
+### 5.6 Canonical active-set plan sidecar
+
+`flop-scout-epoch-active-set-plan/v1` is a separately fetched, canonical JSON
+member.  Its descriptor has exactly `schema`, relative `locator`, byte
+`sha256`, `size_bytes`, logical `plan_commitment_sha256`, and
+`recovery_commitment_sha256`.  The plan is at most 16 MiB canonical bytes and
+contains no more than 50,000 total selected plus omitted records.
+
+Its exact fields are `schema`, `candidate_source`,
+`archive_descriptor_sha256`, `recovery_commitment_sha256`,
+`retained_floor_commitment_sha256`, `omission_commitment_sha256`, `capacity`,
+`selected`, `omitted`, `counts`, and `plan_commitment_sha256`.  Every selected
+or omitted row has exactly `projection_row_id`, `raw_record_id`,
+`raw_text_sha256`, decimal-string `scout_event_id`, and sorted nonempty `reasons`.
+There is no raw text, envelope, signature, or deployment path.
+
+The plan contains neither `epoch_id`, an active-artifact descriptor/hash, nor a
+transition hash.  It is constructed first.  The active artifact is then built,
+the transition binds both identities, and the derived `epoch_id` binds their
+logical commitments.  Thus the construction order is exactly
+`plan -> active artifact -> epoch_id -> transition -> manifest -> pointer`.
+
+The logical commitment is:
+
+```text
+SHA256("flop-scout/epoch-v2/active-set-plan\0" ||
+       canonical(plan excluding plan_commitment_sha256))
+```
+
+The descriptor byte hash binds exact transport bytes; the logical commitment
+binds the canonical semantic plan.  Router validates both independently,
+requires exact descriptor/transition/archive/recovery/floor/omission equality,
+and rejects duplicate record IDs, count disagreement, overflow, or any
+transition whose independently bound plan or artifact identity differs.
 
 ## 6. Retained-floor and omitted-history commitment
 

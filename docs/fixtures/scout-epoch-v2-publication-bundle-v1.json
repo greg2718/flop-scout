@@ -1,0 +1,19 @@
+{
+  "schema": "flop-scout-epoch-v2-publication-bundle-conformance/v1",
+  "notice": "Synthetic declarative vectors; the test builder canonicalizes every commitment before applying one mutation.",
+  "transition_cases": [
+    {"name": "valid-active-artifact-and-plan", "mutation": "none", "expect": "PASS"},
+    {"name": "artifact-hash-mismatch", "mutation": "artifact-hash", "expect": "EPOCH_ID"},
+    {"name": "plan-descriptor-mismatch", "mutation": "plan-descriptor", "expect": "EPOCH_COMMITMENT"},
+    {"name": "epoch-id-mutation", "mutation": "epoch-id", "expect": "EPOCH_ID"},
+    {"name": "locator-substitution", "mutation": "artifact-locator", "expect": "EPOCH_COMMITMENT"},
+    {"name": "cycle-injection-manifest-hash", "mutation": "manifest-hash", "expect": "EPOCH_FIELDS"},
+    {"name": "v2-heartbeat-rejected", "mutation": "heartbeat", "expect": "EPOCH_PUBLICATION_KIND"}
+  ],
+  "plan_cases": [
+    {"name": "valid-redacted-plan", "mutation": "none", "expect": "PASS"},
+    {"name": "artifact-plan-mismatch", "mutation": "artifact", "expect": "EPOCH_PLAN_BINDING"},
+    {"name": "duplicate-plan-record", "mutation": "duplicate", "expect": "EPOCH_PLAN_COUNTS"},
+    {"name": "oversized-plan", "mutation": "oversized", "expect": "EPOCH_PLAN_BOUNDS"}
+  ]
+}
