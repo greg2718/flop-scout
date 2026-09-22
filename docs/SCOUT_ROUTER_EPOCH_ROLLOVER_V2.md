@@ -147,7 +147,7 @@ manifest_commitment_sha256     self commitment defined below
 accepted_anchor                complete A1 descriptor
 bridge_predecessor             complete A1 descriptor
 previous_bridge_binding_sha256 exact bridge binding
-source_checkpoint              {source_id, epoch, committed_event_id, cut_evidence_sha256}
+source_checkpoint              {source_id, source_epoch, source_cut}
 legacy_recovery                {schema, commitment_sha256, validated_records, closure_count}
 retention                      "IMMUTABLE_INDEFINITE_FIRST_TRANSITION"
 members                        sorted member array

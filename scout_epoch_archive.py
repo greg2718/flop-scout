@@ -131,6 +131,9 @@ def _fsync_dir(path):
 def _manifest(context, spec, members, recovery):
     required = {"accepted_anchor", "bridge_predecessor", "source_checkpoint", "previous_bridge_binding_sha256"}
     if not isinstance(context, dict) or set(context) != required or not _hex(context["previous_bridge_binding_sha256"]): _fail("ARCHIVE_DESCRIPTOR", "archive context is incomplete")
+    checkpoint = context["source_checkpoint"]
+    if not isinstance(checkpoint, dict) or set(checkpoint) != {"source_id", "source_epoch", "source_cut"} or not isinstance(checkpoint["source_id"], str) or not isinstance(checkpoint["source_epoch"], str) or type(checkpoint["source_cut"]) is not int or checkpoint["source_cut"] < 0:
+        _fail("ARCHIVE_DESCRIPTOR", "archive source checkpoint is not canonical")
     required_spec = {"archive_id", "previous_epoch_id", "previous_manifest_sha256", "locator"}
     if not isinstance(spec, dict) or set(spec) != required_spec or not _hex(spec["previous_manifest_sha256"]): _fail("ARCHIVE_DESCRIPTOR", "archive specification is incomplete")
     if not isinstance(spec["locator"], str) or spec["locator"].startswith("/") or ".." in spec["locator"].split("/"):

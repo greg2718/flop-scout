@@ -1,10 +1,14 @@
 import hashlib
+import json
 import os
+from pathlib import Path
 
 import pytest
 
 from scout_epoch_archive import (ArchiveError, MANIFEST_DOMAIN, _descriptor,
                                  _manifest, _path, recovery_bytes)
+
+FIXTURE = Path(__file__).parent / "docs/fixtures/scout-router-epoch-rollover-v2-conformance.json"
 
 
 def _recovery():
@@ -36,6 +40,21 @@ def test_manifest_and_descriptor_are_deterministic():
     manifest = _manifest(_context(), spec, members, _recovery())
     assert manifest == _manifest(_context(), spec, list(reversed(members)), _recovery())
     assert _descriptor(spec, _context(), manifest) == _descriptor(spec, _context(), manifest)
+
+
+@pytest.mark.parametrize("checkpoint", [
+    {"source_id": "source", "epoch": "epoch", "committed_event_id": 9},
+    {"source_id": "source", "source_epoch": "epoch", "source_cut": 9, "committed_event_id": 9},
+])
+def test_archive_checkpoint_rejects_legacy_and_mixed_key_sets(checkpoint):
+    context = _context(); context["source_checkpoint"] = checkpoint
+    with pytest.raises(ArchiveError):
+        _manifest(context, {"archive_id":"a", "previous_epoch_id":"e", "previous_manifest_sha256":"a" * 64, "locator":"a/manifest.json"}, [], _recovery())
+
+
+def test_frozen_valid_archive_vector_uses_archive_checkpoint_schema():
+    vector = next(case for case in json.loads(FIXTURE.read_text())["archive_format_cases"] if case["name"] == "archive-manifest-valid")
+    assert set(vector["manifest"]["source_checkpoint"]) == {"source_id", "source_epoch", "source_cut"}
 
 
 def test_paths_reject_existing_output_and_symlink(tmp_path):

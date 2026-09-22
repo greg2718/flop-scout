@@ -2995,7 +2995,7 @@
       "expect": "PASS",
       "descriptor": {
         "archive_id": "ea2:synthetic",
-        "artifact_sha256": "0017de37181e3dad4fafe132a78e141770cf10f3e63872458b4ab9668aea7a75",
+        "artifact_sha256": "fc45742d872a4a1edc6af6ffa08877efd84a8aa6dcf875d1309c4d1cc08dea9a",
         "database_schema_version": "flop-scout-epoch-archive-manifest/v1",
         "locator": "archives/ea2-synthetic/manifest.json",
         "preservation": "IMMUTABLE_RETAINED",
@@ -3003,14 +3003,14 @@
         "previous_epoch_id": "v1:bridge",
         "previous_manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
         "schema": "flop-scout-epoch-archive/v1",
-        "size_bytes": 1965
+        "size_bytes": 1875
       },
       "manifest": {
         "accepted_anchor": {"publication_sequence": 100, "content_id": 90, "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "artifact_size": 42, "source_kind": "bounded-current", "source_id": "source-a", "source_cut": 7},
         "archive_id": "ea2:synthetic",
         "bridge_predecessor": {"publication_sequence": 101, "content_id": 91, "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "artifact_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "artifact_size": 43, "source_kind": "bounded-current", "source_id": "source-a", "source_cut": 8},
         "legacy_recovery": {"schema": "scout-legacy-a1-provenance-recovery/v1", "commitment_sha256": "3333333333333333333333333333333333333333333333333333333333333333", "validated_records": 10, "closure_count": 4},
-        "manifest_commitment_sha256": "1110a38a2643fa38299d02216dda1fa5594d6c48d10ecc3e7e03fc0a90bd8742",
+        "manifest_commitment_sha256": "a508521a4545892e702e6a592e8e9fe016077977bf4aa99043bda4a76a2e547c",
         "members": [
           {"role": "bridge_projection_sqlite", "locator": "members/bridge.sqlite", "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "size_bytes": 43, "schema": "scout-router-projection/v2"},
           {"role": "legacy_recovery_json", "locator": "members/recovery.json", "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "size_bytes": 128, "schema": "scout-legacy-a1-provenance-recovery/v1"},
@@ -3019,7 +3019,7 @@
         "previous_bridge_binding_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
         "retention": "IMMUTABLE_INDEFINITE_FIRST_TRANSITION",
         "schema": "flop-scout-epoch-archive/v1",
-        "source_checkpoint": {"source_id": "source-a", "epoch": "epoch-a", "committed_event_id": 8, "cut_evidence_sha256": "2222222222222222222222222222222222222222222222222222222222222222"}
+        "source_checkpoint": {"source_id": "source-a", "source_epoch": "epoch-a", "source_cut": 8}
       },
       "source_evidence": {"schema": "flop-scout-epoch-source-evidence/v1", "canonical_ddl_sha256": "8b2f6d2cf33024658effb16c7045cd140a1a620d0917485c1f9df90af1eb3970", "raw_record_count": 10, "observed_event_count": 10, "cache_link_count": 3, "metadata_binding": "matches archive accepted_anchor, bridge_predecessor, source_checkpoint, previous_bridge_binding_sha256, and legacy_recovery"}
     },
