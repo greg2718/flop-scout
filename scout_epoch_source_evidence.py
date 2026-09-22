@@ -15,6 +15,7 @@ from pathlib import Path
 from scout_legacy_a1_recovery import (MAX_JSON_BYTES, MAX_RECORDS,
     MAX_SQLITE_BYTES, MAX_TEXT_BYTES, RecoveryError, canonical, parse_json,
     raw_record_id, resolve, validate_descriptor)
+from scout_epoch_v2 import commitment as epoch_commitment
 
 
 SCHEMA = "flop-scout-epoch-source-evidence/v1"
@@ -165,6 +166,12 @@ def _context(context, descriptor, recovery):
         _json(context[key])
     if not isinstance(context["previous_bridge_binding_sha256"], str) or not _HEX.fullmatch(context["previous_bridge_binding_sha256"]):
         _fail("SOURCE_EVIDENCE_METADATA", "previous bridge binding is invalid")
+    try:
+        binding = epoch_commitment("a1-bridge-binding", {"accepted_anchor": context["accepted_anchor"], "bridge_predecessor": context["bridge_predecessor"]})
+    except Exception as exc:
+        raise SourceEvidenceError("SOURCE_EVIDENCE_METADATA", "bridge descriptors are not canonical V2 descriptors") from exc
+    if context["previous_bridge_binding_sha256"] != binding:
+        _fail("SOURCE_EVIDENCE_METADATA", "previous bridge binding is not the V2 wire binding")
     checkpoint = context["source_checkpoint"]
     for key, value in (("source_id", descriptor["source_id"]), ("source_epoch", descriptor["source_epoch"]), ("source_cut", descriptor["source_cut"])):
         if checkpoint.get(key) != value: _fail("SOURCE_EVIDENCE_METADATA", "source checkpoint does not bind recovery descriptor")

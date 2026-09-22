@@ -2995,11 +2995,11 @@
       "expect": "PASS",
       "descriptor": {
         "archive_id": "ea2:synthetic",
-        "artifact_sha256": "fc45742d872a4a1edc6af6ffa08877efd84a8aa6dcf875d1309c4d1cc08dea9a",
+        "artifact_sha256": "0218ac52e8c3f561cfb1d53ff8b2aa4c9f8da5690c03942624355ed93f4127e7",
         "database_schema_version": "flop-scout-epoch-archive-manifest/v1",
         "locator": "archives/ea2-synthetic/manifest.json",
         "preservation": "IMMUTABLE_RETAINED",
-        "previous_bridge_binding_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "previous_bridge_binding_sha256": "b5efa51aa9667998d9dd672abefd9ac60ed80a30b313457bdcd093c78de34897",
         "previous_epoch_id": "v1:bridge",
         "previous_manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
         "schema": "flop-scout-epoch-archive/v1",
@@ -3010,13 +3010,13 @@
         "archive_id": "ea2:synthetic",
         "bridge_predecessor": {"publication_sequence": 101, "content_id": 91, "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "artifact_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "artifact_size": 43, "source_kind": "bounded-current", "source_id": "source-a", "source_cut": 8},
         "legacy_recovery": {"schema": "scout-legacy-a1-provenance-recovery/v1", "commitment_sha256": "3333333333333333333333333333333333333333333333333333333333333333", "validated_records": 10, "closure_count": 4},
-        "manifest_commitment_sha256": "a508521a4545892e702e6a592e8e9fe016077977bf4aa99043bda4a76a2e547c",
+        "manifest_commitment_sha256": "f12ab13f598b32c4a2170a9637546ebff93c2042c4d43e38c1af00d24e8952a5",
         "members": [
           {"role": "bridge_projection_sqlite", "locator": "members/bridge.sqlite", "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "size_bytes": 43, "schema": "scout-router-projection/v2"},
           {"role": "legacy_recovery_json", "locator": "members/recovery.json", "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "size_bytes": 128, "schema": "scout-legacy-a1-provenance-recovery/v1"},
           {"role": "source_evidence_sqlite", "locator": "members/source.sqlite", "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "size_bytes": 64, "schema": "flop-scout-epoch-source-evidence/v1"}
         ],
-        "previous_bridge_binding_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "previous_bridge_binding_sha256": "b5efa51aa9667998d9dd672abefd9ac60ed80a30b313457bdcd093c78de34897",
         "retention": "IMMUTABLE_INDEFINITE_FIRST_TRANSITION",
         "schema": "flop-scout-epoch-archive/v1",
         "source_checkpoint": {"source_id": "source-a", "source_epoch": "epoch-a", "source_cut": 8}

@@ -20,9 +20,16 @@ def _recovery():
 
 
 def _context():
-    return {"accepted_anchor": {"content_id": "41"}, "bridge_predecessor": {"content_id": "42"},
+    anchor = {"publication_sequence": 41, "content_id": 41, "manifest_sha256": "a" * 64,
+              "artifact_sha256": "b" * 64, "artifact_size": 1, "source_kind": "epoch",
+              "source_id": "source", "source_cut": 8}
+    bridge = {"publication_sequence": 42, "content_id": 42, "manifest_sha256": "c" * 64,
+              "artifact_sha256": "d" * 64, "artifact_size": 2, "source_kind": "epoch",
+              "source_id": "source", "source_cut": 9}
+    from scout_epoch_v2 import commitment
+    return {"accepted_anchor": anchor, "bridge_predecessor": bridge,
             "source_checkpoint": {"source_id": "source", "source_epoch": "epoch", "source_cut": 9},
-            "previous_bridge_binding_sha256": "d" * 64}
+            "previous_bridge_binding_sha256": commitment("a1-bridge-binding", {"accepted_anchor": anchor, "bridge_predecessor": bridge})}
 
 
 def test_recovery_member_is_canonical_redacted_and_deterministic():
@@ -55,6 +62,19 @@ def test_archive_checkpoint_rejects_legacy_and_mixed_key_sets(checkpoint):
 def test_frozen_valid_archive_vector_uses_archive_checkpoint_schema():
     vector = next(case for case in json.loads(FIXTURE.read_text())["archive_format_cases"] if case["name"] == "archive-manifest-valid")
     assert set(vector["manifest"]["source_checkpoint"]) == {"source_id", "source_epoch", "source_cut"}
+
+
+@pytest.mark.parametrize("binding", ["0" * 64, "8c463f974db43e869483ac3a0d9d96d1911a88809b3e7611dc5047279768f937"])
+def test_archive_rejects_generic_or_stale_receipt_bridge_binding(binding):
+    context = _context(); context["previous_bridge_binding_sha256"] = binding
+    with pytest.raises(ArchiveError):
+        _manifest(context, {"archive_id":"a", "previous_epoch_id":"e", "previous_manifest_sha256":"a" * 64, "locator":"a/manifest.json"}, [], _recovery())
+
+
+def test_archive_rejects_descriptor_substitution_after_wire_binding():
+    context = _context(); context["bridge_predecessor"] = dict(context["bridge_predecessor"], content_id=43)
+    with pytest.raises(ArchiveError):
+        _manifest(context, {"archive_id":"a", "previous_epoch_id":"e", "previous_manifest_sha256":"a" * 64, "locator":"a/manifest.json"}, [], _recovery())
 
 
 def test_paths_reject_existing_output_and_symlink(tmp_path):

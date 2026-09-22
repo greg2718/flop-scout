@@ -25,9 +25,16 @@ def _descriptor():
 
 
 def _context():
-    return {"accepted_anchor": {"content_id": "41"}, "bridge_predecessor": {"content_id": "42"},
+    anchor = {"publication_sequence": 41, "content_id": 41, "manifest_sha256": "a" * 64,
+              "artifact_sha256": "b" * 64, "artifact_size": 1, "source_kind": "epoch-a",
+              "source_id": "source-a", "source_cut": 8}
+    bridge = {"publication_sequence": 42, "content_id": 42, "manifest_sha256": "c" * 64,
+              "artifact_sha256": "d" * 64, "artifact_size": 2, "source_kind": "epoch-a",
+              "source_id": "source-a", "source_cut": 9}
+    from scout_epoch_v2 import commitment
+    return {"accepted_anchor": anchor, "bridge_predecessor": bridge,
             "source_checkpoint": {"source_id": "source-a", "source_epoch": "epoch-a", "source_cut": 9},
-            "previous_bridge_binding_sha256": "c" * 64}
+            "previous_bridge_binding_sha256": commitment("a1-bridge-binding", {"accepted_anchor": anchor, "bridge_predecessor": bridge})}
 
 
 def _inputs(tmp_path):
@@ -136,3 +143,11 @@ def test_implementation_ddl_hash_matches_frozen_valid_archive_vector(tmp_path):
     with sqlite3.connect(path) as conn:
         for sql in _DDL.values(): conn.execute(sql)
         assert validate_schema(conn) == vector["source_evidence"]["canonical_ddl_sha256"]
+
+
+def test_source_evidence_rejects_substituted_wire_binding_context(tmp_path):
+    projection, source = _inputs(tmp_path); descriptor = _descriptor()
+    descriptor["artifact_size"] = projection.stat().st_size; descriptor["artifact_sha256"] = hashlib.sha256(projection.read_bytes()).hexdigest()
+    context = _context(); context["previous_bridge_binding_sha256"] = "0" * 64
+    with pytest.raises(SourceEvidenceError):
+        build(projection.resolve(), source.resolve(), (tmp_path / "stage.sqlite").resolve(), (tmp_path / "out.sqlite").resolve(), descriptor, dict(descriptor), context)
