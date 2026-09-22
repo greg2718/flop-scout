@@ -2988,5 +2988,55 @@
         }
       }
     }
+  ],
+  "archive_format_cases": [
+    {
+      "name": "archive-manifest-valid",
+      "expect": "PASS",
+      "descriptor": {
+        "archive_id": "ea2:synthetic",
+        "artifact_sha256": "0017de37181e3dad4fafe132a78e141770cf10f3e63872458b4ab9668aea7a75",
+        "database_schema_version": "flop-scout-epoch-archive-manifest/v1",
+        "locator": "archives/ea2-synthetic/manifest.json",
+        "preservation": "IMMUTABLE_RETAINED",
+        "previous_bridge_binding_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "previous_epoch_id": "v1:bridge",
+        "previous_manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "schema": "flop-scout-epoch-archive/v1",
+        "size_bytes": 1965
+      },
+      "manifest": {
+        "accepted_anchor": {"publication_sequence": 100, "content_id": 90, "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "artifact_size": 42, "source_kind": "bounded-current", "source_id": "source-a", "source_cut": 7},
+        "archive_id": "ea2:synthetic",
+        "bridge_predecessor": {"publication_sequence": 101, "content_id": 91, "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "artifact_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "artifact_size": 43, "source_kind": "bounded-current", "source_id": "source-a", "source_cut": 8},
+        "legacy_recovery": {"schema": "scout-legacy-a1-provenance-recovery/v1", "commitment_sha256": "3333333333333333333333333333333333333333333333333333333333333333", "validated_records": 10, "closure_count": 4},
+        "manifest_commitment_sha256": "1110a38a2643fa38299d02216dda1fa5594d6c48d10ecc3e7e03fc0a90bd8742",
+        "members": [
+          {"role": "bridge_projection_sqlite", "locator": "members/bridge.sqlite", "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "size_bytes": 43, "schema": "scout-router-projection/v2"},
+          {"role": "legacy_recovery_json", "locator": "members/recovery.json", "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "size_bytes": 128, "schema": "scout-legacy-a1-provenance-recovery/v1"},
+          {"role": "source_evidence_sqlite", "locator": "members/source.sqlite", "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "size_bytes": 64, "schema": "flop-scout-epoch-source-evidence/v1"}
+        ],
+        "previous_bridge_binding_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "retention": "IMMUTABLE_INDEFINITE_FIRST_TRANSITION",
+        "schema": "flop-scout-epoch-archive/v1",
+        "source_checkpoint": {"source_id": "source-a", "epoch": "epoch-a", "committed_event_id": 8, "cut_evidence_sha256": "2222222222222222222222222222222222222222222222222222222222222222"}
+      },
+      "source_evidence": {"schema": "flop-scout-epoch-source-evidence/v1", "canonical_ddl_sha256": "4444444444444444444444444444444444444444444444444444444444444444", "raw_record_count": 10, "observed_event_count": 10, "cache_link_count": 3, "metadata_binding": "matches archive accepted_anchor, bridge_predecessor, source_checkpoint, previous_bridge_binding_sha256, and legacy_recovery"}
+    },
+    {"name": "archive-member-role-duplicate", "base": "archive-manifest-valid", "mutation": "duplicate bridge_projection_sqlite role", "expect": "REJECT", "code": "ARCHIVE_MEMBER_ROLE"},
+    {"name": "archive-member-order", "base": "archive-manifest-valid", "mutation": "swap sorted members", "expect": "REJECT", "code": "ARCHIVE_MEMBER_ORDER"},
+    {"name": "archive-bridge-member-mismatch", "base": "archive-manifest-valid", "mutation": "change bridge member hash or size", "expect": "REJECT", "code": "ARCHIVE_BRIDGE_MEMBER"},
+    {"name": "archive-source-checkpoint-mismatch", "base": "archive-manifest-valid", "mutation": "change source checkpoint or bridge binding", "expect": "REJECT", "code": "ARCHIVE_SOURCE_BINDING"},
+    {"name": "archive-recovery-commitment-mismatch", "base": "archive-manifest-valid", "mutation": "change recovery result or commitment", "expect": "REJECT", "code": "ARCHIVE_RECOVERY"},
+    {"name": "archive-locator-traversal", "base": "archive-manifest-valid", "mutation": "use ../ in member locator", "expect": "REJECT", "code": "ARCHIVE_LOCATOR"},
+    {"name": "archive-manifest-hash-or-size-mismatch", "base": "archive-manifest-valid", "mutation": "change descriptor manifest hash or size", "expect": "REJECT", "code": "ARCHIVE_MANIFEST_HASH"},
+    {"name": "archive-member-symlink-or-changing-file", "base": "archive-manifest-valid", "mutation": "member is symlink or changes while held descriptor is read", "expect": "REJECT", "code": "ARCHIVE_MEMBER_IO"},
+    {"name": "source-evidence-schema-valid", "base": "archive-manifest-valid", "mutation": "validate source_evidence binding", "expect": "PASS"},
+    {"name": "source-evidence-wrong-schema-id", "base": "archive-manifest-valid", "mutation": "source evidence metadata/member schema is not flop-scout-epoch-source-evidence/v1", "expect": "REJECT", "code": "SOURCE_EVIDENCE_SCHEMA"},
+    {"name": "source-evidence-ddl-hash", "base": "archive-manifest-valid", "mutation": "canonical normalized DDL hash differs", "expect": "REJECT", "code": "SOURCE_EVIDENCE_DDL"},
+    {"name": "source-evidence-metadata-binding", "base": "archive-manifest-valid", "mutation": "metadata anchor, bridge, cut, binding, or recovery commitment differs", "expect": "REJECT", "code": "SOURCE_EVIDENCE_METADATA"},
+    {"name": "source-evidence-extra-or-missing-raw", "base": "archive-manifest-valid", "mutation": "raw set differs from bridge provenance in either EXCEPT direction", "expect": "REJECT", "code": "SOURCE_EVIDENCE_RAW_SET"},
+    {"name": "source-evidence-orphan-event-or-link", "base": "archive-manifest-valid", "mutation": "missing/duplicate/orphan observed event or compatibility link", "expect": "REJECT", "code": "SOURCE_EVIDENCE_REFERENCES"},
+    {"name": "source-evidence-unsupported-cache-table", "base": "archive-manifest-valid", "mutation": "compatibility link cache_table is outside the exact four-table allowlist", "expect": "REJECT", "code": "SOURCE_EVIDENCE_CACHE_TABLE"}
   ]
 }

@@ -111,31 +111,232 @@ publication/content regression, unexpected heartbeat, or arbitrary epoch jump
 is rejected.  The first V2 transition is a separately gated migration from the
 accepted V1 commitment; it does not retroactively relabel the V1 artifact.
 
-## 5. Immutable archive binding
+## 5. Immutable archive binding — Phase 3B-B format contract
 
-The predecessor evidence omitted from the active epoch MUST remain retrievable
-as an immutable archive.  `archive` contains:
+The predecessor evidence omitted from an active epoch MUST remain retrievable
+as a canonical `flop-scout-epoch-archive/v1` manifest plus immutable members.
+This section specifies bytes and validation only.  It does not authorize archive
+creation, publication, or Router acceptance.
 
-| Field | Rule |
+### 5.1 Existing transition descriptor remains the outer binding
+
+No V2 transition-wire field is added.  The existing `archive` object remains
+the transition commitment and has its current exact fields.  For this format:
+
+| Existing descriptor field | Required archive-manifest interpretation |
 | --- | --- |
 | `schema` | Exact `flop-scout-epoch-archive/v1`. |
-| `archive_id` | Domain-separated SHA-256 identifier over descriptor commitment. |
-| `artifact_sha256`, `size_bytes`, `database_schema_version` | Exact immutable artifact contract; size bounded by configured maximum. |
-| `locator` | Opaque relative retrieval identifier, not an absolute path or authority.  It may contain no `..`, NUL, symlink traversal, URI scheme, or unbounded text. |
-| `previous_epoch_id`, `previous_manifest_sha256` | Bind archive to exactly the predecessor being retired. |
-| `preservation` | `IMMUTABLE_RETAINED`; records the minimum retention policy/version and audit availability. |
-| `archive_commitment_sha256` | Hash of canonical descriptor excluding this self-field. |
+| `locator` | Safe relative locator of the canonical archive-manifest JSON, not a member path. |
+| `artifact_sha256` / `size_bytes` | SHA-256 and exact size of the complete canonical manifest bytes. |
+| `database_schema_version` | Exact `flop-scout-epoch-archive-manifest/v1`. |
+| `previous_epoch_id`, `previous_manifest_sha256`, `previous_bridge_binding_sha256` | Exact bridge predecessor identity, repeated byte-for-byte in the archive manifest. |
+| `preservation` | Exact `IMMUTABLE_RETAINED`. |
+| `archive_commitment_sha256` | Existing descriptor commitment; it therefore binds the manifest locator, hash, size, and bridge binding without changing the wire schema. |
 
-Scout writes/renames a public archive only into a containment-checked immutable
-archive root and retains first-deployment epoch archives indefinitely.  Private
-recovery archives are a separate root and must not be exposed as public archive
-locators.  Router validates descriptor canonical bytes, locator syntax,
-hash/size/schema and predecessor binding before acceptance.  It MAY cache a
-verified archive locally under hash-derived ownership-safe paths.  If required
-archive bytes are unavailable, unreadable, changing, oversized, corrupt, or
-mismatched, Router rejects the V2 candidate fail-closed; it does not accept a
-new active epoch on an archive promise.  Audit retrieval later rechecks the
-same descriptor/hash and may perform full history inspection.
+`archive_id` is repeated in the manifest.  A descriptor hash alone is not a
+promise that members exist: all member validation below remains mandatory.
+
+### 5.2 Canonical archive manifest
+
+The manifest is one canonical JSON object with exactly these fields:
+
+```text
+schema                         "flop-scout-epoch-archive/v1"
+archive_id                     descriptor archive_id
+manifest_commitment_sha256     self commitment defined below
+accepted_anchor                complete A1 descriptor
+bridge_predecessor             complete A1 descriptor
+previous_bridge_binding_sha256 exact bridge binding
+source_checkpoint              {source_id, epoch, committed_event_id, cut_evidence_sha256}
+legacy_recovery                {schema, commitment_sha256, validated_records, closure_count}
+retention                      "IMMUTABLE_INDEFINITE_FIRST_TRANSITION"
+members                        sorted member array
+```
+
+`accepted_anchor` and `bridge_predecessor` use the complete descriptor shape
+from section 4A; neither is inferred from IDs or cuts.  `legacy_recovery.schema`
+is exact `scout-legacy-a1-provenance-recovery/v1`; its commitment is the
+domain-separated, local recovery result for this descriptor-bound bridge.  It
+is evidence, never a Router receipt or a Scout wire assertion.
+
+The required `members` roles are exactly and uniquely:
+
+| Role | Required schema | Meaning |
+| --- | --- | --- |
+| `bridge_projection_sqlite` | `scout-router-projection/v2` | Exact bridge-predecessor projection artifact. |
+| `source_evidence_sqlite` | `flop-scout-epoch-source-evidence/v1` | Exact immutable source-evidence SQLite subset used by recovery. |
+| `legacy_recovery_json` | `scout-legacy-a1-provenance-recovery/v1` | Canonical, redacted local recovery result; never raw source text. |
+
+Every member has exactly `role`, `locator`, `sha256`, `size_bytes`, and
+`schema`.  Members sort strictly by `(role, locator)`; duplicate roles,
+locators, hashes, or unsorted members reject.  The bridge member hash/size
+must equal `bridge_predecessor.artifact_sha256`/`artifact_size`; the recovery
+member hash must be the exact canonical recovery-result bytes whose commitment
+equals `legacy_recovery.commitment_sha256`.
+
+Canonical JSON is UTF-8, sorted keys, compact separators, no duplicate keys,
+no floats/non-finite values, and ASCII-only strings.  The manifest commitment
+is:
+
+```text
+SHA256("flop-scout/epoch-archive-manifest/v1\0" ||
+       canonical(manifest with manifest_commitment_sha256 omitted))
+```
+
+The descriptor `artifact_sha256` is separately SHA-256 over the complete
+canonical manifest bytes including that field.  This distinction prevents a
+self-hash ambiguity while retaining the existing descriptor binding.
+
+### 5.3 `flop-scout-epoch-source-evidence/v1`
+
+The `source_evidence_sqlite` member is a normalized SQLite subset, not a copy
+of a live observer database and not a broad current-source window.  For the
+content-242 bridge it contains **exactly 49,808** `raw_record_id` values: the
+complete `source_provenance.raw_record_id` set of the bridge projection, and
+none of the 92 unrelated source rows.  For any later authorized bridge, its
+raw-record count must exactly equal that bridge's provenance count and remain
+`<= 50,000`.
+
+Its schema identifier is exact `flop-scout-epoch-source-evidence/v1`; it has
+only these normalized tables and no application-defined extras:
+
+| Table | Required immutable content and constraints |
+| --- | --- |
+| `source_evidence_metadata` | Exactly one row (`singleton=1` PK with `CHECK(singleton=1)`), `schema='flop-scout-epoch-source-evidence/v1'`, `revision='legacy-a1-recovery/1'`, canonical DDL hash, accepted anchor, bridge predecessor, source checkpoint, previous bridge binding, recovery commitment, and raw/event/cache counts. |
+| `raw_records` | Exact raw identity inputs: `raw_record_id`, source/room/generation/reported generation, sequence, sender, signature, nonce, raw text, recovered raw-text hash, and raw envelope.  PK `raw_record_id`; `UNIQUE(raw_record_id,raw_text_sha256)`; checks on bounded lower-case hashes and non-negative sequence. |
+| `observed_event_witnesses` | Exact `event_id`, raw ID, and raw-text hash.  PK `event_id`; `UNIQUE(raw_record_id)`; composite FK to `raw_records`; each raw row has exactly one witness. |
+| `compatibility_links` | `cache_table`, cache row id, raw ID, raw-text hash.  PK `(cache_table,cache_rowid)` and composite FK to `raw_records`; `cache_table` check permits only `messages`, `evidence_records`, `tclk_frames`, or `kibble_events`. |
+| `messages`, `evidence_records`, `tclk_frames`, `kibble_events` | Only cache columns required by `exact_cache()` (rowid, room, generation where applicable, sequence, exact text, and sender/signature/nonce fields where applicable).  Each cache row has exactly one matching compatibility link; no unlinked cache row is allowed. |
+
+The following is the normative object set whose normalized DDL is hashed.  An
+implementation may not add tables, triggers, views, or indexes to this member.
+
+```sql
+CREATE TABLE source_evidence_metadata(
+  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+  schema TEXT NOT NULL CHECK(schema='flop-scout-epoch-source-evidence/v1'),
+  revision TEXT NOT NULL CHECK(revision='legacy-a1-recovery/1'),
+  canonical_ddl_sha256 TEXT NOT NULL CHECK(length(canonical_ddl_sha256)=64 AND canonical_ddl_sha256 NOT GLOB '*[^0-9a-f]*'),
+  accepted_anchor_json TEXT NOT NULL, bridge_predecessor_json TEXT NOT NULL,
+  source_checkpoint_json TEXT NOT NULL,
+  previous_bridge_binding_sha256 TEXT NOT NULL CHECK(length(previous_bridge_binding_sha256)=64 AND previous_bridge_binding_sha256 NOT GLOB '*[^0-9a-f]*'),
+  recovery_commitment_sha256 TEXT NOT NULL CHECK(length(recovery_commitment_sha256)=64 AND recovery_commitment_sha256 NOT GLOB '*[^0-9a-f]*'),
+  raw_record_count INTEGER NOT NULL CHECK(raw_record_count BETWEEN 1 AND 50000),
+  observed_event_count INTEGER NOT NULL CHECK(observed_event_count=raw_record_count),
+  cache_link_count INTEGER NOT NULL CHECK(cache_link_count BETWEEN 0 AND 200000)
+);
+CREATE TABLE raw_records(
+  raw_record_id TEXT PRIMARY KEY CHECK(length(raw_record_id)=64 AND raw_record_id NOT GLOB '*[^0-9a-f]*'),
+  source TEXT NOT NULL, room TEXT NOT NULL, generation TEXT, reported_generation TEXT,
+  seq INTEGER NOT NULL CHECK(seq>=0), sender_did TEXT, signature TEXT, nonce TEXT,
+  raw_text TEXT NOT NULL CHECK(length(raw_text)<=65536),
+  raw_text_sha256 TEXT NOT NULL CHECK(length(raw_text_sha256)=64 AND raw_text_sha256 NOT GLOB '*[^0-9a-f]*'),
+  raw_record_json TEXT NOT NULL CHECK(length(raw_record_json)<=65536),
+  UNIQUE(raw_record_id,raw_text_sha256)
+);
+CREATE TABLE observed_event_witnesses(
+  event_id INTEGER PRIMARY KEY CHECK(event_id>=0), raw_record_id TEXT NOT NULL UNIQUE,
+  raw_text_sha256 TEXT NOT NULL CHECK(length(raw_text_sha256)=64 AND raw_text_sha256 NOT GLOB '*[^0-9a-f]*'),
+  FOREIGN KEY(raw_record_id,raw_text_sha256) REFERENCES raw_records(raw_record_id,raw_text_sha256)
+);
+CREATE TABLE compatibility_links(
+  cache_table TEXT NOT NULL CHECK(cache_table IN ('messages','evidence_records','tclk_frames','kibble_events')),
+  cache_rowid INTEGER NOT NULL CHECK(cache_rowid>0), raw_record_id TEXT NOT NULL,
+  raw_text_sha256 TEXT NOT NULL CHECK(length(raw_text_sha256)=64 AND raw_text_sha256 NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY(cache_table,cache_rowid),
+  FOREIGN KEY(raw_record_id,raw_text_sha256) REFERENCES raw_records(raw_record_id,raw_text_sha256)
+);
+CREATE INDEX compatibility_links_by_raw ON compatibility_links(raw_record_id,cache_table);
+CREATE TABLE messages(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, generation TEXT, seq INTEGER NOT NULL CHECK(seq>=0), text TEXT NOT NULL CHECK(length(text)<=65536), sender TEXT);
+CREATE TABLE evidence_records(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, generation TEXT, seq INTEGER NOT NULL CHECK(seq>=0), text TEXT NOT NULL CHECK(length(text)<=65536), sender TEXT, sig TEXT, nonce INTEGER);
+CREATE TABLE tclk_frames(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, generation TEXT, seq INTEGER NOT NULL CHECK(seq>=0), raw_text TEXT NOT NULL CHECK(length(raw_text)<=65536), sender TEXT);
+CREATE TABLE kibble_events(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, generation TEXT, seq INTEGER NOT NULL CHECK(seq>=0), exact_text TEXT NOT NULL CHECK(length(exact_text)<=65536), sender TEXT);
+```
+
+The metadata row stores canonical JSON for the complete accepted-anchor,
+bridge-predecessor, and source-checkpoint descriptors, rather than loose IDs.
+Those JSON values must byte-canonically equal the archive manifest fields.
+`previous_bridge_binding_sha256`, `recovery_commitment_sha256`, and all count
+fields are separate scalar columns.  For content 242 the count invariants are
+`raw_record_count=49808`, `observed_event_count=49808`, and cache/link counts
+matching the rows actually retained; no aggregate alone substitutes for the
+set-equality checks below.
+
+The canonical DDL hash is defined without depending on SQLite's pretty-print
+whitespace.  In fixed order by `(object_type, object_name)`, tokenize every
+required `sqlite_master.sql` statement using SQLite's lexical grammar; reject
+comments, unrecognized tokens, quoted identifiers, and objects outside the
+named table/index set.  Serialize each token as canonical JSON
+`[token_kind, token_text]`, with keywords upper-cased and unquoted identifiers
+lower-cased.  Hash:
+
+```text
+SHA256("flop-scout/epoch-source-evidence-ddl/v1\0" ||
+       canonical({schema:"flop-scout-epoch-source-evidence/v1",
+                  objects:[[object_type, object_name, normalized_tokens], ...]}))
+```
+
+This hash binds tables, PK/unique/FK/check constraints, and required indexes;
+it is not a promise of byte-identical SQLite pages.  The member's file hash
+binds the produced bytes, while validation independently proves schema and
+semantic equivalence.
+
+Validation order is exact:
+
+1. Securely open and hash/size-verify the archive manifest and members as in
+   section 5.4; verify the source-evidence member role/schema first.
+2. Open the held SQLite descriptor read-only with `query_only`; reject files
+   above 1 GiB, a raw count above 50,000, metadata count != 1, or any bounded
+   JSON/text/locator violation before materializing rows.
+3. Run `PRAGMA integrity_check` and `foreign_key_check`; inspect required
+   tables, indexes, and normalized DDL hash; reject missing/extra objects or
+   any absent PK/unique/FK/check contract.
+4. Require metadata's complete descriptors, bridge binding, source checkpoint,
+   recovery commitment, and counts to exactly equal the archive manifest.
+5. Compare raw IDs bidirectionally with bridge `source_provenance`: both
+   `EXCEPT` directions empty and exact counts equal.  Then require exactly one
+   event witness per raw, valid identity/text/hash recomputation, cut bound,
+   and no orphan/extra raw, event, link, or cache row.
+6. Re-run `exact_cache()` semantics for every present supported link and rerun
+   the local legacy recovery; its count and commitment must equal metadata and
+   manifest.  Any failure rejects the candidate/audit result fail-closed.
+
+### 5.4 Bounds and safe retrieval
+
+- Manifest bytes: <= 64 KiB; depth <= 16; objects <= 64 fields; arrays <= 256
+  items; member count is exactly three.
+- Every locator is ASCII, <= 256 bytes, relative, non-empty, has no empty,
+  `.`, `..`, backslash, NUL, URI scheme, or absolute component.
+- Each member is a regular file <= 1 GiB; total members <= 2 GiB.  Hash and
+  size are lower-case SHA-256 and positive bounded integer values.
+- The archive root is opened as a directory descriptor.  Implementations walk
+  validated locator components with `openat`/`O_NOFOLLOW`, require regular
+  files by `fstat`, hash through the held descriptor, and compare pre/post
+  descriptor metadata plus exact size.  Path-based checks, symlink following,
+  and check-then-open reads are forbidden.
+- Descriptor, manifest, every nested descriptor, every member hash/size/schema,
+  bridge binding, source checkpoint, and recovery commitment are independently
+  checked.  Any unavailable, changing, oversized, malformed, ambiguous, or
+  mismatched input rejects fail-closed.
+
+### 5.5 Retention, Router verification, and crash handling
+
+First-transition archives are immutable and retained indefinitely.  Scout
+stages all members and the manifest beneath a containment-checked private
+staging directory on the target filesystem; it hashes/fsyncs each member,
+writes/fsyncs the manifest last, fsyncs directories, then atomically renames
+the complete directory into the immutable archive root before publishing any
+candidate pointer.  A crash leaves either no final archive or a fully
+descriptor-verifiable one; partial staging is never published.
+
+For the first legacy bridge only, Router independently performs the local
+legacy-A1 recovery verification from the exact descriptor-bound bridge and
+source-evidence members, records a Router-local result, and never accepts a
+Scout-supplied receipt.  Ordinary later polling validates the manifest and
+member hashes, not an ever-growing chain or a claimed receipt.  Audit retrieval
+repeats descriptor/manifest/member verification and may repeat recovery; any
+failure rejects the audit result and the candidate that requires it while
+retaining the last accepted publication.
 
 ## 6. Retained-floor and omitted-history commitment
 
