@@ -205,8 +205,8 @@ only these normalized tables and no application-defined extras:
 | `source_evidence_metadata` | Exactly one row (`singleton=1` PK with `CHECK(singleton=1)`), `schema='flop-scout-epoch-source-evidence/v1'`, `revision='legacy-a1-recovery/1'`, canonical DDL hash, accepted anchor, bridge predecessor, source checkpoint, previous bridge binding, recovery commitment, and raw/event/cache counts. |
 | `raw_records` | Exact raw identity inputs: `raw_record_id`, source/room/generation/reported generation, sequence, sender, signature, nonce, raw text, recovered raw-text hash, and raw envelope.  PK `raw_record_id`; `UNIQUE(raw_record_id,raw_text_sha256)`; checks on bounded lower-case hashes and non-negative sequence. |
 | `observed_event_witnesses` | Exact `event_id`, raw ID, and raw-text hash.  PK `event_id`; `UNIQUE(raw_record_id)`; composite FK to `raw_records`; each raw row has exactly one witness. |
-| `compatibility_links` | `cache_table`, cache row id, raw ID, raw-text hash.  PK `(cache_table,cache_rowid)` and composite FK to `raw_records`; `cache_table` check permits only `messages`, `evidence_records`, `tclk_frames`, or `kibble_events`. |
-| `messages`, `evidence_records`, `tclk_frames`, `kibble_events` | Only cache columns required by `exact_cache()` (rowid, room, generation where applicable, sequence, exact text, and sender/signature/nonce fields where applicable).  Each cache row has exactly one matching compatibility link; no unlinked cache row is allowed. |
+| `compatibility_links` | `cache_table`, explicit stable source `cache_rowid`, raw ID, raw-text hash.  PK `(cache_table,cache_rowid)` and composite FK to `raw_records`; `cache_table` check permits only `messages`, `evidence_records`, `tclk_frames`, or `kibble_events`. |
+| `messages`, `evidence_records`, `tclk_frames`, `kibble_events` | Only cache columns required by `exact_cache()` plus an explicit `cache_rowid INTEGER PRIMARY KEY` holding the original source SQLite rowid. Extraction must select `rowid AS cache_rowid` and preserve it verbatim; SQLite-generated replacement rowids are prohibited. Each cache row has exactly one matching compatibility link; no unlinked cache row is allowed. |
 
 The following is the normative object set whose normalized DDL is hashed.  An
 implementation may not add tables, triggers, views, or indexes to this member.
@@ -223,7 +223,7 @@ CREATE TABLE source_evidence_metadata(
   recovery_commitment_sha256 TEXT NOT NULL CHECK(length(recovery_commitment_sha256)=64 AND recovery_commitment_sha256 NOT GLOB '*[^0-9a-f]*'),
   raw_record_count INTEGER NOT NULL CHECK(raw_record_count BETWEEN 1 AND 50000),
   observed_event_count INTEGER NOT NULL CHECK(observed_event_count=raw_record_count),
-  cache_link_count INTEGER NOT NULL CHECK(cache_link_count BETWEEN 0 AND 200000)
+  cache_link_count INTEGER NOT NULL CHECK(cache_link_count>=0 AND cache_link_count<=200000)
 );
 CREATE TABLE raw_records(
   raw_record_id TEXT PRIMARY KEY CHECK(length(raw_record_id)=64 AND raw_record_id NOT GLOB '*[^0-9a-f]*'),
@@ -247,10 +247,10 @@ CREATE TABLE compatibility_links(
   FOREIGN KEY(raw_record_id,raw_text_sha256) REFERENCES raw_records(raw_record_id,raw_text_sha256)
 );
 CREATE INDEX compatibility_links_by_raw ON compatibility_links(raw_record_id,cache_table);
-CREATE TABLE messages(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, generation TEXT, seq INTEGER NOT NULL CHECK(seq>=0), text TEXT NOT NULL CHECK(length(text)<=65536), sender TEXT);
-CREATE TABLE evidence_records(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, generation TEXT, seq INTEGER NOT NULL CHECK(seq>=0), text TEXT NOT NULL CHECK(length(text)<=65536), sender TEXT, sig TEXT, nonce INTEGER);
-CREATE TABLE tclk_frames(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, generation TEXT, seq INTEGER NOT NULL CHECK(seq>=0), raw_text TEXT NOT NULL CHECK(length(raw_text)<=65536), sender TEXT);
-CREATE TABLE kibble_events(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, generation TEXT, seq INTEGER NOT NULL CHECK(seq>=0), exact_text TEXT NOT NULL CHECK(length(exact_text)<=65536), sender TEXT);
+CREATE TABLE messages(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, seq INTEGER NOT NULL CHECK(seq>=0), text TEXT NOT NULL CHECK(length(text)<=65536), sender TEXT);
+CREATE TABLE evidence_records(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, generation TEXT, seq INTEGER NOT NULL CHECK(seq>=0), text TEXT NOT NULL CHECK(length(text)<=65536), did TEXT, sig TEXT, nonce INTEGER);
+CREATE TABLE tclk_frames(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, generation TEXT, seq INTEGER NOT NULL CHECK(seq>=0), raw_text TEXT NOT NULL CHECK(length(raw_text)<=65536), transport_did TEXT);
+CREATE TABLE kibble_events(cache_rowid INTEGER PRIMARY KEY, room TEXT NOT NULL, generation TEXT, seq INTEGER NOT NULL CHECK(seq>=0), exact_text TEXT NOT NULL CHECK(length(exact_text)<=65536), sender_did TEXT);
 ```
 
 The metadata row stores canonical JSON for the complete accepted-anchor,
