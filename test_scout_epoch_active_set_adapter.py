@@ -85,6 +85,27 @@ def test_large_omission_commitment_is_deterministic_without_array_materializatio
     assert adapter._set_commitment("scout/test/v1", values) == adapter._set_commitment("scout/test/v1", list(values))
 
 
+def _advisory():
+    value = {"retained_floor_proposal": {"room|1|messages": 7},
+             "omitted": [{"projection_row_id": "sm1:" + "a" * 64,
+                          "reason_class": "DETERMINISTIC_OPTIONAL_OMISSION"}]}
+    entries = [{"key": key, "retained_floor": floor}
+               for key, floor in sorted(value["retained_floor_proposal"].items())]
+    value["retained_floor_commitment_sha256"] = adapter._set_commitment("scout/epoch-v2/retained-floor-plan/v1", entries)
+    value["omission_commitment_sha256"] = adapter._set_commitment("scout/epoch-v2/omitted-history-plan/v1", value["omitted"])
+    return value
+
+
+@pytest.mark.parametrize("field", ("retained_floor_commitment_sha256", "omission_commitment_sha256"))
+def test_advisory_commitments_are_validated_but_remain_non_authoritative(field):
+    value = _advisory()
+    assert adapter.validate_advisory_integrity(value)
+    value[field] = "0" * 64
+    with pytest.raises(adapter.ActiveSetError) as caught:
+        adapter.validate_advisory_integrity(value)
+    assert caught.value.code == "ACTIVE_SET_ADVISORY"
+
+
 def test_build_plan_rejects_archive_manifest_substitution_before_selection(tmp_path, monkeypatch):
     projection = (tmp_path / "projection.sqlite").resolve(); projection.touch()
     source = (tmp_path / "source.sqlite").resolve(); source.write_bytes(b"member")

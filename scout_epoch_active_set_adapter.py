@@ -16,6 +16,7 @@ from pathlib import Path
 from scout_epoch_archive import ArchiveError, recovery_bytes, validate as validate_archive
 from scout_epoch_planner import HARD_MAX, PlanError, plan
 from scout_epoch_source_evidence import SourceEvidenceError, validate as validate_source
+from scout_epoch_v2 import compact_retained_floor
 
 
 HEADROOM = 5904
@@ -163,6 +164,57 @@ def _records(projection_path, source_evidence_path, recovery, expected_count):
         source.close()
 
 
+def _compact_summaries(projection_path, result, selected, omitted):
+    """Derive wire commitments from canonical evidence, never advisory hashes."""
+    def ordered(rows):
+        rows = sorted(rows, key=lambda row: json.dumps(row, sort_keys=True, separators=(",", ":"),
+                                                        ensure_ascii=True).encode("ascii"))
+        if len({json.dumps(row, sort_keys=True, separators=(",", ":"), ensure_ascii=True) for row in rows}) != len(rows):
+            _fail("ACTIVE_SET_COMMITMENT", "compact evidence is duplicate")
+        return rows
+    mandatory = result["mandatory_reasons"]
+    sets = {
+        "mandatory_proof_closure": ordered([row for row in selected if row["projection_row_id"] in mandatory]),
+        "permanent_pinned_evidence": ordered([row for row in selected
+                                                if "permanent_or_pinned" in mandatory.get(row["projection_row_id"], [])]),
+        "omitted_history": ordered(omitted),
+    }
+    conn = _ro(projection_path)
+    try:
+        sets["durable_qualification_history"] = ordered([
+            {"qualification_id": row["qualification_id"], "record_json": json.loads(row["record_json"])}
+            for row in conn.execute("SELECT qualification_id,record_json FROM durable_qualifications ORDER BY qualification_id")])
+        sets["coverage_witnesses"] = ordered([dict(row) for row in conn.execute(
+            "SELECT * FROM coverage_history ORDER BY room,generation")])
+    finally:
+        conn.close()
+    entries = []
+    for key, floor in sorted(result["retained_floor_proposal"].items()):
+        room, generation, domain = key.split("|")
+        entries.append({"room": room, "generation": generation, "domain": domain,
+                        "retained_floor": floor, "omitted_ranges": []})
+    return compact_retained_floor(entries, POLICY_VERSION, sets)
+
+
+def validate_advisory_integrity(value):
+    """Validate retained advisory encodings without promoting them to wire truth."""
+    required = {"retained_floor_proposal", "omitted",
+                "retained_floor_commitment_sha256", "omission_commitment_sha256"}
+    if not isinstance(value, dict) or not required <= set(value):
+        _fail("ACTIVE_SET_ADVISORY", "legacy advisory inputs are incomplete")
+    floors = value["retained_floor_proposal"]
+    omissions = value["omitted"]
+    if not isinstance(floors, dict) or not isinstance(omissions, list):
+        _fail("ACTIVE_SET_ADVISORY", "legacy advisory inputs are malformed")
+    entries = [{"key": key, "retained_floor": floor} for key, floor in sorted(floors.items())]
+    expected_floor = _set_commitment("scout/epoch-v2/retained-floor-plan/v1", entries)
+    expected_omission = _set_commitment("scout/epoch-v2/omitted-history-plan/v1", omissions)
+    if (value["retained_floor_commitment_sha256"] != expected_floor or
+            value["omission_commitment_sha256"] != expected_omission):
+        _fail("ACTIVE_SET_ADVISORY", "legacy advisory commitment differs")
+    return True
+
+
 def build_plan(projection_path, source_evidence_path, archive_root, authorized_descriptor,
                observed_descriptor, archive_context, archive_descriptor,
                expected_manifest_sha256, expected_eligible_count=49808):
@@ -204,13 +256,18 @@ def build_plan(projection_path, source_evidence_path, archive_root, authorized_d
     def redacted(ids):
         return [{"projection_row_id": key, "raw_record_id": key[4:], "raw_text_sha256": index[key]["content_sha256"],
                  "scout_event_id": str(index[key]["source_position"])} for key in ids]
+    selected = [{**row, "reasons": sorted(set(result["mandatory_reasons"].get(
+        row["projection_row_id"], ["optional_selection"]))) }
+        for row in redacted(result["selected_record_ids"])]
     omissions = [{**entry, "archive_manifest_sha256": expected_manifest_sha256,
                   "reason_class": "DETERMINISTIC_OPTIONAL_OMISSION"} for entry in redacted(result["omitted_record_ids"])]
-    floors = {"entries": [{"key": key, "retained_floor": value} for key, value in sorted(result["retained_floor_proposal"].items())],
-              "selection_policy_version": POLICY_VERSION}
+    compact_omissions = [{key: row[key] for key in ("projection_row_id", "raw_record_id", "raw_text_sha256", "scout_event_id")}
+                         | {"reasons": ["deterministic_optional_omission"]} for row in omissions]
+    compact = _compact_summaries(projection_path, result, selected, compact_omissions)
     result.update({"eligible_count": len(records), "selected": redacted(result["selected_record_ids"]),
                    "omitted": omissions, "recovery_commitment": independent["recovery"]["commitment"],
                    "archive_manifest_sha256": expected_manifest_sha256,
-                   "retained_floor_commitment_sha256": _set_commitment("scout/epoch-v2/retained-floor-plan/v1", floors["entries"]),
-                   "omission_commitment_sha256": _set_commitment("scout/epoch-v2/omitted-history-plan/v1", omissions)})
+                   "retained_floor_commitment_sha256": compact["retained_floor_commitment_sha256"],
+                   "omission_commitment_sha256": compact["omitted_history_sha256"],
+                   "compact_retained_floor": compact})
     return result

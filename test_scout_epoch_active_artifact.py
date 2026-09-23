@@ -72,6 +72,8 @@ def test_output_and_plan_paths_fail_closed(tmp_path):
 
 def test_logical_plan_comparison_rejects_archive_or_recovery_substitution():
     base = {key: key for key in artifact._PLAN_CORE}
+    base.pop("retained_floor_commitment_sha256")
+    base.pop("omission_commitment_sha256")
     assert artifact._same_plan(base, dict(base))
     changed = dict(base); changed["archive_manifest_sha256"] = "different"
     assert not artifact._same_plan(base, changed)

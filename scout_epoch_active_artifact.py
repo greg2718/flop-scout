@@ -14,7 +14,7 @@ import stat
 import uuid
 from pathlib import Path
 
-from scout_epoch_active_set_adapter import ActiveSetError, build_plan
+from scout_epoch_active_set_adapter import ActiveSetError, build_plan, validate_advisory_integrity
 from scout_epoch_active_set_plan import ActiveSetPlanError, read as read_active_set_plan
 from scout_projection_contract import REVISIONS, digest, instant, policy_for, sql_for
 from scout_projection_publish import validate_database
@@ -81,7 +81,10 @@ def _strict_plan(path):
 
 
 def _same_plan(approved, derived):
-    return all(approved.get(key) == derived.get(key) for key in _PLAN_CORE)
+    advisory = {"retained_floor_commitment_sha256", "omission_commitment_sha256"}
+    if advisory & set(approved):
+        validate_advisory_integrity(approved)
+    return all(approved.get(key) == derived.get(key) for key in _PLAN_CORE - advisory)
 
 
 def _same_sidecar(sidecar, derived):
