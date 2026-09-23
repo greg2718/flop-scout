@@ -644,3 +644,167 @@ def validate_transition(value, accepted_anchor, accepted_epoch_number=0, first_t
     complete = _without(value, "commitments"); complete["commitments"] = _without(value["commitments"], "transition_sha256")
     if value["commitments"]["transition_sha256"] != commitment("complete-transition", complete): _fail("EPOCH_TRANSITION_HASH", "transition commitment mismatch")
     return {"epoch_id": value["epoch_id"], "epoch_number": epoch, "source_cut": value["source_cut"]["committed_event_id"], "active_target": target}
+
+
+# Fresh-cut/continuation model.  This is deliberately additive: the historical
+# A1 bridge validator above remains byte-for-byte and behaviorally unchanged.
+FRESH_SNAPSHOT = ("schema", "locator", "sha256", "size_bytes", "sqlite_schema_sha256", "semantic_checkpoint_sha256")
+FRESH_FIRST_PAYLOAD = ("schema", "publication_id", "content_id", "source_id", "source_epoch", "source_cut", "created_at", "selection_policy_sha256", "archive", "plan", "active_artifact", "retained_floor", "accepted_anchor", "bridge_predecessor", "bridge_binding_sha256", "fresh_cut_authority", "epoch_id")
+SUCCESSOR_PAYLOAD = ("schema", "publication_id", "content_id", "source_id", "source_epoch", "source_cut", "created_at", "selection_policy_sha256", "archive", "plan", "active_artifact", "retained_floor", "predecessor", "epoch_id")
+FRESH_AUTHORITY = ("schema", "source_id", "epoch", "committed_event_id", "snapshot", "snapshot_checkpoint_sha256", "bridge_binding_sha256", "authority_sha256")
+FRESH_FIRST = ("schema", "payload", "transition_sha256")
+SUCCESSOR = ("schema", "payload", "transition_sha256")
+PREDECESSOR = ("schema", "publication_id", "content_id", "epoch_id", "manifest_sha256", "transition_sha256", "artifact_sha256", "artifact_size", "source_id", "source_epoch", "source_cut", "selection_policy_sha256", "archive_commitment_sha256", "retained_floor_commitment_sha256")
+
+
+def fresh_cut_authority_commitment(value):
+    fields=tuple(item for item in FRESH_AUTHORITY if item != "authority_sha256")
+    _obj(value, fields if "authority_sha256" not in value else FRESH_AUTHORITY, "EPOCH_FRESH_AUTHORITY_FIELDS")
+    body=dict(value); body.pop("authority_sha256", None)
+    return commitment("fresh-cut-authority", body)
+
+
+def fresh_first_payload_identity(value):
+    _obj(value, FRESH_FIRST_PAYLOAD, "EPOCH_FRESH_PAYLOAD_FIELDS")
+    return commitment("fresh-first-payload", {k:v for k,v in value.items() if k != "epoch_id"})
+
+
+def successor_payload_identity(value):
+    _obj(value, SUCCESSOR_PAYLOAD, "EPOCH_SUCCESSOR_PAYLOAD_FIELDS")
+    return commitment("content-successor-payload", {k:v for k,v in value.items() if k != "epoch_id"})
+
+
+def validate_active_artifact_bytes(descriptor, data):
+    _active_artifact(descriptor)
+    if type(data) is not bytes or len(data) != descriptor["size_bytes"] or hashlib.sha256(data).hexdigest() != descriptor["artifact_sha256"]: _fail("EPOCH_ARTIFACT_BYTES", "artifact transport differs")
+    return descriptor
+
+
+def validate_plan_descriptor_bytes(descriptor, data):
+    _active_set_plan(descriptor)
+    if type(data) is not bytes or len(data) != descriptor["size_bytes"] or hashlib.sha256(data).hexdigest() != descriptor["sha256"]: _fail("EPOCH_PLAN_BYTES", "plan transport differs")
+    plan=parse_active_set_plan(data)
+    if plan["plan_commitment_sha256"] != descriptor["plan_commitment_sha256"] or active_set_plan_commitment(_without(plan,"plan_commitment_sha256")) != descriptor["plan_commitment_sha256"]: _fail("EPOCH_PLAN_COMMITMENT", "plan logical commitment differs")
+    return plan
+
+
+def validate_archive_descriptor_bytes(descriptor, data):
+    _archive(descriptor)
+    if type(data) is not bytes or len(data) != descriptor["size_bytes"] or hashlib.sha256(data).hexdigest() != descriptor["artifact_sha256"]: _fail("EPOCH_ARCHIVE_BYTES", "archive transport differs")
+    if descriptor["archive_commitment_sha256"] != commitment("archive-descriptor", _without(descriptor,"archive_commitment_sha256")): _fail("EPOCH_ARCHIVE_HASH", "archive commitment differs")
+    return descriptor
+
+
+def validate_successor_predecessor(value):
+    _obj(value, PREDECESSOR, "EPOCH_SUCCESSOR_PREDECESSOR")
+    if value["schema"] != "flop-scout-epoch-accepted-predecessor/v1": _fail("EPOCH_SUCCESSOR_PREDECESSOR", "unsupported predecessor")
+    for key in ("publication_id","content_id","artifact_size","source_cut"): _integer(value[key], "EPOCH_SUCCESSOR_PREDECESSOR", 1)
+    for key in ("manifest_sha256","transition_sha256","artifact_sha256","selection_policy_sha256","archive_commitment_sha256","retained_floor_commitment_sha256"): _hash(value[key], "EPOCH_SUCCESSOR_PREDECESSOR")
+    _id(value["epoch_id"], "EPOCH_SUCCESSOR_PREDECESSOR"); _id(value["source_id"], "EPOCH_SUCCESSOR_PREDECESSOR"); _id(value["source_epoch"], "EPOCH_SUCCESSOR_PREDECESSOR")
+    return value
+
+
+def validate_fresh_first_payload(value):
+    _obj(value, FRESH_FIRST_PAYLOAD, "EPOCH_FRESH_PAYLOAD_FIELDS")
+    if value["schema"] != "flop-scout-epoch-fresh-first-payload/v1": _fail("EPOCH_FRESH_PAYLOAD_SCHEMA", "unsupported fresh payload")
+    for key in ("publication_id","content_id","source_cut"): _integer(value[key], "EPOCH_FRESH_PAYLOAD", 1)
+    _id(value["source_id"], "EPOCH_FRESH_PAYLOAD"); _id(value["source_epoch"], "EPOCH_FRESH_PAYLOAD"); _hash(value["selection_policy_sha256"], "EPOCH_FRESH_PAYLOAD")
+    _descriptor(value["accepted_anchor"]); _descriptor(value["bridge_predecessor"]); _hash(value["bridge_binding_sha256"]); _active_artifact(value["active_artifact"]); _active_set_plan(value["plan"]); _archive(value["archive"]); _floors(value["retained_floor"])
+    validate_fresh_cut_authority(value["fresh_cut_authority"], value["bridge_predecessor"], value["bridge_binding_sha256"])
+    if value["source_cut"] != value["fresh_cut_authority"]["committed_event_id"]: _fail("EPOCH_FRESH_CUT", "payload cut differs")
+    expected="se2:"+fresh_first_payload_identity(value)
+    if value["epoch_id"] != expected: _fail("EPOCH_FRESH_EPOCH", "payload epoch differs")
+    return value
+
+
+def validate_successor_payload(value, predecessor):
+    _obj(value, SUCCESSOR_PAYLOAD, "EPOCH_SUCCESSOR_PAYLOAD_FIELDS")
+    if value["schema"] != "flop-scout-epoch-content-successor-payload/v1": _fail("EPOCH_SUCCESSOR_PAYLOAD_SCHEMA", "unsupported successor payload")
+    for key in ("publication_id","content_id","source_cut"): _integer(value[key], "EPOCH_SUCCESSOR_PAYLOAD", 1)
+    if value["predecessor"] != predecessor: _fail("EPOCH_SUCCESSOR_GAP", "predecessor differs")
+    if value["epoch_id"] != predecessor["epoch_id"]: _fail("EPOCH_SUCCESSOR_EPOCH", "epoch differs")
+    if value["publication_id"] <= predecessor["publication_id"] or value["content_id"] <= predecessor["content_id"] or value["source_cut"] <= predecessor["source_cut"]: _fail("EPOCH_SUCCESSOR_ROLLBACK", "successor did not advance")
+    for key in ("source_id", "source_epoch", "selection_policy_sha256"):
+        if value[key] != predecessor[key]:
+            _fail("EPOCH_SUCCESSOR_CONTINUITY", "protected identity differs")
+    if (value["archive"]["archive_commitment_sha256"] !=
+            predecessor["archive_commitment_sha256"]):
+        _fail("EPOCH_SUCCESSOR_CONTINUITY", "archive identity differs")
+    if (value["retained_floor"]["retained_floor_commitment_sha256"] !=
+            predecessor["retained_floor_commitment_sha256"]):
+        _fail("EPOCH_SUCCESSOR_CONTINUITY", "retained-floor identity differs")
+    _active_artifact(value["active_artifact"]); _active_set_plan(value["plan"])
+    return value
+
+
+def validate_fresh_cut_authority(value, bridge_predecessor, bridge_binding_sha256):
+    _obj(value, FRESH_AUTHORITY, "EPOCH_FRESH_AUTHORITY_FIELDS")
+    if value["schema"] != "flop-scout-epoch-fresh-cut-authority/v1": _fail("EPOCH_FRESH_AUTHORITY_SCHEMA", "unsupported fresh authority")
+    _id(value["source_id"], "EPOCH_FRESH_AUTHORITY"); _id(value["epoch"], "EPOCH_FRESH_AUTHORITY")
+    _integer(value["committed_event_id"], "EPOCH_FRESH_AUTHORITY", 1)
+    _obj(value["snapshot"], FRESH_SNAPSHOT, "EPOCH_FRESH_SNAPSHOT_FIELDS")
+    snapshot=value["snapshot"]
+    if snapshot["schema"] != "flop-scout-epoch-source-snapshot/v1": _fail("EPOCH_FRESH_SNAPSHOT_SCHEMA", "unsupported source snapshot")
+    _locator(snapshot["locator"], "EPOCH_FRESH_SNAPSHOT"); _hash(snapshot["sha256"], "EPOCH_FRESH_SNAPSHOT")
+    _integer(snapshot["size_bytes"], "EPOCH_FRESH_SNAPSHOT", 1, MAX_INPUT_BYTES)
+    _hash(snapshot["sqlite_schema_sha256"], "EPOCH_FRESH_SNAPSHOT"); _hash(snapshot["semantic_checkpoint_sha256"], "EPOCH_FRESH_SNAPSHOT")
+    _hash(value["snapshot_checkpoint_sha256"], "EPOCH_FRESH_AUTHORITY"); _hash(value["bridge_binding_sha256"], "EPOCH_FRESH_AUTHORITY"); _hash(value["authority_sha256"], "EPOCH_FRESH_AUTHORITY")
+    if value["snapshot_checkpoint_sha256"] != snapshot["semantic_checkpoint_sha256"]: _fail("EPOCH_FRESH_CHECKPOINT", "snapshot checkpoint differs")
+    if value["bridge_binding_sha256"] != bridge_binding_sha256: _fail("EPOCH_FRESH_BRIDGE", "bridge binding differs")
+    if (value["source_id"],value["epoch"]) != (bridge_predecessor["source_id"],bridge_predecessor["source_kind"]): _fail("EPOCH_FRESH_SOURCE", "fresh source identity differs")
+    if value["committed_event_id"] <= bridge_predecessor["source_cut"]: _fail("EPOCH_FRESH_CUT", "fresh cut must exceed bridge cut")
+    if value["authority_sha256"] != fresh_cut_authority_commitment(value): _fail("EPOCH_FRESH_AUTHORITY", "fresh authority commitment differs")
+    return value
+
+
+def validate_fresh_first_transition(value, accepted_anchor, now=None, max_age=3600):
+    _obj(value, FRESH_FIRST, "EPOCH_FRESH_FIRST_FIELDS")
+    if value["schema"] != "flop-scout-epoch-fresh-first-transition/v1": _fail("EPOCH_FRESH_FIRST_SCHEMA", "unsupported fresh first transition")
+    payload=validate_fresh_first_payload(value["payload"])
+    if payload["accepted_anchor"] != accepted_anchor: _fail("EPOCH_FRESH_PREDECESSOR", "accepted anchor differs")
+    if value["transition_sha256"] != commitment("fresh-first-transition", payload): _fail("EPOCH_FRESH_TRANSITION", "fresh transition commitment differs")
+    return payload
+
+
+def validate_content_successor(value, accepted_transition):
+    _obj(value, SUCCESSOR, "EPOCH_SUCCESSOR_FIELDS")
+    if value["schema"] != "flop-scout-epoch-content-successor/v1": _fail("EPOCH_SUCCESSOR_SCHEMA", "unsupported successor")
+    predecessor=validate_successor_predecessor(accepted_transition)
+    payload=validate_successor_payload(value["payload"], predecessor)
+    if value["transition_sha256"] != commitment("content-successor-transition", payload): _fail("EPOCH_SUCCESSOR_TRANSITION", "successor transition commitment differs")
+    return payload
+
+
+def build_fresh_first_transition(*, publication_id, content_id, source_id, source_epoch, source_cut,
+                                 created_at, selection_policy_sha256, snapshot, snapshot_bytes,
+                                 archive, archive_bytes, plan, plan_bytes, active_artifact,
+                                 active_artifact_bytes, retained_floor, accepted_anchor,
+                                 bridge_predecessor):
+    """Build the minimal dedicated fresh-root; all commitments are owned here."""
+    _integer(publication_id,"EPOCH_FRESH_PAYLOAD",1); _integer(content_id,"EPOCH_FRESH_PAYLOAD",1); _integer(source_cut,"EPOCH_FRESH_PAYLOAD",1)
+    _id(source_id,"EPOCH_FRESH_PAYLOAD"); _id(source_epoch,"EPOCH_FRESH_PAYLOAD"); _hash(selection_policy_sha256,"EPOCH_FRESH_PAYLOAD")
+    validate_archive_descriptor_bytes(archive, archive_bytes); validate_plan_descriptor_bytes(plan, plan_bytes); validate_active_artifact_bytes(active_artifact, active_artifact_bytes)
+    _floors(retained_floor); _descriptor(accepted_anchor); _descriptor(bridge_predecessor)
+    binding=commitment("a1-bridge-binding", {"accepted_anchor":accepted_anchor,"bridge_predecessor":bridge_predecessor})
+    authority={"schema":"flop-scout-epoch-fresh-cut-authority/v1","source_id":source_id,"epoch":source_epoch,"committed_event_id":source_cut,"snapshot":snapshot,"snapshot_checkpoint_sha256":snapshot["semantic_checkpoint_sha256"],"bridge_binding_sha256":binding}
+    authority["authority_sha256"]=fresh_cut_authority_commitment(authority)
+    validate_fresh_cut_authority(authority,bridge_predecessor,binding)
+    payload={"schema":"flop-scout-epoch-fresh-first-payload/v1","publication_id":publication_id,"content_id":content_id,"source_id":source_id,"source_epoch":source_epoch,"source_cut":source_cut,"created_at":created_at,"selection_policy_sha256":selection_policy_sha256,"archive":archive,"plan":plan,"active_artifact":active_artifact,"retained_floor":retained_floor,"accepted_anchor":accepted_anchor,"bridge_predecessor":bridge_predecessor,"bridge_binding_sha256":binding,"fresh_cut_authority":authority,"epoch_id":"se2:pending"}
+    payload["epoch_id"]="se2:"+fresh_first_payload_identity(payload)
+    root={"schema":"flop-scout-epoch-fresh-first-transition/v1","payload":payload}
+    root["transition_sha256"]=commitment("fresh-first-transition",payload)
+    validate_fresh_first_transition(root,accepted_anchor)
+    return root
+
+
+def build_content_successor(*, predecessor, publication_id, content_id, source_cut, created_at,
+                            plan, plan_bytes, active_artifact, active_artifact_bytes,
+                            archive, archive_bytes, retained_floor):
+    """Build a same-epoch CONTENT successor from its accepted closed identity."""
+    predecessor=validate_successor_predecessor(predecessor)
+    validate_archive_descriptor_bytes(archive,archive_bytes); validate_plan_descriptor_bytes(plan,plan_bytes); validate_active_artifact_bytes(active_artifact,active_artifact_bytes); _floors(retained_floor)
+    payload={"schema":"flop-scout-epoch-content-successor-payload/v1","publication_id":publication_id,"content_id":content_id,"source_id":predecessor["source_id"],"source_epoch":predecessor["source_epoch"],"source_cut":source_cut,"created_at":created_at,"selection_policy_sha256":predecessor["selection_policy_sha256"],"archive":archive,"plan":plan,"active_artifact":active_artifact,"retained_floor":retained_floor,"predecessor":predecessor,"epoch_id":predecessor["epoch_id"]}
+    root={"schema":"flop-scout-epoch-content-successor/v1","payload":payload}
+    root["transition_sha256"]=commitment("content-successor-transition",payload)
+    validate_content_successor(root,predecessor)
+    return root

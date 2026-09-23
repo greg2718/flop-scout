@@ -546,3 +546,48 @@ def test_cumulative_bridge_is_derived_from_complete_descriptor_inequality():
     value["epoch_id"] = e.derive_epoch_id(value)
     value["commitments"]["transition_sha256"] = e.commitment("complete-transition", {**{k:v for k,v in value.items() if k != "commitments"}, "commitments": {k:v for k,v in value["commitments"].items() if k != "transition_sha256"}})
     assert e.validate_transition(value, value["accepted_anchor"], 0, True)["epoch_number"] == 1
+
+
+def _fresh_authority(transition, cut=8):
+    snapshot={"schema":"flop-scout-epoch-source-snapshot/v1","locator":"snapshots/cut.sqlite",
+              "sha256":h("a"),"size_bytes":1,"sqlite_schema_sha256":h("b"),"semantic_checkpoint_sha256":h("c")}
+    value={"schema":"flop-scout-epoch-fresh-cut-authority/v1","source_id":transition["bridge_predecessor"]["source_id"],
+           "epoch":transition["bridge_predecessor"]["source_kind"],"committed_event_id":cut,"snapshot":snapshot,
+           "snapshot_checkpoint_sha256":snapshot["semantic_checkpoint_sha256"],"bridge_binding_sha256":transition["bridge_binding_sha256"]}
+    value["authority_sha256"]=e.fresh_cut_authority_commitment(value)
+    return value
+
+
+def _fresh_transition():
+    value=make_transition(); value["source_cut"]=dict(value["source_cut"],committed_event_id=8)
+    value["epoch_id"]=e.derive_epoch_id(value)
+    value["commitments"]["transition_sha256"]=e.commitment("complete-transition",{**{k:v for k,v in value.items() if k!="commitments"},"commitments":{k:v for k,v in value["commitments"].items() if k!="transition_sha256"}})
+    return value
+
+
+def test_fresh_authority_is_closed_bound_and_requires_strict_bridge_advance():
+    transition=_fresh_transition(); authority=_fresh_authority(transition)
+    assert e.validate_fresh_cut_authority(authority,transition["bridge_predecessor"],transition["bridge_binding_sha256"])==authority
+    bad=copy.deepcopy(authority);bad["committed_event_id"]=7
+    assert code(lambda:e.validate_fresh_cut_authority(bad,transition["bridge_predecessor"],transition["bridge_binding_sha256"]))=="EPOCH_FRESH_CUT"
+    bad=copy.deepcopy(authority);bad["snapshot"]["size_bytes"]=2
+    assert code(lambda:e.validate_fresh_cut_authority(bad,transition["bridge_predecessor"],transition["bridge_binding_sha256"]))=="EPOCH_FRESH_AUTHORITY"
+
+
+def test_fresh_root_and_successor_dispatch_are_distinct():
+    fresh=_fresh_transition(); wrapper={"schema":"flop-scout-epoch-fresh-first-transition/v1","accepted_anchor":fresh["accepted_anchor"],"bridge_predecessor":fresh["bridge_predecessor"],"bridge_binding_sha256":fresh["bridge_binding_sha256"],"transition":fresh,"fresh_cut_authority":_fresh_authority(fresh)}
+    wrapper["transition_sha256"]=e.commitment("fresh-first-transition",wrapper)
+    # Legacy-shaped embedded transitions are deliberately not fresh-root wire payloads.
+    assert code(lambda:e.validate_fresh_first_transition(wrapper,fresh["accepted_anchor"]))=="EPOCH_FRESH_FIRST_FIELDS"
+    successor=copy.deepcopy(fresh);successor["active_artifact"]["content_id"]=802;successor["source_cut"]["committed_event_id"]=9
+    wrapper2={"schema":"flop-scout-epoch-content-successor/v1","predecessor":{"epoch_id":fresh["epoch_id"],"publication_sequence":801,"content_id":801,"transition_sha256":fresh["commitments"]["transition_sha256"]},"transition":successor}
+    wrapper2["transition_sha256"]=e.commitment("content-successor-transition",wrapper2)
+    assert code(lambda:e.validate_content_successor(wrapper2,fresh))=="EPOCH_SUCCESSOR_FIELDS"
+
+
+def test_dedicated_fresh_payload_schemas_are_closed_and_domain_separated():
+    assert "transition" not in e.FRESH_FIRST_PAYLOAD
+    assert "accepted_anchor" not in e.SUCCESSOR_PAYLOAD
+    with pytest.raises(e.V2ValidationError) as caught:
+        e.fresh_first_payload_identity({"schema":"flop-scout-epoch-fresh-first-payload/v1"})
+    assert caught.value.code == "EPOCH_FRESH_PAYLOAD_FIELDS"
