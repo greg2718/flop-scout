@@ -104,6 +104,15 @@ hash, size, schema, SQLite integrity, provenance, qualification, membership,
 fanout, workflow, freshness, and pointer checks before these new fields are
 considered.
 
+For `A1-EPOCH-V2`, `selection_policy` is exactly the complete retained A1
+`flop-router-projection-selection/v1` object, never a revision shorthand.
+`selection_policy_sha256` is the existing A1 canonical-policy SHA-256 and must
+equal the active artifact's `snapshot_meta.selection_policy_sha256`.  Strings,
+partial or extended objects, and either hash mismatch reject.  The policy is
+not in the plan, artifact identity, epoch-ID, transition, or archive
+commitment domains; therefore correcting this manifest binding regenerates
+only the manifest and pointer suffix.
+
 ## 4. Exact predecessor binding
 
 ### 4.0 First legacy transition source authority

@@ -7,11 +7,19 @@ import pytest
 
 import scout_epoch_v2 as e
 from scout_legacy_a1_recovery import validate_descriptor as validate_recovery_descriptor
+from scout_projection_contract import digest, policy_for
+from scout_selection_policy import selection_policy_sha256
 
 
 FIXTURE = Path(__file__).parent / "docs/fixtures/scout-router-epoch-rollover-v2-conformance.json"
 BUNDLE_FIXTURE = Path(__file__).parent / "docs/fixtures/scout-epoch-v2-publication-bundle-v1.json"
 BUNDLE_FIXTURE_SHA256 = "d3dca144bacaad1f47a1b0ad5a7ee4ec2c35eaa60c946bcc282d5b5b607bb8a4"
+COMPACT_BUNDLE_FIXTURE = Path(__file__).parent / "docs/fixtures/scout-epoch-v2-publication-bundle-compact-v3.json"
+COMPACT_BUNDLE_FIXTURE_SHA256 = "c7cee620934589e1a41bb26bbb0cb1af80a49811d99290d048618c21186ba735"
+CORRECTED_PLAN_SHA256 = "e308d602c7c3a7240453dfdbf23bd255ed766ed5e6f0176afcb51e507973a108"
+CORRECTED_PLAN_COMMITMENT_SHA256 = "c2c3d6ddbcae2649022231014dcfff896662b3e4a78ffb6119a291bb5c68371e"
+STALE_PLAN_SHA256 = "ed3ce95eca784d8a0f2b28bd5706d990bc613ef2047843871ba66b1773f4832f"
+STALE_PLAN_COMMITMENT_SHA256 = "92cb7a42ffb1d3f3707cefcc785da51c618856ff4cd1254a24d15681a377113f"
 
 
 def h(char):
@@ -136,6 +144,37 @@ def test_documented_conformance_vectors_are_available():
 
 def test_frozen_publication_bundle_fixture_hash_is_stable():
     assert hashlib.sha256(BUNDLE_FIXTURE.read_bytes()).hexdigest() == BUNDLE_FIXTURE_SHA256
+
+
+def test_compact_publication_bundle_v3_is_path_redacted_and_uses_retained_a1_policy():
+    raw = COMPACT_BUNDLE_FIXTURE.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == COMPACT_BUNDLE_FIXTURE_SHA256
+    value = json.loads(raw.decode("ascii"))
+    assert raw.rstrip(b"\n") == e.canonical_json(value)
+    assert raw == e.canonical_json(value) + b"\n"
+    assert value["schema"] == "flop-scout-epoch-v2-publication-bundle-compact/v3"
+    candidate = value["candidate"]
+    assert candidate["plan_sha256"] == CORRECTED_PLAN_SHA256
+    assert candidate["plan_commitment_sha256"] == CORRECTED_PLAN_COMMITMENT_SHA256
+    assert candidate["plan_sha256"] != STALE_PLAN_SHA256
+    assert candidate["plan_commitment_sha256"] != STALE_PLAN_COMMITMENT_SHA256
+    assert candidate["transition_sha256"] == "33e5b8edf3424dd72961d0d40b581513840c944247ca2a84033e1a0a195fb345"
+    assert candidate["epoch_id"] == "se2:a276708ba160c5e56aa748145e79034b7d76870d85acfe96b29ece6874db185d"
+    assert candidate["selection_policy"] == policy_for("A1")
+    assert candidate["selection_policy_sha256"] == digest(policy_for("A1"))
+
+    def strings(item):
+        if isinstance(item, dict):
+            for key, child in item.items():
+                yield key
+                yield from strings(child)
+        elif isinstance(item, list):
+            for child in item:
+                yield from strings(child)
+        elif isinstance(item, str):
+            yield item
+
+    assert not any(text.startswith("/") or "/private/tmp/" in text for text in strings(value))
 
 
 def test_frozen_compact_candidate_identity_is_path_free_and_exact():
@@ -392,7 +431,7 @@ def _manifest_for(transition):
             "publication_kind": "CONTENT", "database_content_id": active["content_id"],
             "database": active["locator"], "sha256": active["artifact_sha256"],
             "size_bytes": active["size_bytes"], "database_schema_version": active["database_schema_version"],
-            "selection_policy": "epoch-v2-policy/1", "selection_policy_sha256": h("9"),
+            "selection_policy": policy_for("A1"), "selection_policy_sha256": digest(policy_for("A1")),
             "content_created_at": "2026-01-01T00:00:00Z", "selection_evaluated_at": "2026-01-01T00:00:00Z",
             "produced_at": "2026-01-01T00:00:00Z", "source_checkpoint": {}, "next_expiry_at": "2026-01-02T00:00:00Z",
             "row_counts": {}, "watermarks": {}, "coverage_history": {},
@@ -407,6 +446,29 @@ def test_v2_manifest_is_strict_content_only_and_matches_transition():
     assert code(lambda: e.validate_v2_manifest(heartbeat, transition)) == "EPOCH_PUBLICATION_KIND"
     bad = dict(manifest, database_content_id=999)
     assert code(lambda: e.validate_v2_manifest(bad, transition)) == "EPOCH_MANIFEST_BINDING"
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda value: value.update(selection_policy="A1"),
+    lambda value: value.update(selection_policy={"schema": "flop-router-projection-selection/v1"}),
+    lambda value: value["selection_policy"].update(unexpected="field"),
+    lambda value: value.update(selection_policy_sha256=h("0")),
+])
+def test_v2_manifest_requires_complete_canonical_a1_policy(mutate):
+    manifest = _manifest_for(make_transition()); mutate(manifest)
+    assert code(lambda: e.validate_v2_manifest(manifest, make_transition())) == "EPOCH_MANIFEST_POLICY"
+
+
+def test_v2_manifest_builder_binds_snapshot_policy_and_is_canonical():
+    transition = make_transition(); manifest = _manifest_for(transition)
+    assert selection_policy_sha256(policy_for("A1")) == digest(policy_for("A1"))
+    body = {key: value for key, value in manifest.items()
+            if key not in ("selection_policy", "selection_policy_sha256")}
+    built = e.build_v2_manifest(body, transition, digest(policy_for("A1")))
+    assert built == manifest
+    assert e.canonical_json(built) == e.canonical_json(e.build_v2_manifest(
+        body, transition, digest(policy_for("A1"))))
+    assert code(lambda: e.build_v2_manifest(body, transition, h("0"))) == "EPOCH_MANIFEST_POLICY"
 
 
 def test_wrong_domain_commitment_fails_validation():

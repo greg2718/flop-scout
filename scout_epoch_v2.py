@@ -6,6 +6,8 @@ import hashlib
 import json
 import re
 
+from scout_selection_policy import a1_selection_policy, selection_policy_sha256
+
 SCHEMA = "flop-scout-router-epoch-rollover/v2"
 REVISION = "A1-EPOCH-V2"
 MANIFEST_SCHEMA = "flop-scout-router-snapshot/v2"
@@ -155,6 +157,30 @@ COMMITMENTS = ("accepted_anchor_sha256", "bridge_predecessor_sha256", "bridge_bi
 TRANSITION = ("schema", "contract_revision", "epoch_number", "epoch_id", "created_at", "source_binding", "source_cut", "accepted_anchor", "bridge_predecessor", "bridge_binding_sha256", "active_artifact", "active_set_plan", "archive", "retained_floor_commitment", "active_epoch", "commitments")
 MANIFEST = ("schema", "contract_revision", "snapshot_id", "publication_kind", "database_content_id", "database", "sha256", "size_bytes", "database_schema_version", "selection_policy", "selection_policy_sha256", "content_created_at", "selection_evaluated_at", "produced_at", "source_checkpoint", "next_expiry_at", "row_counts", "watermarks", "coverage_history", "epoch_transition")
 MANIFEST_TRANSITION = ("schema", "locator", "sha256", "size_bytes", "transition_sha256")
+
+
+def a1_selection_policy_binding(snapshot_policy_sha256):
+    """Return the sole V2-eligible A1 policy after binding it to SQLite metadata.
+
+    This deliberately uses the same canonical policy hash as A1 publication.
+    The transition does not carry policy, so this binding is manifest-only.
+    """
+    _hash(snapshot_policy_sha256, "EPOCH_MANIFEST_POLICY")
+    policy = a1_selection_policy()
+    digest = selection_policy_sha256(policy)
+    if snapshot_policy_sha256 != digest:
+        _fail("EPOCH_MANIFEST_POLICY", "artifact selection policy differs from retained A1 policy")
+    return policy, digest
+
+
+def build_v2_manifest(value, transition, snapshot_policy_sha256):
+    """Add the canonical retained A1 policy to a closed V2 manifest body."""
+    fields = tuple(field for field in MANIFEST
+                   if field not in ("selection_policy", "selection_policy_sha256"))
+    _obj(value, fields, "EPOCH_MANIFEST_FIELDS")
+    policy, digest = a1_selection_policy_binding(snapshot_policy_sha256)
+    built = dict(value, selection_policy=policy, selection_policy_sha256=digest)
+    return validate_v2_manifest(built, transition)
 
 
 def _cut(value):
@@ -525,6 +551,11 @@ def validate_v2_manifest(value, transition):
     _integer(value["snapshot_id"], "EPOCH_MANIFEST"); _integer(value["database_content_id"], "EPOCH_MANIFEST", 1)
     _locator(value["database"], "EPOCH_MANIFEST"); _hash(value["sha256"], "EPOCH_MANIFEST"); _integer(value["size_bytes"], "EPOCH_MANIFEST", 1)
     if value["database_schema_version"] != "scout-router-projection/v2": _fail("EPOCH_MANIFEST", "unsupported database schema")
+    policy, digest = a1_selection_policy_binding(value["selection_policy_sha256"])
+    if value["selection_policy"] != policy:
+        _fail("EPOCH_MANIFEST_POLICY", "manifest selection policy is not the complete retained A1 policy")
+    if value["selection_policy_sha256"] != digest:
+        _fail("EPOCH_MANIFEST_POLICY", "manifest selection policy hash differs from retained A1 policy")
     sidecar = value["epoch_transition"]; _obj(sidecar, MANIFEST_TRANSITION, "EPOCH_MANIFEST_TRANSITION")
     if sidecar["schema"] != SCHEMA: _fail("EPOCH_MANIFEST_TRANSITION", "unsupported transition schema")
     _locator(sidecar["locator"], "EPOCH_MANIFEST_TRANSITION"); _hash(sidecar["sha256"], "EPOCH_MANIFEST_TRANSITION")

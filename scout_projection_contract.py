@@ -8,16 +8,9 @@ import sqlite3
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-POLICY = {
-    'schema': 'flop-router-projection-selection/v1',
-    'version': 'router-evidence-horizons/2',
-    'classifier_version': 'router-evidence-classes/2',
-    'qualification_policy_version': 'router-durable-qualification/v1',
-    'parameters': {'context_seconds': 2592000, 'capability_signal_seconds': 7776000,
-                   'closed_work_seconds': 7776000, 'closed_tclk_seconds': 7776000},
-    'cutoff_semantics': 'trusted-first-observed-strict-before-expiry/v1',
-    'pinned_record_rules': 'transitive-local-evidence-dependencies-no-implicit-unpin/v1',
-}
+from scout_selection_policy import a1_selection_policy
+
+POLICY = a1_selection_policy()
 SCHEMA = 'scout-router-projection/v2'
 FAMILY = 'local-flop-agent-family'
 TABLES = ('messages', 'interactions', 'source_provenance', 'selection_membership',
